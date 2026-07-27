@@ -1,0 +1,6 @@
+{
+  "name": "NovaBank",
+  "description": "Plateforme bancaire en ligne moderne et espace administrateur avec virements multi-devises dynamiques et suivi de conformité.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

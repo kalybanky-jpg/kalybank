@@ -56,6 +56,7 @@ export default function UserSettingsView() {
           display_name: displayName.trim(),
           phone: phone.trim() || null,
           preferred_currency: currency,
+          preferred_language: language,
         })
         .eq('user_id', user.id);
       if (updateError) throw updateError;
@@ -93,7 +94,19 @@ export default function UserSettingsView() {
           </label>
           <label className="text-xs font-bold text-slate-700">
             Langue d&apos;interface
-            <select value={language} onChange={(event) => setLanguage(event.target.value as Language)} className="mt-1.5 w-full p-3 border rounded-xl">
+            <select
+              value={language}
+              onChange={(event) => {
+                void setLanguage(event.target.value as Language).catch((caughtError) => {
+                  setError(
+                    caughtError instanceof Error
+                      ? caughtError.message
+                      : 'Mise à jour de la langue impossible.',
+                  );
+                });
+              }}
+              className="mt-1.5 w-full p-3 border rounded-xl"
+            >
               <option value="fr">Français</option>
               <option value="en">English</option>
               <option value="de">Deutsch</option>

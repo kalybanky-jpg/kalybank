@@ -5,6 +5,7 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from 'react';
 import type {
@@ -34,12 +35,20 @@ import { isPublicSupabaseConfigured } from './supabase/config';
 import { deleteEvidence, uploadEvidence } from './evidence';
 import { authFailureRedirect } from './security/navigation';
 import { dispatchTransactionalEmails } from './transactional-email-client';
+import {
+  LANGUAGE_COOKIE,
+  LANGUAGE_SOURCE_COOKIE,
+  type LanguageSource,
+  isSupportedLanguage,
+  resolveSupportedLanguage,
+  shouldPersistLanguageCookie,
+} from './language';
 
 type ReviewState = 'termine' | 'en_cours' | 'en_attente';
 
 interface AppState {
   language: Language;
-  setLanguage: (language: Language) => void;
+  setLanguage: (language: Language) => Promise<void>;
   role: UserRole;
   activeTab: string;
   setActiveTab: (tab: string) => void;
@@ -240,8 +249,59 @@ function mapKycStatus(status: KycRow['status']): KYCApplication['status'] {
 
 const AppContext = createContext<AppState | undefined>(undefined);
 
-export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [language, setLanguage] = useState<Language>('fr');
+function writeLanguageCookies(language: Language, source: LanguageSource) {
+  const cookieOptions = `Path=/; Max-Age=31536000; SameSite=Lax${
+    window.location.protocol === 'https:' ? '; Secure' : ''
+  }`;
+  document.cookie = `${LANGUAGE_COOKIE}=${language}; ${cookieOptions}`;
+  document.cookie = `${LANGUAGE_SOURCE_COOKIE}=${source}; ${cookieOptions}`;
+}
+
+function readLanguageCookieSnapshot() {
+  const cookies = Object.fromEntries(
+    document.cookie.split(';').map((entry) => {
+      const [name, ...valueParts] = entry.trim().split('=');
+      return [name, valueParts.join('=')];
+    }),
+  );
+  return {
+    language: cookies[LANGUAGE_COOKIE],
+    source: cookies[LANGUAGE_SOURCE_COOKIE],
+  };
+}
+
+function restoreLanguageCookieSnapshot(snapshot: {
+  language: string | undefined;
+  source: string | undefined;
+}) {
+  if (
+    isSupportedLanguage(snapshot.language) &&
+    snapshot.source &&
+    ['explicit', 'detected', 'profile', 'header', 'fallback'].includes(
+      snapshot.source,
+    )
+  ) {
+    writeLanguageCookies(snapshot.language, snapshot.source as LanguageSource);
+    return;
+  }
+
+  document.cookie = `${LANGUAGE_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`;
+  document.cookie = `${LANGUAGE_SOURCE_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`;
+}
+
+interface AppProviderProps {
+  children: React.ReactNode;
+  initialLanguage: Language;
+  initialLanguageSource: LanguageSource;
+}
+
+export function AppProvider({
+  children,
+  initialLanguage,
+  initialLanguageSource,
+}: AppProviderProps) {
+  const [language, setLanguageState] = useState<Language>(initialLanguage);
+  const languageSourceRef = useRef<LanguageSource>(initialLanguageSource);
   const [role, setRole] = useState<UserRole>('user');
   const [activeTab, setActiveTab] = useState('dashboard');
   const [currency, setCurrency] = useState<Currency>('EUR');
@@ -265,6 +325,58 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [isStatementsModalOpen, setIsStatementsModalOpen] = useState(false);
   const [selectedLoanForReview, setSelectedLoanForReview] =
     useState<LoanApplication | null>(null);
+
+  const applyLanguage = useCallback(
+    (
+      nextLanguage: Language,
+      source: LanguageSource,
+      persistCookie = shouldPersistLanguageCookie(source),
+    ) => {
+      languageSourceRef.current = source;
+      setLanguageState(nextLanguage);
+      document.documentElement.lang = nextLanguage;
+      if (persistCookie) writeLanguageCookies(nextLanguage, source);
+    },
+    [],
+  );
+
+  const setLanguage = useCallback(
+    async (nextLanguage: Language) => {
+      if (!isSupportedLanguage(nextLanguage)) return;
+
+      const previousLanguage = language;
+      const previousSource = languageSourceRef.current;
+      const previousCookie = readLanguageCookieSnapshot();
+      applyLanguage(nextLanguage, 'explicit');
+
+      if (!isPublicSupabaseConfigured()) return;
+
+      const supabase = createClient();
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+      if (userError) {
+        applyLanguage(previousLanguage, previousSource, false);
+        restoreLanguageCookieSnapshot(previousCookie);
+        setLastError(userError.message);
+        throw userError;
+      }
+      if (!user) return;
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({ preferred_language: nextLanguage })
+        .eq('user_id', user.id);
+      if (error) {
+        applyLanguage(previousLanguage, previousSource, false);
+        restoreLanguageCookieSnapshot(previousCookie);
+        setLastError(error.message);
+        throw error;
+      }
+    },
+    [applyLanguage, language],
+  );
 
   const clearBusinessData = useCallback(() => {
     setAccounts([]);
@@ -320,7 +432,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         auditResult,
       ] = await Promise.all([
         supabase.rpc('current_app_role'),
-        supabase.from('profiles').select('user_id,email'),
+        supabase.from('profiles').select('user_id,email,preferred_language'),
         supabase.from('financial_positions').select('*').order('created_at'),
         supabase
           .from('transfer_intents')
@@ -348,6 +460,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (firstError) throw firstError;
 
       setRole(roleResult.data === 'admin' ? 'admin' : 'user');
+
+      const ownProfile = (profileResult.data ?? []).find(
+        (profile) => profile.user_id === user.id,
+      );
+      if (isSupportedLanguage(ownProfile?.preferred_language)) {
+        applyLanguage(ownProfile.preferred_language, 'profile', false);
+      }
 
       const profileEmails = new Map(
         (profileResult.data ?? []).map((profile) => [profile.user_id, profile.email]),
@@ -559,7 +678,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [clearBusinessData]);
+  }, [applyLanguage, clearBusinessData]);
+
+  useEffect(() => {
+    document.documentElement.lang = initialLanguage;
+
+    if (
+      languageSourceRef.current === 'profile' ||
+      languageSourceRef.current === 'explicit'
+    ) {
+      return;
+    }
+
+    const detectedLanguage = resolveSupportedLanguage(navigator.languages);
+    if (!detectedLanguage) return;
+
+    if (detectedLanguage === initialLanguage) {
+      languageSourceRef.current = 'detected';
+      writeLanguageCookies(detectedLanguage, 'detected');
+      return;
+    }
+
+    const detectionTimer = window.setTimeout(() => {
+      applyLanguage(detectedLanguage, 'detected');
+    }, 0);
+
+    return () => window.clearTimeout(detectionTimer);
+  }, [applyLanguage, initialLanguage]);
 
   useEffect(() => {
     const initialRefresh = window.setTimeout(() => {

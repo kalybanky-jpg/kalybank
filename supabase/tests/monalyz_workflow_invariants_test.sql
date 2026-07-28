@@ -1,5 +1,5 @@
 begin;
-select plan(79);
+select plan(89);
 
 -- Schema and database API contract.
 -- 1
@@ -1213,6 +1213,152 @@ select ok(
     'execute'
   ),
   'authenticated end users cannot mark transactional emails as sent'
+);
+
+-- Profile language invariants.
+-- 80
+select has_column(
+  'public',
+  'profiles',
+  'preferred_language',
+  'profiles persist the preferred language'
+);
+-- 81
+select ok(
+  (
+    select attnotnull
+    from pg_attribute
+    where attrelid = 'public.profiles'::regclass
+      and attname = 'preferred_language'
+      and not attisdropped
+  ),
+  'the preferred language is mandatory'
+);
+-- 82
+select is(
+  (
+    select pg_get_expr(adbin, adrelid)
+    from pg_attrdef
+    where adrelid = 'public.profiles'::regclass
+      and adnum = (
+        select attnum
+        from pg_attribute
+        where attrelid = 'public.profiles'::regclass
+          and attname = 'preferred_language'
+          and not attisdropped
+      )
+  ),
+  '''fr''::text',
+  'the preferred language defaults to French'
+);
+-- 83
+select is(
+  (
+    select preferred_language
+    from public.profiles
+    where user_id = '10000000-0000-0000-0000-000000000001'
+  ),
+  'fr',
+  'a signup without language metadata falls back to French'
+);
+
+insert into auth.users (id, email, raw_user_meta_data)
+values
+  (
+    '10000000-0000-0000-0000-000000000003',
+    'german-owner@monalyz.test',
+    '{"preferred_language":"de"}'::jsonb
+  ),
+  (
+    '10000000-0000-0000-0000-000000000004',
+    'invalid-language-owner@monalyz.test',
+    '{"preferred_language":"it"}'::jsonb
+  );
+
+-- 84
+select is(
+  (
+    select preferred_language
+    from public.profiles
+    where user_id = '10000000-0000-0000-0000-000000000003'
+  ),
+  'de',
+  'the signup trigger copies an allowlisted language'
+);
+-- 85
+select is(
+  (
+    select preferred_language
+    from public.profiles
+    where user_id = '10000000-0000-0000-0000-000000000004'
+  ),
+  'fr',
+  'the signup trigger rejects unsupported language metadata'
+);
+-- 86
+select throws_ok(
+  $test$
+    update public.profiles
+    set preferred_language = 'it'
+    where user_id = '10000000-0000-0000-0000-000000000001'
+  $test$,
+  '23514',
+  null,
+  'the preferred-language constraint rejects unsupported values'
+);
+
+set local role authenticated;
+select set_config(
+  'request.jwt.claim.sub',
+  '10000000-0000-0000-0000-000000000001',
+  true
+);
+with own_update as (
+  update public.profiles
+  set preferred_language = 'es'
+  where user_id = '10000000-0000-0000-0000-000000000001'
+  returning 1
+),
+other_update as (
+  update public.profiles
+  set preferred_language = 'en'
+  where user_id = '10000000-0000-0000-0000-000000000002'
+  returning 1
+)
+select
+  set_config(
+    'test.language_own_update_count',
+    (select count(*)::text from own_update),
+    true
+  ),
+  set_config(
+    'test.language_other_update_count',
+    (select count(*)::text from other_update),
+    true
+  );
+-- 87
+select is(
+  current_setting('test.language_own_update_count')::bigint,
+  1::bigint,
+  'a user can update their own preferred language'
+);
+-- 88
+select is(
+  current_setting('test.language_other_update_count')::bigint,
+  0::bigint,
+  'a user cannot update another profile language'
+);
+
+reset role;
+-- 89
+select is(
+  (
+    select preferred_language
+    from public.profiles
+    where user_id = '10000000-0000-0000-0000-000000000002'
+  ),
+  'fr',
+  'the forbidden profile update leaves the other preference unchanged'
 );
 
 select * from finish();

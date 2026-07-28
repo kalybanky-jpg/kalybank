@@ -19,6 +19,7 @@ RPC virement/prêt
      -> job unique dans transactional_email_outbox
   -> POST /api/transactional-email/dispatch
      -> claim atomique
+     -> lecture de profiles.preferred_language
      -> rendu d’un modèle versionné
      -> API Resend ou API Brevo
      -> sent, nouvelle tentative ou failed
@@ -44,6 +45,22 @@ en-tête HTTP chez Resend, en-tête personnalisé du message chez Brevo.
 
 Les modèles rappellent que les contrôles bancaires et mouvements financiers
 sont effectués hors de Monalyz.
+
+## Langue du destinataire
+
+Les dix modèles existent en français, anglais, allemand et espagnol. Les
+sujets, corps, pieds de page, nombres et devises sont localisés avec
+`fr-FR`, `en-US`, `de-DE` ou `es-ES`.
+
+La langue n’est pas figée lors de la création du job. Après avoir réclamé un
+job, le worker relit `profiles.preferred_language` à partir de
+`recipient_id`, immédiatement avant l’appel fournisseur. Une nouvelle
+tentative utilise donc la préférence la plus récente. Une erreur de lecture du
+profil produit un échec réessayable sans envoyer de message ; seule une
+préférence réellement absente utilise `fr`.
+
+Le rendu continue d’échapper toute donnée dynamique en HTML. L’idempotence
+reste fondée sur l’identifiant stable du job et ne dépend pas de la langue.
 
 ## Configuration des e-mails métier
 

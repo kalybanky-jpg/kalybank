@@ -17,6 +17,25 @@ Le Proxy renouvelle les cookies de session avec `getClaims()`, protège les
 routes utilisateur et staff, puis vérifie `current_app_role` avant tout accès
 au Back-Office. La possession d’un compte Auth ne confère jamais un rôle staff.
 
+## Langue avant et après l’inscription
+
+Les pages `/login`, `/register`, `/admin-login` et `/reset-pin` utilisent la
+langue globale dès leur premier rendu. Le serveur s’appuie sur
+`Accept-Language`, puis le navigateur confirme l’ordre de préférence exposé
+par `navigator.languages`. Un sélecteur reste disponible avant et après
+connexion ; sa valeur explicite gagne toujours sur la détection automatique.
+
+À l’inscription, la langue courante est transmise dans
+`user_metadata.preferred_language`. Le trigger de création du profil ne
+recopie que `fr`, `en`, `de` ou `es`, avec `fr` comme repli. Cette métadonnée
+est modifiable par l’utilisateur et ne participe jamais à une décision
+d’autorisation.
+
+Les e-mails Supabase Auth de confirmation et de récupération restent un flux
+distinct des notifications métier. Leur localisation complète dépend de la
+configuration des modèles Auth ; la préférence enregistrée permet de
+l’ajouter sans modifier le modèle d’autorisation.
+
 ## Configuration Supabase hébergée
 
 Avant le premier déploiement :

@@ -22,6 +22,8 @@
 ## Invariants
 
 - Les montants sont des `bigint` en unités mineures, avec devise ISO.
+- `profiles.preferred_language` vaut exclusivement `fr`, `en`, `de` ou `es`,
+  est obligatoire et utilise `fr` par défaut.
 - `reserved_minor` ne peut pas être négatif ni dépasser `amount_minor`.
 - Une intention ne modifie pas `amount_minor`.
 - Seul un staff actif ayant le rôle applicatif de chef d’agence (`admin`) peut
@@ -67,7 +69,8 @@ job passe de `pending` à `sending`, puis `sent` ou de nouveau `pending`. Après
 cinq tentatives il devient `failed`. Un claim abandonné redevient disponible
 après dix minutes. Chaque claim reçoit un `claim_token` aléatoire qui doit être
 présenté pour terminer le job ; les deux RPC de traitement sont réservées au
-rôle Supabase `service_role`.
+rôle Supabase `service_role`. Le job référence le profil par `recipient_id` :
+le worker relit `preferred_language` après le claim et juste avant l’envoi.
 
 ## Migrations
 

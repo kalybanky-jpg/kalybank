@@ -7,22 +7,20 @@ import { ShieldCheck, Lock, Mail, ArrowRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { safeInternalPath } from '@/lib/security/navigation';
-
-const LOGIN_ERROR_MESSAGES: Record<string, string> = {
-  auth_callback: 'Le lien de connexion est invalide ou expiré.',
-  auth_confirmation: 'Le lien de confirmation est invalide ou expiré.',
-  configuration: 'La connexion Supabase doit être configurée par le déploiement.',
-  session: 'Votre session a expiré ou a été révoquée. Reconnectez-vous.',
-};
+import LanguageSelector from '@/components/LanguageSelector';
+import { useAppStore } from '@/lib/store';
+import { publicMessages } from '@/lib/public-i18n';
 
 function LoginContent() {
   const searchParams = useSearchParams();
+  const { language } = useAppStore();
+  const copy = publicMessages[language].login;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState(
-    LOGIN_ERROR_MESSAGES[searchParams.get('error') ?? ''] ?? '',
-  );
+  const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const displayedError =
+    error || copy.errors[searchParams.get('error') ?? ''] || '';
 
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -46,12 +44,8 @@ function LoginContent() {
       window.location.replace(
         safeInternalPath(searchParams.get('next'), kycRows?.length ? '/myaccount' : '/onboarding'),
       );
-    } catch (caughtError) {
-      setError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : 'Connexion impossible. Vérifiez vos identifiants.',
-      );
+    } catch {
+      setError(copy.genericError);
     } finally {
       setIsLoading(false);
     }
@@ -60,6 +54,11 @@ function LoginContent() {
   return (
     <div className="min-h-screen bg-slate-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden">
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-600/15 rounded-full blur-3xl pointer-events-none" />
+      <LanguageSelector
+        dark
+        compact
+        className="absolute right-4 top-4 z-20"
+      />
 
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center z-10">
         <div className="flex items-center justify-center space-x-3 mb-3">
@@ -68,9 +67,9 @@ function LoginContent() {
           </div>
           <span className="text-3xl font-extrabold tracking-tight text-white font-mono">Monalyz</span>
         </div>
-        <h1 className="text-xl font-bold text-slate-200">Connexion à votre espace</h1>
+        <h1 className="text-xl font-bold text-slate-200">{copy.title}</h1>
         <p className="mt-1 text-xs text-slate-400">
-          Monalyz initie et suit vos instructions. Aucune banque n&apos;est connectée.
+          {copy.subtitle}
         </p>
       </div>
 
@@ -81,14 +80,14 @@ function LoginContent() {
       >
         <div className="bg-white py-8 px-6 shadow-2xl rounded-3xl border border-slate-200 sm:px-10">
           <form className="space-y-5" onSubmit={handleLogin}>
-            {error && (
+            {displayedError && (
               <div role="alert" className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
-                {error}
+                {displayedError}
               </div>
             )}
 
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-              Adresse e-mail
+              {copy.email}
               <span className="relative block mt-1.5">
                 <Mail className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
                 <input
@@ -103,7 +102,7 @@ function LoginContent() {
             </label>
 
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-              Mot de passe
+              {copy.password}
               <span className="relative block mt-1.5">
                 <Lock className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
                 <input
@@ -119,7 +118,7 @@ function LoginContent() {
 
             <div className="flex justify-end">
               <Link href="/reset-pin" className="text-xs font-bold text-blue-600 hover:underline">
-                Mot de passe oublié ?
+                {copy.forgotPassword}
               </Link>
             </div>
 
@@ -128,16 +127,16 @@ function LoginContent() {
               disabled={isLoading}
               className="w-full py-3.5 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-extrabold text-sm transition disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              <span>{isLoading ? 'Connexion…' : 'Se connecter'}</span>
+              <span>{isLoading ? copy.submitting : copy.submit}</span>
               {!isLoading && <ArrowRight className="w-4 h-4" />}
             </button>
           </form>
         </div>
 
         <p className="text-center mt-6 text-xs text-slate-400">
-          Nouveau sur Monalyz ?{' '}
+          {copy.newUser}{' '}
           <Link href="/register" className="font-extrabold text-blue-400 hover:underline">
-            Créer un compte applicatif
+            {copy.register}
           </Link>
         </p>
       </motion.div>

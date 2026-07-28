@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import {
   getTransactionalEmailConfig,
+  resolveTransactionalEmailLanguage,
   sendTransactionalEmail,
   type TransactionalEmailJob,
 } from '@/lib/server/transactional-email';
@@ -93,7 +94,18 @@ export async function POST(request: NextRequest) {
 
   for (const job of jobs) {
     try {
-      const providerMessageId = await sendTransactionalEmail(job, config);
+      const language = await resolveTransactionalEmailLanguage(() =>
+        worker
+          .from('profiles')
+          .select('preferred_language')
+          .eq('user_id', job.recipient_id)
+          .maybeSingle(),
+      );
+      const providerMessageId = await sendTransactionalEmail(
+        job,
+        config,
+        language,
+      );
       const { error } = await worker.rpc('complete_transactional_email', {
         p_email_id: job.id,
         p_claim_token: job.claim_token,

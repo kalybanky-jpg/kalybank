@@ -10,9 +10,10 @@
 | Lint | `npx bun run lint -- --max-warnings=0` | Next, hooks, accessibilité |
 | Tests unitaires | `npx bun run test` | Domaine, redirections et e-mails |
 | E-mails métier | `npx bun x tsx --test tests/transactional-email.test.ts` | Config, modèles, payloads et idempotence |
+| Langues | `npx bun x tsx --test tests/language.test.ts` | BCP 47, priorité et repli |
 | Schéma | `npx bun x supabase db lint --local --level warning --fail-on error` | Erreurs SQL |
 | Conseillers | `npx bun x supabase db advisors --local --type all --level warn --fail-on error` | Sécurité et performance |
-| pgTAP | `npx bun run test:db` | 19 invariants financiers |
+| pgTAP | `npx bun run test:db` | 89 invariants financiers et linguistiques |
 | Snapshot | `npx bun run db:snapshot` puis `npx bun run test` | Copie SQL et manifeste |
 | Dépendances | `npx bun audit` | Vulnérabilités connues |
 | Production | `npx bun run build` | Compilation et pré-rendu |
@@ -40,6 +41,11 @@ supabase/tests/
 6. Confirmer que `/api/evidence` retourne `401` sans session et `403` pour une origine étrangère.
 7. Vérifier avec un compte de test que l’outbox passe de `pending` à `sent` et
    que le fournisseur ne reçoit qu’un message par `event_key`.
+8. Ouvrir directement les routes publiques avec `fr-CA`, `en-GB`, `de-DE`,
+   `es-MX` et une langue non prise en charge ; contrôler le contenu et
+   `<html lang>`.
+9. Vérifier les 40 couples modèle/langue ainsi que le scénario où la langue du
+   profil change entre la création du job et son dispatch.
 
 Le patch `patches/minimatch@3.1.5.patch` adapte l’ancien consommateur CommonJS
 à `brace-expansion` 5.0.8 corrigé. Ne le supprimer qu’après disparition de

@@ -1,4 +1,5 @@
 export type TransactionalEmailProvider = 'resend' | 'brevo';
+export type TransactionalEmailLanguage = 'fr' | 'en' | 'de' | 'es';
 
 export type TransactionalEmailTemplate =
   | 'transfer_submitted'
@@ -15,6 +16,7 @@ export type TransactionalEmailTemplate =
 export interface TransactionalEmailJob {
   id: string;
   claim_token: string;
+  recipient_id: string;
   recipient_email: string;
   template_key: TransactionalEmailTemplate;
   payload: Record<string, unknown>;
@@ -35,6 +37,60 @@ interface RenderedEmail {
 }
 
 type FetchLike = typeof fetch;
+
+const LANGUAGE_LOCALES: Record<TransactionalEmailLanguage, string> = {
+  fr: 'fr-FR',
+  en: 'en-US',
+  de: 'de-DE',
+  es: 'es-ES',
+};
+
+const SUPPORT_COPY: Record<
+  TransactionalEmailLanguage,
+  { text: string; html: string }
+> = {
+  fr: {
+    text: 'Support : support@monalyz.com',
+    html: 'Besoin d’aide ? Écrivez à support@monalyz.com.',
+  },
+  en: {
+    text: 'Support: support@monalyz.com',
+    html: 'Need help? Contact us at support@monalyz.com.',
+  },
+  de: {
+    text: 'Support: support@monalyz.com',
+    html: 'Brauchen Sie Hilfe? Schreiben Sie an support@monalyz.com.',
+  },
+  es: {
+    text: 'Soporte: support@monalyz.com',
+    html: '¿Necesita ayuda? Escriba a support@monalyz.com.',
+  },
+};
+
+export function parseTransactionalEmailLanguage(
+  value: unknown,
+): TransactionalEmailLanguage {
+  if (value === null || value === undefined || value === '') return 'fr';
+  if (value === 'fr' || value === 'en' || value === 'de' || value === 'es') {
+    return value;
+  }
+  throw new Error(`Préférence linguistique invalide : ${String(value)}.`);
+}
+
+export async function resolveTransactionalEmailLanguage(
+  lookup: () => PromiseLike<{
+    data: { preferred_language?: unknown } | null;
+    error: { message: string } | null;
+  }>,
+): Promise<TransactionalEmailLanguage> {
+  const { data, error } = await lookup();
+  if (error) {
+    throw new Error(
+      `Lecture de la préférence linguistique impossible : ${error.message}`,
+    );
+  }
+  return parseTransactionalEmailLanguage(data?.preferred_language);
+}
 
 function requiredValue(
   environment: NodeJS.ProcessEnv,
@@ -127,7 +183,10 @@ function payloadText(
   return typeof value === 'string' && value.trim() ? value.trim() : fallback;
 }
 
-function formatMinorAmount(payload: Record<string, unknown>): string {
+function formatMinorAmount(
+  payload: Record<string, unknown>,
+  language: TransactionalEmailLanguage,
+): string {
   const amountMinor = payload.amountMinor;
   const currency = payloadText(payload, 'currency', 'EUR').toUpperCase();
   const numericAmount =
@@ -142,26 +201,254 @@ function formatMinorAmount(payload: Record<string, unknown>): string {
     : 0;
 
   try {
-    return new Intl.NumberFormat('fr-FR', {
+    return new Intl.NumberFormat(LANGUAGE_LOCALES[language], {
       style: 'currency',
       currency,
     }).format(amount);
   } catch {
-    return `${amount.toFixed(exponent)} ${currency}`;
+    const formattedAmount = new Intl.NumberFormat(LANGUAGE_LOCALES[language], {
+      minimumFractionDigits: exponent,
+      maximumFractionDigits: exponent,
+    }).format(amount);
+    return `${formattedAmount} ${currency}`;
   }
 }
 
 function messageForTemplate(
   template: TransactionalEmailTemplate,
   payload: Record<string, unknown>,
+  language: TransactionalEmailLanguage,
 ): { subject: string; heading: string; message: string } {
-  const amount = formatMinorAmount(payload);
+  const amount = formatMinorAmount(payload, language);
+  const recipientFallback: Record<TransactionalEmailLanguage, string> = {
+    fr: 'le bénéficiaire indiqué',
+    en: 'the specified beneficiary',
+    de: 'den angegebenen Begünstigten',
+    es: 'el beneficiario indicado',
+  };
+  const referenceFallback: Record<TransactionalEmailLanguage, string> = {
+    fr: 'votre dossier',
+    en: 'your application',
+    de: 'Ihren Antrag',
+    es: 'su solicitud',
+  };
   const recipientName = payloadText(
     payload,
     'recipientName',
-    'le bénéficiaire indiqué',
+    recipientFallback[language],
   );
-  const reference = payloadText(payload, 'reference', 'votre dossier');
+  const reference = payloadText(
+    payload,
+    'reference',
+    referenceFallback[language],
+  );
+
+  if (language === 'en') {
+    switch (template) {
+      case 'transfer_submitted':
+        return {
+          subject: 'Your transfer request has been received',
+          heading: 'Transfer request recorded',
+          message: `Your request to transfer ${amount} to ${recipientName} has been recorded. The checks are performed outside Monalyz before the branch manager makes a decision.`,
+        };
+      case 'transfer_approved':
+        return {
+          subject: 'Your transfer request has been approved',
+          heading: 'Transfer approved',
+          message:
+            'The branch manager has approved your request. The transfer must now be executed outside Monalyz.',
+        };
+      case 'transfer_completed':
+        return {
+          subject: 'Your transfer has been completed',
+          heading: 'Transfer completed successfully',
+          message: `The branch manager has confirmed that your transfer of ${amount} to ${recipientName} is complete.`,
+        };
+      case 'transfer_rejected':
+        return {
+          subject: 'Your transfer request has been rejected',
+          heading: 'Transfer rejected',
+          message:
+            'Your transfer request has been rejected. No final debit has been recorded.',
+        };
+      case 'transfer_failed':
+        return {
+          subject: 'Your transfer could not be completed',
+          heading: 'Transfer not completed',
+          message:
+            'The external transfer could not be completed. The corresponding internal hold has been released.',
+        };
+      case 'loan_submitted':
+        return {
+          subject: 'Your loan application has been received',
+          heading: 'Loan application recorded',
+          message: `Your application ${reference} for ${amount} has been recorded with its supporting documents.`,
+        };
+      case 'loan_approved':
+        return {
+          subject: 'Your loan application has been approved',
+          heading: 'Loan approved',
+          message:
+            'The branch manager has approved your application. The authorised staff must now disburse the funds internally.',
+        };
+      case 'loan_disbursed':
+        return {
+          subject: 'Your loan has been disbursed',
+          heading: 'Loan disbursed successfully',
+          message: `The branch manager has confirmed the disbursement of ${amount}. Your Monalyz current position has been credited.`,
+        };
+      case 'loan_rejected':
+        return {
+          subject: 'Your loan application has been rejected',
+          heading: 'Loan rejected',
+          message: `Your application ${reference} has been rejected. No disbursement has been recorded.`,
+        };
+      case 'loan_failed':
+        return {
+          subject: 'Your loan disbursement has failed',
+          heading: 'Loan not disbursed',
+          message: `The disbursement associated with ${reference} could not be completed.`,
+        };
+    }
+  }
+
+  if (language === 'de') {
+    switch (template) {
+      case 'transfer_submitted':
+        return {
+          subject: 'Ihr Überweisungsauftrag ist eingegangen',
+          heading: 'Überweisungsauftrag erfasst',
+          message: `Ihr Auftrag über ${amount} an ${recipientName} wurde erfasst. Die Prüfungen werden außerhalb von Monalyz durchgeführt, bevor die Filialleitung entscheidet.`,
+        };
+      case 'transfer_approved':
+        return {
+          subject: 'Ihr Überweisungsauftrag wurde genehmigt',
+          heading: 'Überweisung genehmigt',
+          message:
+            'Die Filialleitung hat Ihren Auftrag genehmigt. Die Überweisung muss nun außerhalb von Monalyz ausgeführt werden.',
+        };
+      case 'transfer_completed':
+        return {
+          subject: 'Ihre Überweisung wurde ausgeführt',
+          heading: 'Überweisung erfolgreich ausgeführt',
+          message: `Die Filialleitung hat bestätigt, dass Ihre Überweisung über ${amount} an ${recipientName} ausgeführt wurde.`,
+        };
+      case 'transfer_rejected':
+        return {
+          subject: 'Ihr Überweisungsauftrag wurde abgelehnt',
+          heading: 'Überweisung abgelehnt',
+          message:
+            'Ihr Überweisungsauftrag wurde abgelehnt. Es wurde keine endgültige Belastung verbucht.',
+        };
+      case 'transfer_failed':
+        return {
+          subject: 'Ihre Überweisung konnte nicht ausgeführt werden',
+          heading: 'Überweisung nicht ausgeführt',
+          message:
+            'Die externe Überweisung konnte nicht abgeschlossen werden. Die entsprechende interne Reservierung wurde aufgehoben.',
+        };
+      case 'loan_submitted':
+        return {
+          subject: 'Ihr Kreditantrag ist eingegangen',
+          heading: 'Kreditantrag erfasst',
+          message: `Ihr Antrag ${reference} über ${amount} wurde mit den erforderlichen Nachweisen erfasst.`,
+        };
+      case 'loan_approved':
+        return {
+          subject: 'Ihr Kreditantrag wurde genehmigt',
+          heading: 'Kredit genehmigt',
+          message:
+            'Die Filialleitung hat Ihren Antrag genehmigt. Das zuständige Personal muss die Auszahlung nun intern vornehmen.',
+        };
+      case 'loan_disbursed':
+        return {
+          subject: 'Ihr Kredit wurde ausgezahlt',
+          heading: 'Kredit erfolgreich ausgezahlt',
+          message: `Die Filialleitung hat die Auszahlung von ${amount} bestätigt. Ihre laufende Monalyz-Position wurde gutgeschrieben.`,
+        };
+      case 'loan_rejected':
+        return {
+          subject: 'Ihr Kreditantrag wurde abgelehnt',
+          heading: 'Kredit abgelehnt',
+          message: `Ihr Antrag ${reference} wurde abgelehnt. Es wurde keine Auszahlung verbucht.`,
+        };
+      case 'loan_failed':
+        return {
+          subject: 'Die Auszahlung Ihres Kredits ist fehlgeschlagen',
+          heading: 'Kredit nicht ausgezahlt',
+          message: `Die mit ${reference} verbundene Auszahlung konnte nicht abgeschlossen werden.`,
+        };
+    }
+  }
+
+  if (language === 'es') {
+    switch (template) {
+      case 'transfer_submitted':
+        return {
+          subject: 'Hemos recibido su solicitud de transferencia',
+          heading: 'Solicitud de transferencia registrada',
+          message: `Su solicitud de ${amount} para ${recipientName} se ha registrado correctamente. Las comprobaciones se realizan fuera de Monalyz antes de la decisión del jefe de sucursal.`,
+        };
+      case 'transfer_approved':
+        return {
+          subject: 'Su solicitud de transferencia ha sido aprobada',
+          heading: 'Transferencia aprobada',
+          message:
+            'El jefe de sucursal ha aprobado su solicitud. La transferencia debe ejecutarse ahora fuera de Monalyz.',
+        };
+      case 'transfer_completed':
+        return {
+          subject: 'Su transferencia se ha realizado',
+          heading: 'Transferencia realizada correctamente',
+          message: `El jefe de sucursal ha confirmado que su transferencia de ${amount} para ${recipientName} se ha completado.`,
+        };
+      case 'transfer_rejected':
+        return {
+          subject: 'Su solicitud de transferencia ha sido rechazada',
+          heading: 'Transferencia rechazada',
+          message:
+            'Su solicitud de transferencia ha sido rechazada. No se ha registrado ningún débito definitivo.',
+        };
+      case 'transfer_failed':
+        return {
+          subject: 'No se pudo realizar su transferencia',
+          heading: 'Transferencia no realizada',
+          message:
+            'No se pudo completar la transferencia externa. Se ha liberado la retención interna correspondiente.',
+        };
+      case 'loan_submitted':
+        return {
+          subject: 'Hemos recibido su solicitud de préstamo',
+          heading: 'Solicitud de préstamo registrada',
+          message: `Su solicitud ${reference} por un importe de ${amount} se ha registrado con sus justificantes.`,
+        };
+      case 'loan_approved':
+        return {
+          subject: 'Su solicitud de préstamo ha sido aprobada',
+          heading: 'Préstamo aprobado',
+          message:
+            'El jefe de sucursal ha aprobado su solicitud. El personal autorizado debe realizar ahora el desembolso internamente.',
+        };
+      case 'loan_disbursed':
+        return {
+          subject: 'Su préstamo ha sido desembolsado',
+          heading: 'Préstamo desembolsado correctamente',
+          message: `El jefe de sucursal ha confirmado el desembolso de ${amount}. Se ha abonado su posición corriente en Monalyz.`,
+        };
+      case 'loan_rejected':
+        return {
+          subject: 'Su solicitud de préstamo ha sido rechazada',
+          heading: 'Préstamo rechazado',
+          message: `Su solicitud ${reference} ha sido rechazada. No se ha registrado ningún desembolso.`,
+        };
+      case 'loan_failed':
+        return {
+          subject: 'El desembolso de su préstamo ha fallado',
+          heading: 'Préstamo no desembolsado',
+          message: `No se pudo completar el desembolso asociado a ${reference}.`,
+        };
+    }
+  }
 
   switch (template) {
     case 'transfer_submitted':
@@ -234,23 +521,26 @@ function messageForTemplate(
 export function renderTransactionalEmail(
   template: TransactionalEmailTemplate,
   payload: Record<string, unknown>,
+  language: TransactionalEmailLanguage = 'fr',
 ): RenderedEmail {
-  const content = messageForTemplate(template, payload);
+  const content = messageForTemplate(template, payload, language);
+  const support = SUPPORT_COPY[language];
   const safeHeading = escapeHtml(content.heading);
   const safeMessage = escapeHtml(content.message);
+  const safeSupport = escapeHtml(support.html);
 
   return {
     subject: content.subject,
-    text: `${content.heading}\n\n${content.message}\n\nSupport : support@monalyz.com`,
+    text: `${content.heading}\n\n${content.message}\n\n${support.text}`,
     html: `<!doctype html>
-<html lang="fr">
+<html lang="${language}">
   <body style="margin:0;background:#f4f6fa;font-family:Arial,sans-serif;color:#0f172a">
     <div style="max-width:600px;margin:0 auto;padding:32px 16px">
       <div style="background:#0f172a;color:#fff;padding:18px 24px;border-radius:18px 18px 0 0;font-weight:700">Monalyz</div>
       <div style="background:#fff;padding:28px 24px;border:1px solid #e2e8f0;border-radius:0 0 18px 18px">
         <h1 style="font-size:22px;margin:0 0 16px">${safeHeading}</h1>
         <p style="font-size:15px;line-height:1.6;margin:0">${safeMessage}</p>
-        <p style="font-size:12px;color:#64748b;margin:28px 0 0">Besoin d’aide ? Écrivez à support@monalyz.com.</p>
+        <p style="font-size:12px;color:#64748b;margin:28px 0 0">${safeSupport}</p>
       </div>
     </div>
   </body>
@@ -266,9 +556,14 @@ async function responseError(response: Response): Promise<string> {
 export async function sendTransactionalEmail(
   job: TransactionalEmailJob,
   config: TransactionalEmailConfig,
+  language: TransactionalEmailLanguage,
   fetchImpl: FetchLike = fetch,
 ): Promise<string> {
-  const email = renderTransactionalEmail(job.template_key, job.payload);
+  const email = renderTransactionalEmail(
+    job.template_key,
+    job.payload,
+    language,
+  );
 
   if (config.provider === 'resend') {
     const response = await fetchImpl('https://api.resend.com/emails', {

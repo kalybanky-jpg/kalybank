@@ -5,8 +5,14 @@ import Link from 'next/link';
 import { CheckCircle2, ShieldCheck } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { configuredAppOrigin } from '@/lib/security/navigation';
+import LanguageSelector from '@/components/LanguageSelector';
+import { useAppStore } from '@/lib/store';
+import { publicMessages } from '@/lib/public-i18n';
+import { registrationLanguageMetadata } from '@/lib/language';
 
 export default function RegisterPage() {
+  const { language } = useAppStore();
+  const copy = publicMessages[language].register;
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -20,13 +26,11 @@ export default function RegisterPage() {
     setError('');
 
     if (password.length < 10 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
-      setError(
-        'Le mot de passe doit comporter au moins 10 caractères, dont une lettre et un chiffre.',
-      );
+      setError(copy.passwordPolicyError);
       return;
     }
     if (password !== confirmPassword) {
-      setError('Les mots de passe ne correspondent pas.');
+      setError(copy.passwordMismatchError);
       return;
     }
 
@@ -34,14 +38,14 @@ export default function RegisterPage() {
     try {
       const supabase = createClient();
       const origin = configuredAppOrigin();
-      if (!origin) throw new Error('Origine publique de l’application invalide.');
+      if (!origin) throw new Error('Invalid public application origin.');
       const callbackUrl = `${origin}/auth/callback?next=/onboarding`;
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: email.trim(),
         password,
         options: {
           emailRedirectTo: callbackUrl,
-          data: { display_name: displayName.trim() },
+          data: registrationLanguageMetadata(displayName, language),
         },
       });
       if (signUpError) throw signUpError;
@@ -51,12 +55,8 @@ export default function RegisterPage() {
         return;
       }
       setSubmitted(true);
-    } catch (caughtError) {
-      setError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : 'Création du compte impossible.',
-      );
+    } catch {
+      setError(copy.genericError);
     } finally {
       setIsLoading(false);
     }
@@ -64,25 +64,25 @@ export default function RegisterPage() {
 
   return (
     <main className="min-h-screen bg-[#0b0f19] text-white flex items-center justify-center px-4 py-10">
+      <LanguageSelector dark compact className="absolute right-4 top-4" />
       <section className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl">
         <div className="text-center mb-7">
           <ShieldCheck className="w-11 h-11 text-blue-400 mx-auto mb-3" />
-          <h1 className="text-2xl font-extrabold">Créer un compte Monalyz</h1>
+          <h1 className="text-2xl font-extrabold">{copy.title}</h1>
           <p className="text-xs text-slate-400 mt-2 leading-relaxed">
-            Ce compte donne accès à un outil d&apos;instruction et de suivi. Il ne crée
-            ni compte bancaire, ni IBAN, ni connexion à une banque.
+            {copy.subtitle}
           </p>
         </div>
 
         {submitted ? (
           <div className="text-center space-y-4">
             <CheckCircle2 className="w-14 h-14 text-emerald-400 mx-auto" />
-            <h2 className="text-lg font-bold">Vérifiez votre adresse e-mail</h2>
+            <h2 className="text-lg font-bold">{copy.checkEmailTitle}</h2>
             <p className="text-sm text-slate-300">
-              Le lien sécurisé vous ramènera vers le dépôt de votre dossier d&apos;identité.
+              {copy.checkEmailBody}
             </p>
             <Link href="/login" className="inline-block text-blue-400 font-bold hover:underline">
-              Revenir à la connexion
+              {copy.backToLogin}
             </Link>
           </div>
         ) : (
@@ -94,7 +94,7 @@ export default function RegisterPage() {
             )}
 
             <label className="block text-xs font-bold text-slate-300">
-              Nom affiché
+              {copy.displayName}
               <input
                 type="text"
                 required
@@ -104,7 +104,7 @@ export default function RegisterPage() {
               />
             </label>
             <label className="block text-xs font-bold text-slate-300">
-              Adresse e-mail
+              {copy.email}
               <input
                 type="email"
                 autoComplete="email"
@@ -115,7 +115,7 @@ export default function RegisterPage() {
               />
             </label>
             <label className="block text-xs font-bold text-slate-300">
-              Mot de passe (10 caractères minimum, avec lettre et chiffre)
+              {copy.password}
               <input
                 type="password"
                 autoComplete="new-password"
@@ -127,7 +127,7 @@ export default function RegisterPage() {
               />
             </label>
             <label className="block text-xs font-bold text-slate-300">
-              Confirmation du mot de passe
+              {copy.confirmPassword}
               <input
                 type="password"
                 autoComplete="new-password"
@@ -144,7 +144,7 @@ export default function RegisterPage() {
               disabled={isLoading}
               className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 rounded-xl font-extrabold text-sm"
             >
-              {isLoading ? 'Création…' : 'Créer mon compte applicatif'}
+              {isLoading ? copy.submitting : copy.submit}
             </button>
           </form>
         )}

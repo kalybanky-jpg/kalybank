@@ -2,10 +2,10 @@
 
 import React, { useState } from 'react';
 import { useAppStore } from '@/lib/store';
-import type { Language } from '@/lib/types';
-import { Bell, ChevronDown, LogOut, Menu } from 'lucide-react';
+import { Bell, LogOut, Menu } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { createClient } from '@/lib/supabase/client';
+import LanguageSelector from './LanguageSelector';
 
 interface HeaderProps {
   onToggleMobileMenu: () => void;
@@ -13,22 +13,12 @@ interface HeaderProps {
 
 export default function Header({ onToggleMobileMenu }: HeaderProps) {
   const {
-    language,
-    setLanguage,
     role,
     notifications,
     setIsNotificationsDrawerOpen,
     lastError,
   } = useAppStore();
-  const [isLanguageOpen, setIsLanguageOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-
-  const languages: { code: Language; name: string }[] = [
-    { code: 'fr', name: 'Français' },
-    { code: 'en', name: 'English' },
-    { code: 'de', name: 'Deutsch' },
-    { code: 'es', name: 'Español' },
-  ];
   const unreadCount = notifications.filter((notification) => !notification.read).length;
 
   const signOut = async () => {
@@ -59,40 +49,7 @@ export default function Header({ onToggleMobileMenu }: HeaderProps) {
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setIsLanguageOpen((open) => !open)}
-              className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold flex items-center gap-1"
-            >
-              {language.toUpperCase()}
-              <ChevronDown className="w-3.5 h-3.5" />
-            </button>
-            <AnimatePresence>
-              {isLanguageOpen && (
-                <motion.div
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 6 }}
-                  className="absolute right-0 mt-2 w-36 bg-white border border-slate-200 rounded-xl shadow-xl p-1"
-                >
-                  {languages.map((item) => (
-                    <button
-                      key={item.code}
-                      type="button"
-                      onClick={() => {
-                        setLanguage(item.code);
-                        setIsLanguageOpen(false);
-                      }}
-                      className="w-full px-3 py-2 text-left text-xs font-bold rounded-lg hover:bg-slate-100"
-                    >
-                      {item.name}
-                    </button>
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+          <LanguageSelector compact />
 
           <button
             type="button"

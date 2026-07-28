@@ -12,6 +12,7 @@
 | Supabase Auth | Identité et session |
 | PostgreSQL | RLS, machines d’état, réservations et audit |
 | Storage | Justificatifs privés KYC et prêt |
+| Resend ou Brevo | Notifications métier multilingues, sans donnée bancaire |
 | Banque | Contrôles internes et mouvements financiers, hors Monalyz |
 
 ```mermaid
@@ -33,6 +34,24 @@ flowchart LR
 - les fonctions `SECURITY DEFINER` vérifient `auth.uid()`, les rôles et les états ;
 - la route `/api/evidence` vérifie origine, session, taille, MIME et signature binaire ;
 - le navigateur ne reçoit que des URL signées de courte durée pour les preuves.
+
+## Résolution de la langue
+
+Le layout racine résout la langue avant le premier rendu afin que toute entrée
+directe, publique ou authentifiée, porte immédiatement le bon attribut
+`<html lang>`. Les langues prises en charge sont `fr`, `en`, `de` et `es`.
+
+La priorité est stable :
+
+1. `profiles.preferred_language` pour une session authentifiée ;
+2. le choix explicite conservé dans les cookies Monalyz ;
+3. `Accept-Language` au serveur, puis `navigator.languages` au montage client ;
+4. `fr` si aucune préférence compatible n’existe.
+
+Les balises BCP 47 sont normalisées par langue principale : par exemple
+`fr-CA` devient `fr` et `es-MX` devient `es`. Le détecteur client ne remplace
+jamais une sélection explicite. Un changement manuel synchronise l’interface,
+les cookies et, après authentification, le profil Supabase.
 
 ## Flux d’un virement
 
@@ -84,9 +103,10 @@ remboursement automatique ou le recouvrement.
 Chaque changement de statut utile crée, dans la même transaction SQL, une
 entrée unique dans `transactional_email_outbox`. Après la validation de la
 transaction, la route serveur utilise un client Supabase privilégié pour
-réclamer un lot d’e-mails et l’envoyer par l’API Resend ou Brevo. Un incident
-fournisseur ne revient jamais sur la décision financière : l’outbox conserve
-le message pour une nouvelle tentative.
+réclamer un lot d’e-mails. Elle relit la langue courante du destinataire juste
+avant chaque appel Resend ou Brevo, puis rend le modèle dans cette langue. Un
+incident de lecture ou de fournisseur ne revient jamais sur la décision
+financière : l’outbox conserve le message pour une nouvelle tentative.
 
 Les événements couverts sont la soumission, la validation, le refus, l’échec
 et la finalisation d’un virement, ainsi que la soumission, la validation, le

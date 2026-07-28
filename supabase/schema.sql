@@ -1,8 +1,8 @@
 -- Monalyz DATABASE SCHEMA SNAPSHOT
 -- GENERATED FILE: run `npx bun run db:snapshot`; do not edit manually.
 -- remote-project-ref: qljqldhvbakornnpalua
--- migration-manifest-sha256: e72288d528a14957aebfb01884e366592f5daccac6859b21d1e4ca79b0b28010
--- migrations: 20260728060744_kaly_secure_external_financial_workflows.sql, 20260728061308_add_missing_foreign_key_indexes.sql, 20260728065832_rename_brand_to_monalyz.sql, 20260728092751_simplify_branch_manager_financial_workflows.sql, 20260728094442_add_outbox_claimed_by_index.sql
+-- migration-manifest-sha256: 612ea72e3338650b54cb8421ff1eb6b54cb4af0cd0e5a5d7c50bb48a119d73e6
+-- migrations: 20260728060744_kaly_secure_external_financial_workflows.sql, 20260728061308_add_missing_foreign_key_indexes.sql, 20260728065832_rename_brand_to_monalyz.sql, 20260728092751_simplify_branch_manager_financial_workflows.sql, 20260728094442_add_outbox_claimed_by_index.sql, 20260728150934_add_profile_preferred_language.sql, 20260728151335_grant_profile_preferences_update.sql
 -- schema-only: true
 -- production-data-included: false
 -- schemas: public, private
@@ -179,13 +179,25 @@ CREATE OR REPLACE FUNCTION "private"."handle_new_user"() RETURNS "trigger"
     SET "search_path" TO ''
     AS $$
 begin
-  insert into public.profiles (user_id, email, display_name)
+  insert into public.profiles (
+    user_id,
+    email,
+    display_name,
+    preferred_language
+  )
   values (
     new.id,
     coalesce(new.email, ''),
-    trim(coalesce(new.raw_user_meta_data ->> 'display_name', ''))
+    trim(coalesce(new.raw_user_meta_data ->> 'display_name', '')),
+    case
+      when new.raw_user_meta_data ->> 'preferred_language'
+        in ('fr', 'en', 'de', 'es')
+      then new.raw_user_meta_data ->> 'preferred_language'
+      else 'fr'
+    end
   )
   on conflict (user_id) do nothing;
+
   return new;
 end;
 $$;
@@ -1553,8 +1565,10 @@ CREATE TABLE IF NOT EXISTS "public"."profiles" (
     "access_status_reason" "text",
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "preferred_language" "text" DEFAULT 'fr'::"text" NOT NULL,
     CONSTRAINT "profiles_access_status_check" CHECK (("access_status" = ANY (ARRAY['active'::"text", 'frozen'::"text"]))),
-    CONSTRAINT "profiles_preferred_currency_check" CHECK (("preferred_currency" ~ '^[A-Z]{3}$'::"text"))
+    CONSTRAINT "profiles_preferred_currency_check" CHECK (("preferred_currency" ~ '^[A-Z]{3}$'::"text")),
+    CONSTRAINT "profiles_preferred_language_allowed" CHECK (("preferred_language" = ANY (ARRAY['fr'::"text", 'en'::"text", 'de'::"text", 'es'::"text"])))
 );
 
 
@@ -3218,6 +3232,10 @@ GRANT UPDATE("phone") ON TABLE "public"."profiles" TO "authenticated";
 
 
 GRANT UPDATE("preferred_currency") ON TABLE "public"."profiles" TO "authenticated";
+
+
+
+GRANT UPDATE("preferred_language") ON TABLE "public"."profiles" TO "authenticated";
 
 
 

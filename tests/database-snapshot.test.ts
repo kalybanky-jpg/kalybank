@@ -43,7 +43,7 @@ test("le snapshot SQL correspond exactement aux migrations versionnées", async 
   assert.doesNotMatch(snapshot, /^INSERT INTO\s+/m);
 });
 
-test("le snapshot contient le cœur du schéma KALY", async () => {
+test("le snapshot contient le cœur du schéma Monalyz", async () => {
   const snapshot = await readFile(snapshotPath, "utf8");
 
   assert.match(snapshot, /CREATE TABLE IF NOT EXISTS "public"\."profiles"/i);

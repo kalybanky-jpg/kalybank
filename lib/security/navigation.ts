@@ -20,8 +20,8 @@ export function safeInternalPath(value: string | null | undefined, fallback: str
   }
 
   try {
-    const parsed = new URL(value, 'https://kaly.invalid');
-    if (parsed.origin !== 'https://kaly.invalid') return fallback;
+    const parsed = new URL(value, 'https://monalyz.invalid');
+    if (parsed.origin !== 'https://monalyz.invalid') return fallback;
     return `${parsed.pathname}${parsed.search}${parsed.hash}`;
   } catch {
     return fallback;

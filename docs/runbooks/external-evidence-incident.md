@@ -28,7 +28,7 @@
 ## Interdictions
 
 - Ne jamais fabriquer une référence ou un justificatif.
-- Ne jamais marquer un dossier réglé sur la seule base d’une approbation KALY.
+- Ne jamais marquer un dossier réglé sur la seule base d’une approbation Monalyz.
 - Ne jamais modifier directement une table métier pour contourner la machine d’état.
 
 Après résolution, ajouter l’analyse de cause à `audit_events` ou au système

@@ -26,11 +26,11 @@ export default function AccountStatementsModal() {
         transaction.title,
         transaction.date,
         transaction.amount,
-        'Règlement externe confirmé dans KALY',
+        'Règlement externe confirmé dans Monalyz',
       ]),
     ];
     const content = [
-      '# Export interne KALY — aucune donnée bancaire en temps réel',
+      '# Export interne Monalyz — aucune donnée bancaire en temps réel',
       '# Ce fichier ne constitue ni un relevé bancaire ni une attestation de solde.',
       ...rows.map((row) => row.map(csvCell).join(',')),
     ].join('\r\n');
@@ -40,7 +40,7 @@ export default function AccountStatementsModal() {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = `kaly-registre-interne-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.download = `monalyz-registre-interne-${new Date().toISOString().slice(0, 10)}.csv`;
     anchor.click();
     URL.revokeObjectURL(url);
     setIsGenerated(true);
@@ -53,7 +53,7 @@ export default function AccountStatementsModal() {
           <div className="flex gap-3">
             <FileText className="w-7 h-7 text-blue-600" />
             <div>
-              <h2 className="font-extrabold text-slate-900">Exporter le registre KALY</h2>
+              <h2 className="font-extrabold text-slate-900">Exporter le registre Monalyz</h2>
               <p className="text-xs text-slate-500">
                 {transactions.length} règlement(s) externe(s) confirmé(s)
               </p>
@@ -69,7 +69,7 @@ export default function AccountStatementsModal() {
         </header>
 
         <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-900">
-          Le CSV est généré localement depuis les données visibles dans KALY. Il
+          Le CSV est généré localement depuis les données visibles dans Monalyz. Il
           n&apos;est ni certifié par une banque ni utilisable comme relevé bancaire officiel.
         </div>
 

@@ -80,7 +80,7 @@ export default function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps)
               </svg>
             </div>
             <span className="text-xl font-extrabold tracking-tight text-white font-sans">
-              KALY
+              Monalyz
             </span>
           </div>
 

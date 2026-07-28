@@ -58,13 +58,13 @@ export default function UserDashboard() {
       <header className="bg-slate-900 text-white rounded-3xl p-6">
         <div className="flex items-center gap-2 text-blue-300 text-xs font-bold uppercase">
           <ShieldCheck className="w-4 h-4" />
-          <span>Tableau de suivi KALY</span>
+          <span>Tableau de suivi Monalyz</span>
         </div>
         <h1 className="text-2xl sm:text-3xl font-extrabold mt-1">
           Instructions et dossiers
         </h1>
         <p className="text-xs sm:text-sm text-slate-300 mt-2 max-w-3xl">
-          KALY ne consulte aucun compte bancaire. Les montants affichés sont des
+          Monalyz ne consulte aucun compte bancaire. Les montants affichés sont des
           positions déclarées ou rapprochées manuellement, datées et internes à l&apos;application.
         </p>
       </header>
@@ -140,7 +140,7 @@ export default function UserDashboard() {
           <Send className="w-6 h-6 mb-4" />
           <p className="font-extrabold">Préparer une instruction externe</p>
           <p className="text-xs text-blue-100 mt-1">
-            Contrôlée dans KALY, exécutée hors application
+            Contrôlée dans Monalyz, exécutée hors application
           </p>
         </button>
         <button
@@ -212,7 +212,7 @@ export default function UserDashboard() {
       </section>
 
       <p className="text-[11px] text-slate-500 text-center">
-        Les positions dans KALY ne sont pas des soldes bancaires consultés en direct.
+        Les positions dans Monalyz ne sont pas des soldes bancaires consultés en direct.
       </p>
     </div>
   );

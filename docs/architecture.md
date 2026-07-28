@@ -1,6 +1,8 @@
 # Architecture
 
-> Monalyz sépare strictement instruction applicative, exécution financière externe et confirmation interne.
+> Monalyz enregistre les demandes et les décisions du chef d’agence. Les
+> contrôles bancaires et les mouvements financiers réels restent hors de
+> l’application.
 
 ## Vue d’ensemble
 
@@ -9,19 +11,19 @@
 | Next.js | UI, sessions SSR, CSP et route de justificatifs |
 | Supabase Auth | Identité et session |
 | PostgreSQL | RLS, machines d’état, réservations et audit |
-| Storage | Preuves privées KYC, prêt et exécution externe |
-| Système externe | Mouvement financier réel, hors Monalyz |
+| Storage | Justificatifs privés KYC et prêt |
+| Banque | Contrôles internes et mouvements financiers, hors Monalyz |
 
 ```mermaid
 flowchart LR
   U["Utilisateur"] --> N["Application Monalyz"]
-  S["Staff habilité"] --> N
+  C["Chef d’agence"] --> N
   N --> A["Supabase Auth"]
   N --> D["PostgreSQL + RLS/RPC"]
   N --> P["Storage privé"]
-  S --> X["Exécution financière hors application"]
-  X --> P
-  X -. "aucune API, aucune connexion" .-> N
+  B["Personnel de la banque"] --> X["Contrôles et exécution hors application"]
+  X --> C
+  X -. "aucune API bancaire, aucune connexion" .-> N
 ```
 
 ## Frontières
@@ -32,56 +34,63 @@ flowchart LR
 - la route `/api/evidence` vérifie origine, session, taille, MIME et signature binaire ;
 - le navigateur ne reçoit que des URL signées de courte durée pour les preuves.
 
-## Flux d’un transfert
+## Flux d’un virement
 
-1. L’utilisateur crée une intention ; la base réserve un montant interne.
-2. Deux membres distincts complètent les contrôles requis.
-3. Le dossier devient autorisé pour exécution externe, sans débit.
-4. Un opérateur réalise l’opération hors Monalyz et dépose référence et preuve.
-5. Un second membre confirme le règlement.
-6. La position interne est ajustée et l’événement devient final.
+1. L’utilisateur remplit et soumet le formulaire de virement. La base réserve
+   le montant sur sa position interne, sans débit définitif.
+2. Le personnel compétent de la banque réalise tous les contrôles nécessaires
+   hors de Monalyz.
+3. Après ces contrôles, le chef d’agence complète seul les contrôles requis
+   dans l’application et valide la demande.
+4. Le dossier devient autorisé pour exécution externe, toujours sans débit.
+5. Un opérateur réalise le virement hors Monalyz et remet les preuves au chef
+   d’agence hors de l’application.
+6. Le chef d’agence confirme dans Monalyz que le virement est effectif.
+7. La position interne est débitée, le dossier devient final et l’utilisateur
+   reçoit un e-mail de réussite.
 
 Une annulation ou un rejet libère la réservation ; elle ne crée pas un
 « remboursement », puisqu’aucun débit n’a encore eu lieu.
 
 ## Flux d’un prêt
 
-La demande de prêt orchestre une étude et la preuve d’un versement externe.
-Elle ne constitue ni une offre de crédit, ni un contrat, ni une promesse de
-financement.
-
-1. L’utilisateur réalise une simulation indicative et transmet sa demande avec
-   au moins un justificatif privé.
-2. La RPC `submit_loan_application` enregistre le montant, la durée, le taux et
-   la mensualité indicatifs avec une clé d’idempotence.
-3. La base crée les contrôles de double revue, d’escalade, de conformité et
-   d’autorisation finale.
-4. Les quatre contrôles doivent être terminés par au moins deux membres du
-   personnel distincts.
-5. Le dossier devient `approved_for_external_funding` ; cette autorisation
-   interne ne déclenche aucun versement.
-6. La contractualisation et le mouvement financier sont réalisés hors de
+1. L’utilisateur soumet sa demande avec les justificatifs nécessaires.
+2. Le personnel compétent de la banque réalise tous les contrôles nécessaires
+   hors de Monalyz.
+3. Après ces contrôles, le chef d’agence complète seul les contrôles requis
+   dans l’application et valide la demande.
+4. Le personnel compétent effectue le décaissement réel en interne, hors de
    Monalyz.
-7. Un opérateur enregistre dans Monalyz la référence, la date et la preuve du
-   versement externe ; le dossier passe à `external_funding_recorded`.
-8. Un superviseur ou administrateur différent de l’opérateur rapproche la
-   preuve et confirme le règlement ; le dossier devient
-   `external_settlement_confirmed`.
+5. Après ce décaissement, le chef d’agence sélectionne dans l’application la
+   position courante de l’utilisateur et confirme le décaissement.
+6. Monalyz crédite cette position interne du montant du prêt.
+7. Le dossier devient final et l’utilisateur reçoit un e-mail de réussite.
 
 La machine d’état nominale est donc :
 
 ```text
 submitted
-  -> under_review
   -> approved_for_external_funding
-  -> external_funding_recorded
   -> external_settlement_confirmed
 ```
 
-Les sorties alternatives sont `rejected`, `cancelled` et `external_failed`.
-Elles sont terminales. Aucun état du prêt ne crédite une position financière
-Monalyz et l’application ne gère actuellement ni échéancier contractuel, ni
-remboursement automatique, ni recouvrement.
+Les anciens états intermédiaires restent acceptés pour les dossiers déjà
+existants. Le chef d’agence peut refuser une demande avant sa finalisation.
+Monalyz ne gère pas les contrôles bancaires, le contrat, l’échéancier, le
+remboursement automatique ou le recouvrement.
+
+## E-mails métier
+
+Chaque changement de statut utile crée, dans la même transaction SQL, une
+entrée unique dans `transactional_email_outbox`. Après la validation de la
+transaction, la route serveur utilise un client Supabase privilégié pour
+réclamer un lot d’e-mails et l’envoyer par l’API Resend ou Brevo. Un incident
+fournisseur ne revient jamais sur la décision financière : l’outbox conserve
+le message pour une nouvelle tentative.
+
+Les événements couverts sont la soumission, la validation, le refus, l’échec
+et la finalisation d’un virement, ainsi que la soumission, la validation, le
+refus, l’échec et le décaissement d’un prêt.
 
 ## Défense en profondeur
 

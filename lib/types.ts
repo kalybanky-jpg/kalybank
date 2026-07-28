@@ -11,7 +11,7 @@ export interface BankAccount {
   name: string;
   /**
    * A masked external reference when one was recorded manually.
-   * This is never presented as an account connected to KALY.
+   * This is never presented as an account connected to Monalyz.
    */
   iban: string;
   /** Internally declared or reconciled position, not a live bank balance. */
@@ -37,6 +37,7 @@ export interface Transaction {
 
 export interface PendingTransfer {
   id: string;
+  ownerId: string;
   sourceAccountId?: string;
   recipientName: string;
   recipientAccount: string; // IBAN / Transit / Routing Number
@@ -78,6 +79,7 @@ export interface PendingTransfer {
 
 export interface LoanApplication {
   id: string;
+  ownerId: string;
   reference: string;
   clientName: string;
   clientEmail: string;
@@ -100,6 +102,7 @@ export interface LoanApplication {
   complianceProgress: number; // 0 to 100 percentage
   nextDueDate: string;
   disbursementAccount: string;
+  creditedPositionId?: string;
   durationMonths: number;
   monthlyPayment: number;
   motive: string;

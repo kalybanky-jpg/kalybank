@@ -67,7 +67,7 @@ export default function AdminKycManagement() {
               Contrôle humain des dossiers d&apos;identité
             </h1>
             <p className="text-xs text-slate-500">
-              L&apos;approbation confirme le contrôle KYC dans KALY. Elle ne crée ni
+              L&apos;approbation confirme le contrôle KYC dans Monalyz. Elle ne crée ni
               compte bancaire, ni IBAN, ni relation avec une banque.
             </p>
           </div>
@@ -230,7 +230,7 @@ export default function AdminKycManagement() {
                   )}
                 </div>
                 <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900">
-                  Aucun score biométrique n&apos;est calculé par KALY. Comparez
+                  Aucun score biométrique n&apos;est calculé par Monalyz. Comparez
                   manuellement les pièces et documentez la décision.
                 </div>
               </div>

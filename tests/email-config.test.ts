@@ -9,8 +9,8 @@ import {
 
 const commonEnvironment: AuthEmailEnvironment = {
   SUPABASE_PROJECT_REF: "abcdefghijklmnopqrst",
-  AUTH_SMTP_FROM_EMAIL: "no-reply@auth.kaly.test",
-  AUTH_SMTP_SENDER_NAME: "KALY",
+  AUTH_SMTP_FROM_EMAIL: "support@monalyz.com",
+  AUTH_SMTP_SENDER_NAME: "Monalyz",
   AUTH_EMAIL_RATE_LIMIT_PER_HOUR: "45",
   AUTH_SMTP_MAX_FREQUENCY_SECONDS: "90",
 };
@@ -37,6 +37,8 @@ test("la configuration Resend utilise le profil SMTP officiel", () => {
   assert.equal(config.payload.smtp_port, "587");
   assert.equal(config.payload.smtp_user, "resend");
   assert.equal(config.payload.smtp_pass, "re_a_secret_value");
+  assert.equal(config.payload.smtp_admin_email, "support@monalyz.com");
+  assert.equal(config.payload.smtp_sender_name, "Monalyz");
   assert.equal(config.payload.rate_limit_email_sent, 45);
   assert.equal(config.payload.smtp_max_frequency, 90);
 });
@@ -46,7 +48,7 @@ test("la configuration Brevo exige des identifiants SMTP distincts", () => {
     "brevo",
     {
       ...commonEnvironment,
-      BREVO_SMTP_LOGIN: "smtp-user@kaly.test",
+      BREVO_SMTP_LOGIN: "smtp-user@monalyz.test",
       BREVO_SMTP_KEY: "xsmtpsib-a-secret-value",
     },
     templates,
@@ -54,11 +56,11 @@ test("la configuration Brevo exige des identifiants SMTP distincts", () => {
 
   assert.equal(config.payload.smtp_host, "smtp-relay.brevo.com");
   assert.equal(config.payload.smtp_port, "587");
-  assert.equal(config.payload.smtp_user, "smtp-user@kaly.test");
+  assert.equal(config.payload.smtp_user, "smtp-user@monalyz.test");
   assert.equal(config.payload.smtp_pass, "xsmtpsib-a-secret-value");
 });
 
-test("les deux profils conservent les protections Auth et les modèles KALY", () => {
+test("les deux profils conservent les protections Auth et les modèles Monalyz", () => {
   const config = buildSupabaseAuthEmailConfig(
     "resend",
     {

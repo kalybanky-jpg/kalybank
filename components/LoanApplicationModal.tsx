@@ -34,6 +34,7 @@ export default function LoanApplicationModal() {
   const [durationMonths, setDurationMonths] = useState(36);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [submittedReference, setSubmittedReference] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -111,7 +112,7 @@ export default function LoanApplicationModal() {
 
     try {
       setIsSubmitting(true);
-      await addLoanApplication({
+      const reference = await addLoanApplication({
         clientName: '',
         clientEmail: '',
         requestedAmount,
@@ -120,13 +121,15 @@ export default function LoanApplicationModal() {
         durationMonths,
         monthlyPayment: Math.round(estimatedMonthlyPayment),
         motive,
-        disbursementAccount: 'Destination externe non connectée',
+        disbursementAccount: 'Compte courant non encore crédité',
         nextDueDate: 'Non applicable avant contractualisation externe',
         evidenceFiles: uploadedFiles,
       });
+      setSubmittedReference(reference);
       setIsSuccess(true);
       setTimeout(() => {
         setIsSuccess(false);
+        setSubmittedReference('');
         setIsLoanModalOpen(false);
         setUploadedFiles([]);
         setStep(1);
@@ -229,7 +232,7 @@ export default function LoanApplicationModal() {
               </div>
               <h3 className="text-xl font-extrabold text-slate-900">{t.loanSubmittedSuccess}</h3>
               <p className="text-sm font-mono text-indigo-700 font-bold bg-indigo-50 p-2 rounded-xl border border-indigo-200 inline-block">
-                PP-2024-DOSSIER
+                {submittedReference}
               </p>
               <p className="text-xs text-slate-600 max-w-md mx-auto">
                 Votre demande est enregistrée pour étude. La simulation ne constitue

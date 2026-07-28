@@ -1,130 +1,180 @@
 # E-mails transactionnels
 
-> KALY utilise Supabase Auth comme point d’émission unique des e-mails
-> d’identité. Le transport SMTP peut être Resend ou Brevo, un seul à la fois.
+Monalyz propose deux configurations indépendantes :
 
-Cette configuration couvre la confirmation d’inscription, la récupération du
-mot de passe et la notification de changement de mot de passe. Elle n’envoie
-aucun ordre financier, ne confirme aucune exécution financière et ne crée
-aucune connexion bancaire.
+- les e-mails d’identité de Supabase Auth, transportés par SMTP ;
+- les notifications métier des virements et prêts, envoyées depuis l’outbox
+  par l’API REST Resend ou Brevo.
 
-## Architecture
+Un seul fournisseur métier est actif à la fois. Aucun e-mail ne donne un ordre
+bancaire et aucun fournisseur n’est relié à une banque.
+
+## Architecture métier
 
 ```text
-Application KALY -> Supabase Auth -> SMTP sélectionné -> destinataire
-                                  -> Resend ou Brevo
-
-Développement local -> Supabase Auth -> Mailpit
+RPC virement/prêt
+  -> transaction PostgreSQL
+     -> nouvel état métier
+     -> notification interne
+     -> job unique dans transactional_email_outbox
+  -> POST /api/transactional-email/dispatch
+     -> claim atomique
+     -> rendu d’un modèle versionné
+     -> API Resend ou API Brevo
+     -> sent, nouvelle tentative ou failed
 ```
 
-Le fournisseur n’est pas choisi au runtime de l’application. Un script
-d’administration applique atomiquement le profil sélectionné à Supabase Auth.
-Les secrets SMTP ne sont donc jamais présents dans le bundle Next.js.
+L’enregistrement métier et le job d’e-mail sont atomiques. Une panne réseau ou
+fournisseur ne revient jamais sur une validation, un refus ou une
+finalisation. Le job reste disponible pour une nouvelle tentative.
 
-## Profils disponibles
+La clé `event_key` empêche deux jobs pour le même statut. La clé
+`Idempotency-Key: monalyz-<job-id>` est aussi transmise au fournisseur :
+en-tête HTTP chez Resend, en-tête personnalisé du message chez Brevo.
 
-| Profil | Hôte | Port | Identifiant | Secret |
-| --- | --- | --- | --- | --- |
-| Resend | `smtp.resend.com` | `587` | `resend` | Clé API Resend |
-| Brevo | `smtp-relay.brevo.com` | `587` | Login SMTP Brevo | Clé SMTP Brevo |
+## Événements couverts
 
-Pour Brevo, une clé API ne remplace pas une clé SMTP. Pour les deux
-fournisseurs, l’adresse d’expédition doit appartenir à un domaine vérifié.
+| Virement | Prêt |
+| --- | --- |
+| Demande soumise | Demande soumise |
+| Validé par le chef d’agence | Validé par le chef d’agence |
+| Effectué et finalisé | Décaissé et position courante créditée |
+| Refusé | Refusé |
+| Exécution échouée | Décaissement échoué |
 
-## Préparation du domaine
+Les modèles rappellent que les contrôles bancaires et mouvements financiers
+sont effectués hors de Monalyz.
 
-1. réserver de préférence un sous-domaine dédié, par exemple `auth.kaly.tld` ;
-2. vérifier ce domaine chez les deux fournisseurs si les deux doivent rester
-   disponibles ;
-3. publier les enregistrements SPF et DKIM fournis par chaque fournisseur ;
-4. publier une politique DMARC et superviser progressivement ses rapports ;
-5. désactiver le suivi et la réécriture des liens pour les e-mails Auth ;
-6. garder les e-mails marketing sur un domaine ou flux distinct.
+## Configuration des e-mails métier
 
-## Configuration Resend
-
-```powershell
-Copy-Item .env.email.resend.example .env.email.resend.local
-# Renseigner le fichier local, puis prévalider sans mutation distante.
-npx bun run auth:email:check:resend
-# Appliquer uniquement après contrôle du project ref affiché.
-npx bun run auth:email:configure:resend
-```
-
-## Configuration Brevo
-
-```powershell
-Copy-Item .env.email.brevo.example .env.email.brevo.local
-# Renseigner le fichier local, puis prévalider sans mutation distante.
-npx bun run auth:email:check:brevo
-# Appliquer uniquement après contrôle du project ref affiché.
-npx bun run auth:email:configure:brevo
-```
-
-Les fichiers `.env.email.*.local` restent hors Git. Les fichiers
-`.env.email.*.example` décrivent les valeurs attendues sans contenir de secret.
-
-## Variables d’administration
+Variables communes :
 
 | Variable | Rôle |
 | --- | --- |
-| `SUPABASE_PROJECT_REF` | Projet hébergé à modifier explicitement |
-| `SUPABASE_ACCESS_TOKEN` | Jeton Management API, requis seulement à l’application |
+| `TRANSACTIONAL_EMAIL_PROVIDER` | `resend` ou `brevo` |
+| `TRANSACTIONAL_EMAIL_FROM_EMAIL` | Adresse expéditrice vérifiée |
+| `TRANSACTIONAL_EMAIL_FROM_NAME` | Nom visible, `Monalyz` par défaut |
+| `TRANSACTIONAL_EMAIL_REPLY_TO` | Adresse de réponse, sinon l’expéditeur |
+| `SUPABASE_SECRET_KEY` | Clé serveur privilégiée du worker d’outbox |
+
+`SUPABASE_SERVICE_ROLE_KEY` reste accepté pour les projets utilisant les
+anciennes clés JWT. Préférer `SUPABASE_SECRET_KEY`. Ces deux variables sont
+strictement serveur et ne doivent jamais porter le préfixe `NEXT_PUBLIC_`.
+
+### Resend métier
+
+```dotenv
+TRANSACTIONAL_EMAIL_PROVIDER=resend
+TRANSACTIONAL_EMAIL_FROM_EMAIL=support@monalyz.com
+TRANSACTIONAL_EMAIL_FROM_NAME=Monalyz
+TRANSACTIONAL_EMAIL_REPLY_TO=support@monalyz.com
+RESEND_API_KEY=re_replace_me
+SUPABASE_SECRET_KEY=sb_secret_replace_me
+```
+
+`RESEND_API_KEY` autorise l’appel `POST https://api.resend.com/emails`. Resend
+accepte également cette clé comme secret SMTP du profil Supabase Auth.
+
+### Brevo métier
+
+```dotenv
+TRANSACTIONAL_EMAIL_PROVIDER=brevo
+TRANSACTIONAL_EMAIL_FROM_EMAIL=support@monalyz.com
+TRANSACTIONAL_EMAIL_FROM_NAME=Monalyz
+TRANSACTIONAL_EMAIL_REPLY_TO=support@monalyz.com
+BREVO_API_KEY=xkeysib-replace_me
+SUPABASE_SECRET_KEY=sb_secret_replace_me
+```
+
+`BREVO_API_KEY` autorise l’appel
+`POST https://api.brevo.com/v3/smtp/email`. Elle est distincte des
+identifiants SMTP `BREVO_SMTP_LOGIN` et `BREVO_SMTP_KEY` utilisés par
+Supabase Auth. Une clé API Brevo ne remplace pas une clé SMTP, et inversement.
+
+Les variables fournisseur sont des secrets serveur : ne jamais utiliser de
+préfixe `NEXT_PUBLIC_` et ne jamais les commiter.
+
+## Configuration Supabase Auth
+
+Supabase Auth envoie la confirmation d’inscription, la récupération du mot de
+passe et la notification de changement du mot de passe. Le script
+d’administration applique un profil SMTP à la fois.
+
+| Profil Auth | Hôte | Port | Identifiant | Secret |
+| --- | --- | --- | --- | --- |
+| Resend | `smtp.resend.com` | `587` | `resend` | `RESEND_API_KEY` |
+| Brevo | `smtp-relay.brevo.com` | `587` | `BREVO_SMTP_LOGIN` | `BREVO_SMTP_KEY` |
+
+### Appliquer Resend à Supabase Auth
+
+```powershell
+# Ajoutez la clé et le jeton Management API dans .env, hors Git.
+npx bun run auth:email:check:resend
+npx bun run auth:email:configure:resend
+```
+
+### Appliquer Brevo à Supabase Auth
+
+```powershell
+Copy-Item .env.email.brevo.example .env.email.brevo.local
+npx bun run auth:email:check:brevo
+npx bun run auth:email:configure:brevo
+```
+
+Variables d’administration :
+
+| Variable | Rôle |
+| --- | --- |
+| `SUPABASE_PROJECT_REF` | Projet hébergé à modifier |
+| `SUPABASE_ACCESS_TOKEN` | Jeton Management API |
 | `AUTH_SMTP_FROM_EMAIL` | Adresse expéditrice vérifiée |
-| `AUTH_SMTP_SENDER_NAME` | Nom visible de l’expéditeur |
-| `AUTH_EMAIL_RATE_LIMIT_PER_HOUR` | Limite Supabase d’e-mails par heure |
-| `AUTH_SMTP_MAX_FREQUENCY_SECONDS` | Délai minimal entre deux demandes Auth |
-| `RESEND_API_KEY` | Secret SMTP du profil Resend |
-| `BREVO_SMTP_LOGIN` | Login SMTP du profil Brevo |
-| `BREVO_SMTP_KEY` | Clé SMTP du profil Brevo |
+| `AUTH_SMTP_SENDER_NAME` | Nom visible |
+| `AUTH_EMAIL_RATE_LIMIT_PER_HOUR` | Limite Supabase par heure |
+| `AUTH_SMTP_MAX_FREQUENCY_SECONDS` | Délai anti-abus |
 
-Le jeton Supabase doit autoriser la lecture et l’écriture de la configuration
-Auth du projet. Le script ne l’affiche jamais et ne compare jamais le mot de
-passe SMTP lors de sa vérification distante.
+Le script exige une confirmation d’adresse, sécurise le changement d’adresse
+et de mot de passe, applique les modèles versionnés de `supabase/templates`,
+puis relit la configuration distante. Son résumé masque toujours les secrets.
 
-## Ce que le script applique
+## Exploitation de l’outbox
 
-- confirmation d’adresse obligatoire ;
-- double confirmation des changements d’adresse ;
-- réauthentification pour un changement sensible de mot de passe ;
-- SMTP du fournisseur sélectionné ;
-- limite horaire et délai anti-abus ;
-- modèles versionnés dans `supabase/templates` ;
-- notification de sécurité après changement de mot de passe.
+- un lot contient de 1 à 20 jobs au niveau RPC et 10 au niveau de la route ;
+- seules les RPC appelées avec le rôle `service_role` peuvent réclamer ou
+  terminer des jobs ;
+- `FOR UPDATE SKIP LOCKED` évite que deux workers réclament le même job ;
+- un `claim_token` aléatoire lie la complétion au claim en cours ;
+- un claim bloqué depuis plus de dix minutes peut être repris ;
+- chaque tentative incrémente `attempts` ;
+- après cinq échecs, le job devient `failed` ;
+- l’erreur fournisseur est conservée avec une taille limitée ;
+- seuls les jobs `sent` possèdent `sent_at`.
 
-Avant toute requête distante, les modèles sont aussi contrôlés : le script
-refuse un fichier vide, surdimensionné ou privé des marqueurs indispensables au
-parcours concerné (`SiteURL`, `TokenHash`, type Auth ou adresse du compte).
+La route de dispatch exige une origine canonique et une session, puis crée un
+client serveur isolé avec `SUPABASE_SECRET_KEY` — ou l’ancienne
+`SUPABASE_SERVICE_ROLE_KEY`. Le navigateur ne reçoit jamais cette clé et ne
+fournit jamais l’adresse du destinataire, le modèle ou le contenu : ils
+proviennent exclusivement de l’outbox.
 
-Après le `PATCH`, le script relit la configuration distante et compare tous les
-champs non secrets. Une divergence provoque un échec explicite.
+Pour une exécution régulière sans interaction utilisateur, appeler la même
+route depuis un mécanisme planifié authentifié ou déplacer le worker dans une
+fonction serveur dédiée. Ce mécanisme d’exploitation n’est pas encore activé.
 
-## Vérification opérationnelle
+## Préparation et recette
 
-1. créer un compte de test sur l’environnement visé ;
-2. contrôler la réception et le lien de confirmation ;
-3. demander une récupération de mot de passe et terminer le parcours ;
-4. contrôler l’alerte reçue après changement du mot de passe ;
-5. vérifier les journaux Auth Supabase et le journal de livraison du
-   fournisseur ;
-6. supprimer le compte de test.
-
-Ne passez pas en production tant que SPF, DKIM, DMARC, le domaine expéditeur,
-les URL Auth et les trois parcours ci-dessus ne sont pas validés.
-
-## Bascule et retour arrière
-
-Il n’y a pas de bascule automatique : elle masquerait des incidents de
-réputation, de quota ou de configuration DNS. Pour changer de fournisseur,
-prévalidez puis exécutez la commande `configure` de l’autre profil. L’opération
-remplace en une seule requête la configuration SMTP et conserve les mêmes
-protections et modèles.
-
-Conservez les deux fichiers locaux dans un coffre de secrets approprié et
-révoquez immédiatement toute clé soupçonnée d’exposition.
+1. vérifier le domaine expéditeur chez le ou les fournisseurs ;
+2. publier les enregistrements SPF, DKIM et DMARC ;
+3. renseigner un seul profil métier dans les secrets du serveur ;
+4. lancer `npx bun x tsx --test tests/transactional-email.test.ts` ;
+5. soumettre un virement et un prêt avec un compte de test ;
+6. valider, refuser et finaliser depuis le compte chef d’agence ;
+7. vérifier le statut `sent`, l’identifiant fournisseur et les journaux ;
+8. provoquer un échec contrôlé et vérifier la remise en attente ;
+9. contrôler l’affichage texte et HTML sur mobile et ordinateur.
 
 Références officielles :
 [SMTP Supabase](https://supabase.com/docs/guides/auth/auth-smtp),
 [modèles Supabase](https://supabase.com/docs/guides/auth/auth-email-templates),
-[SMTP Resend](https://resend.com/docs/send-with-smtp) et
+[API Resend](https://resend.com/docs/api-reference/emails/send-email),
+[SMTP Resend](https://resend.com/docs/send-with-smtp),
+[API Brevo](https://developers.brevo.com/reference/sendtransacemail) et
 [SMTP Brevo](https://developers.brevo.com/docs/smtp-integration).

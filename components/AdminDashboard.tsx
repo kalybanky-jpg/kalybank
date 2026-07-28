@@ -78,14 +78,14 @@ export default function AdminDashboard() {
 
   const cards = [
     {
-      label: 'Instructions à traiter',
+      label: 'Virements à décider',
       value: activeTransfers.length,
       icon: Send,
       color: 'text-blue-600 bg-blue-50',
       target: 'transfers',
     },
     {
-      label: 'Demandes à étudier',
+      label: 'Prêts à décider',
       value: activeLoans.length,
       icon: FileText,
       color: 'text-indigo-600 bg-indigo-50',
@@ -99,7 +99,7 @@ export default function AdminDashboard() {
       target: 'compliance',
     },
     {
-      label: 'Règlements externes confirmés',
+      label: 'Opérations finalisées',
       value: confirmedExternalOperations,
       icon: CheckCircle2,
       color: 'text-emerald-600 bg-emerald-50',
@@ -112,12 +112,12 @@ export default function AdminDashboard() {
       <header className="bg-slate-900 text-white rounded-3xl p-6">
         <div className="flex items-center gap-2 text-blue-300 text-xs font-bold uppercase">
           <ShieldCheck className="w-4 h-4" />
-          <span>Back-Office KALY</span>
+          <span>Espace chef d&apos;agence Monalyz</span>
         </div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold mt-1">File opérationnelle</h1>
+        <h1 className="text-2xl sm:text-3xl font-extrabold mt-1">Décisions à prendre</h1>
         <p className="text-xs sm:text-sm text-slate-300 mt-2 max-w-3xl">
-          Aucune banque n&apos;est connectée. Les chiffres ci-dessous décrivent
-          uniquement les dossiers KALY et les preuves externes enregistrées par les opérateurs.
+          Les contrôles et mouvements financiers sont réalisés hors de Monalyz.
+          Cet espace permet au chef d&apos;agence de valider puis finaliser les dossiers.
         </p>
       </header>
 

@@ -75,7 +75,7 @@ export default function UserSettingsView() {
           <Settings className="w-4 h-4" />
           <span>Préférences</span>
         </div>
-        <h1 className="text-2xl font-extrabold mt-1">Paramètres du compte KALY</h1>
+        <h1 className="text-2xl font-extrabold mt-1">Paramètres du compte Monalyz</h1>
       </header>
 
       <form onSubmit={save} className="bg-white rounded-3xl border border-slate-200 p-6 space-y-5">

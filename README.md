@@ -1,11 +1,11 @@
-# KALY
+# Monalyz
 
 > Application d’instruction, de contrôle et de traçabilité d’opérations financières réalisées hors application.
 
 > [!IMPORTANT]
-> KALY n’utilise aucune API bancaire, n’est relié à aucune banque et ne déplace
-> jamais d’argent. Une opération n’est reflétée dans KALY qu’après preuve
-> d’exécution externe et confirmation par un second membre habilité.
+> Monalyz n’utilise aucune API bancaire, n’est relié à aucune banque et ne déplace
+> jamais d’argent. Les contrôles et mouvements réels ont lieu hors application ;
+> le chef d’agence en confirme ensuite le résultat dans Monalyz.
 
 | Élément | Valeur |
 | --- | --- |
@@ -13,14 +13,17 @@
 | Stack | Next.js 16, React 19, TypeScript, Tailwind CSS |
 | Données | Supabase Auth, PostgreSQL, Storage privé |
 | Gestionnaire | Bun |
+| Support | `support@monalyz.com` |
 
 ## Fonctions actuelles
 
 - comptes applicatifs et dossiers KYC contrôlés humainement ;
-- intentions de transfert avec réservation interne, contrôles et preuve externe ;
-- demandes de prêt avec contrôles et preuve de financement externe ;
+- intentions de transfert avec réservation, validation et finalisation par le
+  chef d’agence après traitement bancaire hors application ;
+- demandes de prêt validées puis décaissées par le chef d’agence après
+  traitement interne, avec crédit de la position courante ;
 - positions financières déclarées ou rapprochées, datées et non connectées ;
-- rôles staff, RLS, journal d’audit et justificatifs privés.
+- rôles staff, RLS, journal d’audit, justificatifs privés et outbox e-mail.
 
 ## Démarrage rapide
 

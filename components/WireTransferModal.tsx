@@ -305,7 +305,7 @@ export default function WireTransferModal() {
               <div>
                 <h3 className="text-base sm:text-lg font-extrabold">{t.newTransferTitle}</h3>
                 <p className="text-[11px] sm:text-xs text-slate-400">
-                  Instruction préparée dans KALY — exécution hors application
+                  Instruction préparée dans Monalyz — exécution hors application
                 </p>
               </div>
             </div>
@@ -364,7 +364,7 @@ export default function WireTransferModal() {
               <h3 className="text-xl font-extrabold text-slate-900">Instruction enregistrée</h3>
               <p className="text-xs sm:text-sm text-slate-600 max-w-md mx-auto">
                 Aucun transfert bancaire n&apos;a encore été exécuté. L&apos;instruction doit
-                être contrôlée, exécutée hors de KALY, puis confirmée par un second opérateur.
+                être contrôlée, exécutée hors de Monalyz, puis confirmée par un second opérateur.
               </p>
             </div>
           ) : (
@@ -987,7 +987,7 @@ export default function WireTransferModal() {
                       </div>
 
                       <div className="flex items-center justify-between text-xs text-blue-100 pt-2 border-t border-blue-800/80">
-                        <span>Frais externes : <strong className="text-amber-200">non connus par KALY</strong></span>
+                        <span>Frais externes : <strong className="text-amber-200">non connus par Monalyz</strong></span>
                         <span>Taux indicatif au {new Date(rates.updatedAt).toLocaleString(language)}</span>
                       </div>
                     </div>

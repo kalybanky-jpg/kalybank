@@ -29,7 +29,7 @@ export default function AdminReportsView() {
           <BarChart3 className="w-4 h-4" />
           <span>Indicateurs applicatifs</span>
         </div>
-        <h1 className="text-2xl font-extrabold mt-1">Rapport opérationnel KALY</h1>
+        <h1 className="text-2xl font-extrabold mt-1">Rapport opérationnel Monalyz</h1>
         <p className="text-xs text-slate-300 mt-2">
           Les métriques portent sur les dossiers enregistrés. Elles ne mesurent aucun flux bancaire.
         </p>

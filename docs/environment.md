@@ -1,6 +1,6 @@
 # Variables d’environnement
 
-> Référence des seules variables runtime requises par KALY.
+> Référence des seules variables runtime requises par Monalyz.
 
 | Variable | Requise | Utilisée par | Rôle |
 | --- | --- | --- | --- |
@@ -13,13 +13,13 @@
 mais la clé publiable est la convention documentée.
 
 `.env.remote.example` contient uniquement l’URL et la clé publiable du projet
-KALY. Cette clé est destinée au navigateur et reste protégée par RLS ; aucune
+Monalyz. Cette clé est destinée au navigateur et reste protégée par RLS ; aucune
 clé secrète ou `service_role` n’est versionnée.
 
-Les secrets SMTP ne sont pas des variables runtime de l’application. Ils sont
-lus uniquement par le script d’administration décrit dans
-[E-mails transactionnels](transactional-email.md), depuis un fichier local
-`.env.email.resend.local` ou `.env.email.brevo.local`.
+Les secrets SMTP sont accessibles uniquement au serveur et au script
+d’administration décrit dans [E-mails transactionnels](transactional-email.md).
+Le profil Resend utilise `.env`; le profil Brevo utilise
+`.env.email.brevo.local`. Ces fichiers restent hors Git.
 
 ## Règles de sécurité
 

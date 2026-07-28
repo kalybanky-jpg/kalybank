@@ -1,6 +1,6 @@
 # Installation locale
 
-> Procédure reproductible pour lancer KALY avec sa pile Supabase locale.
+> Procédure reproductible pour lancer Monalyz avec sa pile Supabase locale.
 
 ## Prérequis
 
@@ -35,7 +35,7 @@ Puis lancez :
 npx bun run dev
 ```
 
-Pour travailler directement contre le projet distant KALY, utilisez plutôt :
+Pour travailler directement contre le projet distant Monalyz, utilisez plutôt :
 
 ```powershell
 npx bun run supabase:link
@@ -71,7 +71,7 @@ nécessaire pour développer. Leur configuration hébergée est décrite dans
 
 ## Dépannage local
 
-- Si le port PostgreSQL standard d’un autre projet est occupé, KALY utilise
+- Si le port PostgreSQL standard d’un autre projet est occupé, Monalyz utilise
   `54332` dans `supabase/config.toml`.
 - Sous Windows, la pile minimale ci-dessus exclut les services non nécessaires
   susceptibles d’échouer sur le contrôle de santé Analytics.

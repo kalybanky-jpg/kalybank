@@ -66,11 +66,11 @@ function LoginContent() {
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-xl shadow-blue-500/20">
             <ShieldCheck className="w-7 h-7" />
           </div>
-          <span className="text-3xl font-extrabold tracking-tight text-white font-mono">KALY</span>
+          <span className="text-3xl font-extrabold tracking-tight text-white font-mono">Monalyz</span>
         </div>
         <h1 className="text-xl font-bold text-slate-200">Connexion à votre espace</h1>
         <p className="mt-1 text-xs text-slate-400">
-          KALY initie et suit vos instructions. Aucune banque n&apos;est connectée.
+          Monalyz initie et suit vos instructions. Aucune banque n&apos;est connectée.
         </p>
       </div>
 
@@ -135,7 +135,7 @@ function LoginContent() {
         </div>
 
         <p className="text-center mt-6 text-xs text-slate-400">
-          Nouveau sur KALY ?{' '}
+          Nouveau sur Monalyz ?{' '}
           <Link href="/register" className="font-extrabold text-blue-400 hover:underline">
             Créer un compte applicatif
           </Link>

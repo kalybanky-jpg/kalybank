@@ -1,4 +1,4 @@
 -- Intentionally empty.
--- KALY ships no demo identities, fake positions, seeded transactions, or default
+-- Monalyz ships no demo identities, fake positions, seeded transactions, or default
 -- staff accounts. Staff membership must be granted explicitly to an existing
 -- authenticated user in each environment.

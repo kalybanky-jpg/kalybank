@@ -36,9 +36,9 @@ function AdminLoginContent() {
 
       const { data: role, error: roleError } = await supabase.rpc('current_app_role');
       if (roleError) throw roleError;
-      if (!role || role === 'user') {
+      if (role !== 'admin') {
         await supabase.auth.signOut();
-        throw new Error('Ce compte ne dispose pas d’une habilitation Back-Office active.');
+        throw new Error('Ce compte ne dispose pas de l’habilitation chef d’agence.');
       }
 
       const requestedPath = safeInternalPath(searchParams.get('next'), '/admin');
@@ -61,11 +61,11 @@ function AdminLoginContent() {
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-indigo-600 flex items-center justify-center">
             <Building2 className="w-7 h-7 text-white" />
           </div>
-          <span className="text-3xl font-extrabold text-white font-mono">KALY</span>
+          <span className="text-3xl font-extrabold text-white font-mono">Monalyz</span>
         </div>
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-bold">
           <ShieldAlert className="w-3.5 h-3.5" />
-          <span>Back-Office contrôlé par rôle</span>
+          <span>Accès réservé au chef d&apos;agence</span>
         </div>
       </div>
 
@@ -113,7 +113,7 @@ function AdminLoginContent() {
               disabled={isLoading}
               className="w-full py-3.5 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-sm rounded-xl transition disabled:opacity-50"
             >
-              {isLoading ? 'Vérification des habilitations…' : 'Ouvrir la session Back-Office'}
+              {isLoading ? 'Vérification des habilitations…' : 'Ouvrir l’espace chef d’agence'}
             </button>
           </form>
         </div>

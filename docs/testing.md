@@ -8,7 +8,8 @@
 | --- | --- | --- |
 | TypeScript | `npx bun run typecheck` | Typage strict |
 | Lint | `npx bun run lint -- --max-warnings=0` | Next, hooks, accessibilité |
-| Tests unitaires | `npx bun run test` | Montants, états, masquage, redirections |
+| Tests unitaires | `npx bun run test` | Domaine, redirections et e-mails |
+| E-mails métier | `npx bun x tsx --test tests/transactional-email.test.ts` | Config, modèles, payloads et idempotence |
 | Schéma | `npx bun x supabase db lint --local --level warning --fail-on error` | Erreurs SQL |
 | Conseillers | `npx bun x supabase db advisors --local --type all --level warn --fail-on error` | Sécurité et performance |
 | pgTAP | `npx bun run test:db` | 19 invariants financiers |
@@ -24,8 +25,9 @@ tests/
   email-config.test.ts
   financial.test.ts
   navigation.test.ts
+  transactional-email.test.ts
 supabase/tests/
-  kaly_workflow_invariants_test.sql
+  monalyz_workflow_invariants_test.sql
 ```
 
 ## Avant fusion
@@ -36,6 +38,8 @@ supabase/tests/
 4. Vérifier `/login`, la redirection de `/myaccount` et celle de `/admin`.
 5. Vérifier que chaque script de la réponse HTML porte le nonce du CSP.
 6. Confirmer que `/api/evidence` retourne `401` sans session et `403` pour une origine étrangère.
+7. Vérifier avec un compte de test que l’outbox passe de `pending` à `sent` et
+   que le fournisseur ne reçoit qu’un message par `event_key`.
 
 Le patch `patches/minimatch@3.1.5.patch` adapte l’ancien consommateur CommonJS
 à `brace-expansion` 5.0.8 corrigé. Ne le supprimer qu’après disparition de

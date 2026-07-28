@@ -14,9 +14,9 @@ export default function AdminDocumentsView() {
           <ShieldCheck className="w-4 h-4" />
           <span>Traçabilité</span>
         </div>
-        <h1 className="text-2xl font-extrabold mt-1">Journal d&apos;audit KALY</h1>
+        <h1 className="text-2xl font-extrabold mt-1">Journal d&apos;audit Monalyz</h1>
         <p className="text-xs text-slate-300 mt-2">
-          Événements applicatifs immuables. KALY ne génère aucun document bancaire officiel.
+          Événements applicatifs immuables. Monalyz ne génère aucun document bancaire officiel.
         </p>
       </header>
 

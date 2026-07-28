@@ -3,12 +3,12 @@ import { Language } from './types';
 export const translations: Record<Language, Record<string, string>> = {
   fr: {
     // Brand & General
-    appName: 'KALY',
+    appName: 'Monalyz',
     onlineBanking: 'Espace d’instruction et de suivi',
     adminDashboardTitle: 'Tableau de bord administrateur',
     adminSubtitle: 'Superviser les prêts, virements et conformité en temps réel.',
     userGreeting: 'Bonjour, Thomas 👋',
-    userWelcome: 'Bienvenue sur votre espace KALY.',
+    userWelcome: 'Bienvenue sur votre espace Monalyz.',
     needHelp: "Besoin d'aide ?",
     helpSubtitle: 'Notre équipe est là pour vous accompagner.',
     contactUs: 'Nous contacter',
@@ -181,12 +181,12 @@ export const translations: Record<Language, Record<string, string>> = {
   },
   en: {
     // Brand & General
-    appName: 'KALY',
+    appName: 'Monalyz',
     onlineBanking: 'Instruction and tracking workspace',
     adminDashboardTitle: 'Administrator Dashboard',
     adminSubtitle: 'Monitor loans, wire transfers, and compliance in real time.',
     userGreeting: 'Hello, Thomas 👋',
-    userWelcome: 'Welcome to your KALY workspace.',
+    userWelcome: 'Welcome to your Monalyz workspace.',
     needHelp: 'Need help?',
     helpSubtitle: 'Our team is here to assist you.',
     contactUs: 'Contact us',
@@ -358,7 +358,7 @@ export const translations: Record<Language, Record<string, string>> = {
     resetMockData: 'Refresh application data',
   },
   de: {
-    appName: 'KALY',
+    appName: 'Monalyz',
     onlineBanking: 'Online-Banking-Portal',
     adminDashboardTitle: 'Administrator-Dashboard',
     adminSubtitle: 'Kredite, Überweisungen und Compliance in Echtzeit überwachen.',
@@ -500,7 +500,7 @@ export const translations: Record<Language, Record<string, string>> = {
     resetMockData: 'Anwendungsdaten aktualisieren',
   },
   es: {
-    appName: 'KALY',
+    appName: 'Monalyz',
     onlineBanking: 'Portal de Banca en Línea',
     adminDashboardTitle: 'Panel de Administración',
     adminSubtitle: 'Supervisar préstamos, transferencias y cumplimiento en tiempo real.',

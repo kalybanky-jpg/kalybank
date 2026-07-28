@@ -55,7 +55,7 @@ async function updateSnapshot(): Promise<void> {
     "..",
   );
   const temporaryRoot = await mkdtemp(
-    path.join(os.tmpdir(), "kaly-schema-snapshot-"),
+    path.join(os.tmpdir(), "monalyz-schema-snapshot-"),
   );
   const rawDumpPath = path.join(temporaryRoot, "schema.sql");
   const snapshotPath = path.join(repositoryRoot, "supabase", "schema.sql");
@@ -94,7 +94,7 @@ async function updateSnapshot(): Promise<void> {
       .replace(/\r\n/g, "\n")
       .trimEnd();
     const header = [
-      "-- KALY DATABASE SCHEMA SNAPSHOT",
+      "-- Monalyz DATABASE SCHEMA SNAPSHOT",
       "-- GENERATED FILE: run `npx bun run db:snapshot`; do not edit manually.",
       `-- remote-project-ref: ${PROJECT_REF}`,
       `-- migration-manifest-sha256: ${manifest.hash}`,
@@ -120,7 +120,7 @@ async function updateSnapshot(): Promise<void> {
       resolvedTemporaryRoot.startsWith(
         `${resolvedOsTemporaryRoot}${path.sep}`,
       ) &&
-      path.basename(resolvedTemporaryRoot).startsWith("kaly-schema-snapshot-")
+      path.basename(resolvedTemporaryRoot).startsWith("monalyz-schema-snapshot-")
     ) {
       await rm(resolvedTemporaryRoot, { recursive: true, force: true });
     }

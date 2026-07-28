@@ -29,7 +29,7 @@ export default function UserLoansView() {
           </div>
           <h1 className="text-2xl font-extrabold mt-1">Dossiers et simulations</h1>
           <p className="text-xs text-slate-300 mt-2 max-w-2xl">
-            Toute estimation est non contractuelle. KALY ne prête pas, ne débite pas
+            Toute estimation est non contractuelle. Monalyz ne prête pas, ne débite pas
             et ne verse pas automatiquement de fonds.
           </p>
         </div>

@@ -30,7 +30,7 @@ test('safeInternalPath blocks absolute, protocol-relative and backslash redirect
 });
 
 test('safeHttpOrigin accepts only canonical HTTP origins', () => {
-  assert.equal(safeHttpOrigin('https://app.kaly.test/path?q=1'), 'https://app.kaly.test');
+  assert.equal(safeHttpOrigin('https://app.monalyz.test/path?q=1'), 'https://app.monalyz.test');
   assert.equal(safeHttpOrigin('http://127.0.0.1:3000/auth/callback'), 'http://127.0.0.1:3000');
   assert.equal(safeHttpOrigin('javascript:alert(1)'), null);
   assert.equal(safeHttpOrigin('not a URL'), null);
@@ -62,13 +62,13 @@ test('configuredServerAppOrigin refuses request-host fallback in production', ()
 test('configuredServerAppOrigin prioritizes the server-only canonical origin', () => {
   const previousAppOrigin = process.env.APP_ORIGIN;
   const previousPublicOrigin = process.env.NEXT_PUBLIC_APP_ORIGIN;
-  process.env.APP_ORIGIN = 'https://kaly.example/callback';
+  process.env.APP_ORIGIN = 'https://monalyz.example/callback';
   process.env.NEXT_PUBLIC_APP_ORIGIN = 'https://public.example';
 
   try {
     assert.equal(
       configuredServerAppOrigin('https://request.example', 'production'),
-      'https://kaly.example',
+      'https://monalyz.example',
     );
   } finally {
     if (previousAppOrigin === undefined) delete process.env.APP_ORIGIN;

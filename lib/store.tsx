@@ -33,12 +33,8 @@ import { createClient } from './supabase/client';
 import { isPublicSupabaseConfigured } from './supabase/config';
 import { deleteEvidence, uploadEvidence } from './evidence';
 import { authFailureRedirect } from './security/navigation';
+import { dispatchTransactionalEmails } from './transactional-email-client';
 
-type ReviewKey =
-  | 'doubleValidation'
-  | 'escalade'
-  | 'controleConformite'
-  | 'autorisationFinale';
 type ReviewState = 'termine' | 'en_cours' | 'en_attente';
 
 interface AppState {
@@ -82,6 +78,7 @@ interface AppState {
     transfer: Omit<
       PendingTransfer,
       | 'id'
+      | 'ownerId'
       | 'date'
       | 'status'
       | 'complianceStep'
@@ -93,48 +90,27 @@ interface AppState {
     loan: Omit<
       LoanApplication,
       | 'id'
+      | 'ownerId'
       | 'reference'
       | 'requestDate'
       | 'status'
       | 'currentStep'
       | 'complianceProgress'
       | 'repaidAmount'
+      | 'creditedPositionId'
       | 'complianceChecks'
     > & { evidenceFiles?: File[] },
-  ) => Promise<void>;
-  advanceLoanStep: (loanId: string) => Promise<void>;
-  updateLoanComplianceCheck: (
-    loanId: string,
-    checkKey: ReviewKey,
-    status: ReviewState,
-  ) => Promise<void>;
-  updateTransferComplianceCheck: (
-    transferId: string,
-    checkKey: ReviewKey,
-    status: ReviewState,
-  ) => Promise<void>;
-  approveTransfer: (transferId: string) => Promise<void>;
+  ) => Promise<string>;
+  approveTransfer: (transferId: string, note?: string) => Promise<void>;
+  finalizeTransfer: (transferId: string, note: string) => Promise<void>;
   rejectTransfer: (transferId: string, reason?: string) => Promise<void>;
-  recordTransferExternalExecution: (
-    transferId: string,
-    externalReference: string,
-    evidenceFile: File,
-    executedAt: string,
-    note?: string,
-  ) => Promise<void>;
-  confirmTransferExternalSettlement: (
-    transferId: string,
+  approveLoan: (loanId: string, note?: string) => Promise<void>;
+  disburseLoan: (
+    loanId: string,
+    destinationPositionId: string,
     note: string,
   ) => Promise<void>;
   rejectLoan: (loanId: string, reason: string) => Promise<void>;
-  recordLoanExternalFunding: (
-    loanId: string,
-    externalReference: string,
-    evidenceFile: File,
-    executedAt: string,
-    note?: string,
-  ) => Promise<void>;
-  confirmLoanExternalSettlement: (loanId: string, note: string) => Promise<void>;
   markNotificationAsRead: (notificationId: string) => Promise<void>;
   approveKYCApplication: (kycId: string) => Promise<void>;
   rejectKYCApplication: (kycId: string, reason: string) => Promise<void>;
@@ -160,10 +136,12 @@ interface PositionRow {
   reserved_minor: number;
   as_of: string;
   external_identifier_masked: string | null;
+  account_type: 'current' | 'savings';
 }
 
 interface TransferRow {
   id: string;
+  owner_id: string;
   source_position_id: string;
   recipient_name: string;
   recipient_account_masked: string;
@@ -190,6 +168,8 @@ interface LoanRow {
   status: NonNullable<LoanApplication['workflowStatus']>;
   loan_review_checks?: ReviewRow[];
   owner_id: string;
+  credited_position_id: string | null;
+  disbursed_at: string | null;
 }
 
 interface KycRow {
@@ -210,19 +190,6 @@ interface KycRow {
   submitted_at: string;
   review_note: string | null;
 }
-
-const REVIEW_KEYS: Record<ReviewKey, string> = {
-  doubleValidation: 'dual_review',
-  escalade: 'escalation',
-  controleConformite: 'compliance',
-  autorisationFinale: 'final_authorization',
-};
-
-const REVIEW_STATES: Record<ReviewState, string> = {
-  termine: 'completed',
-  en_cours: 'in_progress',
-  en_attente: 'pending',
-};
 
 function friendlyDate(value: string) {
   return new Intl.DateTimeFormat('fr-FR', {
@@ -380,7 +347,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ].find((result) => result.error)?.error;
       if (firstError) throw firstError;
 
-      setRole(roleResult.data && roleResult.data !== 'user' ? 'admin' : 'user');
+      setRole(roleResult.data === 'admin' ? 'admin' : 'user');
 
       const profileEmails = new Map(
         (profileResult.data ?? []).map((profile) => [profile.user_id, profile.email]),
@@ -399,7 +366,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             position.currency,
           ),
           currency: position.currency as Currency,
-          type: position.label.toLowerCase().includes('épargne') ? 'epargne' : 'courant',
+          type: position.account_type === 'savings' ? 'epargne' : 'courant',
           positionKind: position.position_kind,
           asOf: position.as_of,
         })),
@@ -412,6 +379,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const details = transfer.beneficiary_details ?? {};
         return {
           id: transfer.id,
+          ownerId: transfer.owner_id,
           sourceAccountId: transfer.source_position_id,
           recipientName: transfer.recipient_name,
           recipientAccount: transfer.recipient_account_masked,
@@ -441,54 +409,79 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         };
       });
       setPendingTransfers(mappedTransfers);
-      setTransactions(
-        mappedTransfers
-          .filter((transfer) => transfer.workflowStatus === 'external_settlement_confirmed')
-          .map((transfer) => ({
-            id: `external-${transfer.id}`,
-            title: `Règlement externe confirmé — ${transfer.recipientName}`,
-            date: transfer.date,
-            amount: -transfer.amount,
-            type: 'debit' as const,
-            category: 'transfer' as const,
-          })),
-      );
 
       const loanRows = (loansResult.data ?? []) as LoanRow[];
-      setLoans(
-        loanRows.map((loan): LoanApplication => {
-          const checks = mapReviewChecks(loan.loan_review_checks);
-          const completed = Object.values(checks).filter((status) => status === 'termine').length;
-          const amount = fromMinorUnits(loan.requested_amount_minor, loan.currency);
-          return {
-            id: loan.id,
-            reference: loan.reference,
-            clientName: profileEmails.get(loan.owner_id)?.split('@')[0] ?? 'Utilisateur',
-            clientEmail: profileEmails.get(loan.owner_id) ?? '',
-            requestDate: friendlyDate(loan.submitted_at),
-            requestedAmount: amount,
-            approvedAmount:
-              loan.status === 'approved_for_external_funding' ||
-              loan.status === 'external_funding_recorded' ||
-              loan.status === 'external_settlement_confirmed'
-                ? amount
-                : 0,
-            repaidAmount: 0,
-            currency: loan.currency,
-            status: mapLoanStatus(loan.status),
-            workflowStatus: loan.status,
-            currentStep: Math.min(6, completed + 1),
-            complianceProgress: loanProgress(loan.status, completed),
-            nextDueDate: 'Non applicable avant contractualisation externe',
-            disbursementAccount: 'Destination externe non connectée',
-            durationMonths: loan.duration_months,
-            monthlyPayment: loan.indicative_monthly_payment_minor
-              ? fromMinorUnits(loan.indicative_monthly_payment_minor, loan.currency)
+      const positionById = new Map(positionRows.map((position) => [position.id, position]));
+      const mappedLoans = loanRows.map((loan): LoanApplication => {
+        const checks = mapReviewChecks(loan.loan_review_checks);
+        const completed = Object.values(checks).filter(
+          (status) => status === 'termine',
+        ).length;
+        const amount = fromMinorUnits(loan.requested_amount_minor, loan.currency);
+        const creditedPosition = loan.credited_position_id
+          ? positionById.get(loan.credited_position_id)
+          : undefined;
+        return {
+          id: loan.id,
+          ownerId: loan.owner_id,
+          reference: loan.reference,
+          clientName: profileEmails.get(loan.owner_id)?.split('@')[0] ?? 'Utilisateur',
+          clientEmail: profileEmails.get(loan.owner_id) ?? '',
+          requestDate: friendlyDate(loan.submitted_at),
+          requestedAmount: amount,
+          approvedAmount:
+            loan.status === 'approved_for_external_funding' ||
+            loan.status === 'external_funding_recorded' ||
+            loan.status === 'external_settlement_confirmed'
+              ? amount
               : 0,
-            motive: loan.motive,
-            complianceChecks: checks,
-          };
-        }),
+          repaidAmount: 0,
+          currency: loan.currency,
+          status: mapLoanStatus(loan.status),
+          workflowStatus: loan.status,
+          currentStep: Math.min(6, completed + 1),
+          complianceProgress: loanProgress(loan.status, completed),
+          nextDueDate: 'Non applicable avant contractualisation externe',
+          disbursementAccount:
+            creditedPosition?.label ?? 'Compte courant non encore crédité',
+          creditedPositionId: loan.credited_position_id ?? undefined,
+          durationMonths: loan.duration_months,
+          monthlyPayment: loan.indicative_monthly_payment_minor
+            ? fromMinorUnits(loan.indicative_monthly_payment_minor, loan.currency)
+            : 0,
+          motive: loan.motive,
+          complianceChecks: checks,
+        };
+      });
+      setLoans(mappedLoans);
+
+      setTransactions(
+        [
+          ...mappedTransfers
+            .filter((transfer) => transfer.workflowStatus === 'external_settlement_confirmed')
+            .map((transfer) => ({
+              id: `transfer-${transfer.id}`,
+              title: `Virement effectué — ${transfer.recipientName}`,
+              date: transfer.date,
+              amount: -transfer.amount,
+              type: 'debit' as const,
+              category: 'transfer' as const,
+            })),
+          ...loanRows
+            .filter(
+              (loan) =>
+                loan.status === 'external_settlement_confirmed' &&
+                Boolean(loan.credited_position_id),
+            )
+            .map((loan) => ({
+              id: `loan-${loan.id}`,
+              title: `Prêt décaissé — ${loan.reference}`,
+              date: friendlyDate(loan.disbursed_at ?? loan.submitted_at),
+              amount: fromMinorUnits(loan.requested_amount_minor, loan.currency),
+              type: 'credit' as const,
+              category: 'other' as const,
+            })),
+        ],
       );
 
       setNotifications(
@@ -613,6 +606,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         throw new Error(error.message);
       }
       await refreshData();
+      void dispatchTransactionalEmails();
     },
     [refreshData],
   );
@@ -680,7 +674,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         uploadedPaths.push(path);
       }
 
-      const { error } = await supabase.rpc('submit_loan_application', {
+      const { data, error } = await supabase.rpc('submit_loan_application', {
         p_requested_amount_minor: toMinorUnits(loan.requestedAmount, loan.currency),
         p_currency: loan.currency,
         p_duration_months: loan.durationMonths,
@@ -694,7 +688,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         p_idempotency_key: idempotencyKey,
       });
       if (error) throw error;
+      const submittedLoan = Array.isArray(data) ? data[0] : data;
+      const reference =
+        submittedLoan &&
+        typeof submittedLoan === 'object' &&
+        'reference' in submittedLoan &&
+        typeof submittedLoan.reference === 'string'
+          ? submittedLoan.reference
+          : 'Référence générée';
       await refreshData();
+      void dispatchTransactionalEmails();
+      return reference;
     } catch (caughtError) {
       if (uploadedPaths.length) {
         await deleteEvidence('loan-evidence', uploadedPaths);
@@ -706,165 +710,69 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const updateTransferComplianceCheck: AppState['updateTransferComplianceCheck'] =
-    async (transferId, checkKey, status) => {
-      await executeAndRefresh(() =>
-        createClient().rpc('review_transfer_check', {
-          p_transfer_id: transferId,
-          p_check_kind: REVIEW_KEYS[checkKey],
-          p_status: REVIEW_STATES[status],
-          p_note: 'Contrôle enregistré depuis le Back-Office KALY.',
-        }),
-      );
-    };
-
-  const updateLoanComplianceCheck: AppState['updateLoanComplianceCheck'] = async (
-    loanId,
-    checkKey,
-    status,
-  ) => {
+  const approveTransfer: AppState['approveTransfer'] = async (transferId, note) => {
     await executeAndRefresh(() =>
-      createClient().rpc('review_loan_check', {
-        p_loan_id: loanId,
-        p_check_kind: REVIEW_KEYS[checkKey],
-        p_status: REVIEW_STATES[status],
-        p_note: 'Contrôle enregistré depuis le Back-Office KALY.',
+      createClient().rpc('branch_manager_approve_transfer', {
+        p_transfer_id: transferId,
+        p_note: note?.trim() || null,
       }),
     );
   };
 
-  const advanceLoanStep: AppState['advanceLoanStep'] = async (loanId) => {
-    const loan = loans.find((candidate) => candidate.id === loanId);
-    if (!loan) throw new Error('Dossier introuvable.');
-    const next = (Object.keys(REVIEW_KEYS) as ReviewKey[]).find(
-      (key) => loan.complianceChecks[key] !== 'termine',
+  const finalizeTransfer: AppState['finalizeTransfer'] = async (transferId, note) => {
+    if (!note.trim()) throw new Error('La note de confirmation est obligatoire.');
+    await executeAndRefresh(() =>
+      createClient().rpc('branch_manager_finalize_transfer', {
+        p_transfer_id: transferId,
+        p_note: note.trim(),
+      }),
     );
-    if (!next) throw new Error('Tous les contrôles sont déjà terminés.');
-    await updateLoanComplianceCheck(loanId, next, 'termine');
-  };
-
-  const approveTransfer: AppState['approveTransfer'] = async (transferId) => {
-    const transfer = pendingTransfers.find((candidate) => candidate.id === transferId);
-    if (!transfer) throw new Error('Instruction introuvable.');
-    const incomplete = (Object.keys(REVIEW_KEYS) as ReviewKey[]).find(
-      (key) => transfer.complianceChecks[key] !== 'termine',
-    );
-    if (incomplete) {
-      throw new Error(
-        'Tous les contrôles doivent être terminés avant l’autorisation de traitement externe.',
-      );
-    }
-    await refreshData();
   };
 
   const rejectTransfer: AppState['rejectTransfer'] = async (
     transferId,
-    reason = 'Instruction rejetée après contrôle manuel.',
+    reason = 'Instruction refusée par le chef d’agence.',
   ) => {
     await executeAndRefresh(() =>
-      createClient().rpc('transition_transfer', {
+      createClient().rpc('branch_manager_reject_transfer', {
         p_transfer_id: transferId,
-        p_action: 'reject',
         p_reason: reason,
       }),
     );
   };
 
-  const uploadExternalEvidence = async (
-    entityType: 'transfer' | 'loan',
-    entityId: string,
-    evidenceFile: File,
-  ) => {
-    if (
-      evidenceFile.size > 10 * 1024 * 1024 ||
-      !['image/jpeg', 'image/png', 'application/pdf'].includes(evidenceFile.type)
-    ) {
-      throw new Error('Le justificatif doit être un PDF, PNG ou JPEG de 10 Mo maximum.');
-    }
-    return uploadEvidence(
-      'external-execution-evidence',
-      `${entityType}-${entityId}-${crypto.randomUUID()}`,
-      evidenceFile,
+  const approveLoan: AppState['approveLoan'] = async (loanId, note) => {
+    await executeAndRefresh(() =>
+      createClient().rpc('branch_manager_approve_loan', {
+        p_loan_id: loanId,
+        p_note: note?.trim() || null,
+      }),
     );
   };
 
-  const recordTransferExternalExecution: AppState['recordTransferExternalExecution'] =
-    async (transferId, externalReference, evidenceFile, executedAt, note) => {
-      const supabase = createClient();
-      const path = await uploadExternalEvidence('transfer', transferId, evidenceFile);
-      try {
-        const { error } = await supabase.rpc('transition_transfer', {
-          p_transfer_id: transferId,
-          p_action: 'record_external_execution',
-          p_reason: note ?? null,
-          p_external_reference: externalReference.trim(),
-          p_evidence_object_path: path,
-          p_executed_at: new Date(executedAt).toISOString(),
-        });
-        if (error) throw error;
-        await refreshData();
-      } catch (caughtError) {
-        await deleteEvidence('external-execution-evidence', [path]);
-        throw caughtError;
-      }
-    };
-
-  const confirmTransferExternalSettlement: AppState['confirmTransferExternalSettlement'] =
-    async (transferId, note) => {
-      await executeAndRefresh(() =>
-        createClient().rpc('transition_transfer', {
-          p_transfer_id: transferId,
-          p_action: 'confirm_external_settlement',
-          p_reason: note,
-        }),
-      );
-    };
+  const disburseLoan: AppState['disburseLoan'] = async (
+    loanId,
+    destinationPositionId,
+    note,
+  ) => {
+    if (!destinationPositionId) {
+      throw new Error('Sélectionnez le compte courant à créditer.');
+    }
+    if (!note.trim()) throw new Error('La note de décaissement est obligatoire.');
+    await executeAndRefresh(() =>
+      createClient().rpc('branch_manager_disburse_loan', {
+        p_loan_id: loanId,
+        p_destination_position_id: destinationPositionId,
+        p_note: note.trim(),
+      }),
+    );
+  };
 
   const rejectLoan: AppState['rejectLoan'] = async (loanId, reason) => {
     await executeAndRefresh(() =>
-      createClient().rpc('transition_loan', {
+      createClient().rpc('branch_manager_reject_loan', {
         p_loan_id: loanId,
-        p_action: 'reject',
         p_reason: reason,
-      }),
-    );
-  };
-
-  const recordLoanExternalFunding: AppState['recordLoanExternalFunding'] = async (
-    loanId,
-    externalReference,
-    evidenceFile,
-    executedAt,
-    note,
-  ) => {
-    const supabase = createClient();
-    const path = await uploadExternalEvidence('loan', loanId, evidenceFile);
-    try {
-      const { error } = await supabase.rpc('transition_loan', {
-        p_loan_id: loanId,
-        p_action: 'record_external_funding',
-        p_reason: note ?? null,
-        p_external_reference: externalReference.trim(),
-        p_evidence_object_path: path,
-        p_executed_at: new Date(executedAt).toISOString(),
-      });
-      if (error) throw error;
-      await refreshData();
-    } catch (caughtError) {
-      await deleteEvidence('external-execution-evidence', [path]);
-      throw caughtError;
-    }
-  };
-
-  const confirmLoanExternalSettlement: AppState['confirmLoanExternalSettlement'] = async (
-    loanId,
-    note,
-  ) => {
-    await executeAndRefresh(() =>
-      createClient().rpc('transition_loan', {
-        p_loan_id: loanId,
-        p_action: 'confirm_external_settlement',
-        p_reason: note,
       }),
     );
   };
@@ -964,16 +872,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setSelectedLoanForReview,
     addTransfer,
     addLoanApplication,
-    advanceLoanStep,
-    updateLoanComplianceCheck,
-    updateTransferComplianceCheck,
     approveTransfer,
+    finalizeTransfer,
     rejectTransfer,
-    recordTransferExternalExecution,
-    confirmTransferExternalSettlement,
+    approveLoan,
+    disburseLoan,
     rejectLoan,
-    recordLoanExternalFunding,
-    confirmLoanExternalSettlement,
     markNotificationAsRead,
     approveKYCApplication,
     rejectKYCApplication,

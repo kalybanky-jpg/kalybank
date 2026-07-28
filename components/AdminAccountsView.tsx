@@ -46,7 +46,7 @@ export default function AdminAccountsView() {
           <WalletCards className="w-4 h-4" />
           <span>Rapprochement interne</span>
         </div>
-        <h1 className="text-2xl font-extrabold mt-1">Positions financières KALY</h1>
+        <h1 className="text-2xl font-extrabold mt-1">Positions financières Monalyz</h1>
         <p className="text-xs text-slate-300 mt-2 max-w-2xl">
           Ce registre ne contient aucun compte ni solde bancaire connecté. Chaque
           ajustement est une écriture interne datée, motivée et auditée.
@@ -125,7 +125,7 @@ export default function AdminAccountsView() {
             </label>
             <p className="text-[11px] text-amber-800 bg-amber-50 p-3 rounded-xl">
               Cette action ne modifie aucun solde bancaire. Elle rapproche uniquement
-              la position interne KALY.
+              la position interne Monalyz.
             </p>
             <button disabled={isSaving} className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold disabled:opacity-50">
               {isSaving ? 'Enregistrement…' : 'Enregistrer l’écriture auditée'}

@@ -4,17 +4,17 @@
 | --- | --- |
 | Statut | Accepté |
 | Date | 2026-07-27 |
-| Propriétaire | Équipe KALY |
+| Propriétaire | Équipe Monalyz |
 
 ## Contexte
 
-KALY doit initier et suivre des opérations sans banque connectée et sans API
+Monalyz doit initier et suivre des opérations sans banque connectée et sans API
 bancaire. L’interface ne doit jamais laisser entendre qu’une approbation
 applicative constitue un mouvement d’argent.
 
 ## Décision
 
-KALY persiste une intention, réserve éventuellement un montant interne, exige
+Monalyz persiste une intention, réserve éventuellement un montant interne, exige
 des contrôles humains distincts, puis attend une preuve d’exécution réalisée
 hors application. Un second membre habilité confirme le règlement avant tout
 ajustement de position.
@@ -24,7 +24,7 @@ ajustement de position.
 - Positive : la base distingue clairement intention, autorisation, preuve et règlement.
 - Positive : l’audit conserve les acteurs et références de chaque étape.
 - Négative : la confirmation et le rapprochement restent manuels.
-- Négative : KALY ne peut pas garantir seul la finalité bancaire du mouvement.
+- Négative : Monalyz ne peut pas garantir seul la finalité bancaire du mouvement.
 
 ## Alternatives écartées
 

@@ -67,7 +67,7 @@ export default function RegisterPage() {
       <section className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl">
         <div className="text-center mb-7">
           <ShieldCheck className="w-11 h-11 text-blue-400 mx-auto mb-3" />
-          <h1 className="text-2xl font-extrabold">Créer un compte KALY</h1>
+          <h1 className="text-2xl font-extrabold">Créer un compte Monalyz</h1>
           <p className="text-xs text-slate-400 mt-2 leading-relaxed">
             Ce compte donne accès à un outil d&apos;instruction et de suivi. Il ne crée
             ni compte bancaire, ni IBAN, ni connexion à une banque.

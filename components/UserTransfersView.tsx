@@ -11,7 +11,7 @@ const STATUS_LABELS: Record<string, string> = {
   approved_for_external_execution: 'Autorisée pour exécution externe',
   external_execution_recorded: 'Exécution externe déclarée, second contrôle requis',
   external_settlement_confirmed: 'Règlement externe confirmé',
-  rejected: 'Rejetée sans mouvement bancaire par KALY',
+  rejected: 'Rejetée sans mouvement bancaire par Monalyz',
   cancelled: 'Annulée avant confirmation externe',
   external_failed: 'Exécution externe déclarée en échec',
 };
@@ -43,7 +43,7 @@ export default function UserTransfersView() {
           </div>
           <h1 className="text-2xl font-extrabold mt-1">Suivi des transferts</h1>
           <p className="text-xs text-slate-300 mt-2 max-w-2xl">
-            KALY prépare et contrôle les instructions. Leur exécution financière
+            Monalyz prépare et contrôle les instructions. Leur exécution financière
             se déroule hors de l&apos;application et nécessite une preuve puis une seconde confirmation.
           </p>
         </div>

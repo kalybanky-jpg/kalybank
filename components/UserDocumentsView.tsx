@@ -12,11 +12,11 @@ export default function UserDocumentsView() {
       <header className="bg-slate-900 text-white rounded-3xl p-6">
         <div className="flex items-center gap-2 text-blue-300 text-xs font-bold uppercase">
           <FileText className="w-4 h-4" />
-          <span>Exports KALY</span>
+          <span>Exports Monalyz</span>
         </div>
         <h1 className="text-2xl font-extrabold mt-1">Documents internes</h1>
         <p className="text-xs text-slate-300 mt-2 max-w-2xl">
-          KALY ne produit ni relevé bancaire officiel, ni RIB, ni attestation de
+          Monalyz ne produit ni relevé bancaire officiel, ni RIB, ni attestation de
           solde bancaire. Les exports décrivent uniquement les événements enregistrés dans l&apos;application.
         </p>
       </header>
@@ -43,7 +43,7 @@ export default function UserDocumentsView() {
       <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex gap-3">
         <ShieldAlert className="w-5 h-5 text-amber-700 shrink-0" />
         <p className="text-xs text-amber-900 leading-relaxed">
-          Un export KALY n&apos;est pas une preuve émise par une banque. Pour un
+          Un export Monalyz n&apos;est pas une preuve émise par une banque. Pour un
           justificatif bancaire, utilisez le document fourni directement par
           l&apos;établissement qui a réellement exécuté l&apos;opération hors application.
         </p>

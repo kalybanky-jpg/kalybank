@@ -1,5 +1,5 @@
 {
-  "name": "kaly",
+  "name": "monalyz",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -9,13 +9,13 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/**/*.test.ts",
-    "test:db": "supabase test db supabase/tests/kaly_workflow_invariants_test.sql --local",
+    "test:db": "supabase test db supabase/tests/monalyz_workflow_invariants_test.sql --local",
     "supabase:link": "supabase link --project-ref qljqldhvbakornnpalua",
     "db:deploy:check": "supabase db push --linked --dry-run",
     "db:deploy": "supabase db push --linked",
     "db:snapshot": "tsx scripts/update-database-snapshot.ts",
-    "auth:email:check:resend": "tsx --env-file=.env.email.resend.local scripts/configure-supabase-auth-email.ts resend --dry-run",
-    "auth:email:configure:resend": "tsx --env-file=.env.email.resend.local scripts/configure-supabase-auth-email.ts resend",
+    "auth:email:check:resend": "tsx --env-file=.env scripts/configure-supabase-auth-email.ts resend --dry-run",
+    "auth:email:configure:resend": "tsx --env-file=.env scripts/configure-supabase-auth-email.ts resend",
     "auth:email:check:brevo": "tsx --env-file=.env.email.brevo.local scripts/configure-supabase-auth-email.ts brevo --dry-run",
     "auth:email:configure:brevo": "tsx --env-file=.env.email.brevo.local scripts/configure-supabase-auth-email.ts brevo"
   },

@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "kaly",
+      "name": "monalyz",
       "dependencies": {
         "@hookform/resolvers": "5.5.7",
         "@supabase/ssr": "0.12.3",

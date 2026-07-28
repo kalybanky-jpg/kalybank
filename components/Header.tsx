@@ -50,7 +50,7 @@ export default function Header({ onToggleMobileMenu }: HeaderProps) {
           </button>
           <div className="min-w-0">
             <h1 className="text-lg sm:text-xl font-extrabold text-slate-900 truncate">
-              {role === 'admin' ? 'Back-Office KALY' : 'Espace KALY'}
+              {role === 'admin' ? 'Espace chef d’agence Monalyz' : 'Espace Monalyz'}
             </h1>
             <p className="text-[11px] sm:text-xs text-slate-500 truncate">
               Aucune banque connectée — opérations financières hors application
@@ -115,7 +115,7 @@ export default function Header({ onToggleMobileMenu }: HeaderProps) {
               className="w-9 h-9 rounded-full bg-slate-900 text-white text-xs font-extrabold"
               aria-label="Menu de session"
             >
-              {role === 'admin' ? 'BO' : 'K'}
+              {role === 'admin' ? 'CA' : 'M'}
             </button>
             <AnimatePresence>
               {isProfileOpen && (
@@ -126,7 +126,7 @@ export default function Header({ onToggleMobileMenu }: HeaderProps) {
                   className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-xl p-2"
                 >
                   <p className="px-3 py-2 text-xs text-slate-500">
-                    {role === 'admin' ? 'Personnel habilité' : 'Utilisateur authentifié'}
+                    {role === 'admin' ? 'Chef d’agence habilité' : 'Utilisateur authentifié'}
                   </p>
                   <button
                     type="button"

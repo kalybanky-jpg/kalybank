@@ -57,5 +57,5 @@ l’utilisateur doit se reconnecter.
 Le SMTP par défaut Supabase est destiné au test et applique des quotas stricts.
 Une authentification de production n’est considérée opérationnelle qu’après
 configuration d’un SMTP dédié, de ses enregistrements DNS et d’une supervision
-des échecs d’envoi. KALY fournit deux profils mutuellement exclusifs, Resend et
+des échecs d’envoi. Monalyz fournit deux profils mutuellement exclusifs, Resend et
 Brevo ; aucun secret fournisseur n’est chargé par l’application.

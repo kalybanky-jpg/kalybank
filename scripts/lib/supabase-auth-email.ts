@@ -192,13 +192,13 @@ export function buildSupabaseAuthEmailConfig(
       smtp_sender_name: senderName,
       smtp_max_frequency: maxFrequency,
       rate_limit_email_sent: rateLimit,
-      mailer_subjects_confirmation: "Confirmez votre compte KALY",
+      mailer_subjects_confirmation: "Confirmez votre compte Monalyz",
       mailer_templates_confirmation_content: templates.confirmation,
-      mailer_subjects_recovery: "Réinitialisez votre mot de passe KALY",
+      mailer_subjects_recovery: "Réinitialisez votre mot de passe Monalyz",
       mailer_templates_recovery_content: templates.recovery,
       mailer_notifications_password_changed_enabled: true,
       mailer_subjects_password_changed_notification:
-        "Votre mot de passe KALY a été modifié",
+        "Votre mot de passe Monalyz a été modifié",
       mailer_templates_password_changed_notification_content:
         templates.passwordChanged,
     },

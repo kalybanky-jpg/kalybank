@@ -1,8 +1,17 @@
 import './globals.css';
-export default function RootLayout({children}: {children: React.ReactNode}) {
+import { headers } from 'next/headers';
+import Providers from '@/components/Providers';
+
+export default async function RootLayout({children}: {children: React.ReactNode}) {
+  // Nonce-based CSP requires every HTML response to be rendered with the
+  // per-request nonce injected by proxy.ts.
+  await headers();
+
   return (
-    <html lang="en">
-      <body>{children}</body>
+    <html lang="fr">
+      <body>
+        <Providers>{children}</Providers>
+      </body>
     </html>
   );
 }

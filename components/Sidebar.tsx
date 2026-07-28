@@ -19,6 +19,7 @@ import {
   X,
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { createClient } from '@/lib/supabase/client';
 
 interface SidebarProps {
   isOpenOnMobile?: boolean;
@@ -35,7 +36,6 @@ export default function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps)
     setIsTransferModalOpen,
     setIsLoanModalOpen,
     setIsStatementsModalOpen,
-    setIsSupabaseModalOpen,
   } = useAppStore();
 
   const t = translations[language] || translations.fr;
@@ -80,7 +80,7 @@ export default function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps)
               </svg>
             </div>
             <span className="text-xl font-extrabold tracking-tight text-white font-sans">
-              Nova<span className="text-blue-400">Bank</span>
+              KALY
             </span>
           </div>
 
@@ -143,12 +143,9 @@ export default function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps)
 
         {/* Logout Button */}
         <button
-          onClick={() => {
-            alert(
-              language === 'fr'
-                ? 'Déconnexion simulée. Vous êtes sur le compte démonstration NovaBank.'
-                : 'Simulated log out. You are viewing the NovaBank demo account.'
-            );
+          onClick={async () => {
+            await createClient().auth.signOut();
+            window.location.replace('/login');
           }}
           id="sidebar-logout-btn"
           className="w-full flex items-center space-x-3 px-4 py-2.5 rounded-xl text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition text-sm font-medium"

@@ -15,7 +15,6 @@ import {
   Clock,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import confetti from 'canvas-confetti';
 
 export default function WireTransferModal() {
   const {
@@ -56,6 +55,8 @@ export default function WireTransferModal() {
   const [clearingNumber, setClearingNumber] = useState('');
 
   const [isSuccess, setIsSuccess] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const [targetCurrOverride, setTargetCurrOverride] = useState<string | null>(null);
@@ -186,7 +187,7 @@ export default function WireTransferModal() {
     setStep((prev) => Math.max(prev - 1, 1));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (step < 3) {
       handleNextStep();
@@ -201,11 +202,11 @@ export default function WireTransferModal() {
       newErrors.amountInput = language === 'fr' ? 'Le montant doit être supérieur à 0.' : 'Amount must be greater than 0.';
     }
 
-    const availableBalance = sourceAccount?.balance || 0;
+    const availableBalance = sourceAccount?.availableBalance ?? sourceAccount?.balance ?? 0;
     if (numericAmount > availableBalance) {
       newErrors.amountInput = language === 'fr'
-        ? `Le montant du virement ne peut pas excéder le solde disponible (${availableBalance.toFixed(2)} ${sourceAccount?.currency}).`
-        : `The transfer amount cannot exceed the available balance (${availableBalance.toFixed(2)} ${sourceAccount?.currency}).`;
+        ? `Le montant ne peut pas excéder la position interne disponible (${availableBalance.toFixed(2)} ${sourceAccount?.currency}).`
+        : `The amount cannot exceed the available internal position (${availableBalance.toFixed(2)} ${sourceAccount?.currency}).`;
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -234,51 +235,54 @@ export default function WireTransferModal() {
       recipientAccountStr = `RIB/Acc: ${accountNumber} | BIC: ${bicSwift}`;
     }
 
-    addTransfer({
-      sourceAccountId,
-      recipientName,
-      recipientAccount: recipientAccountStr,
-      transferType,
-      amount: numericAmount,
-      currency: sourceAccount?.currency,
-      convertedAmount: convertedTargetAmount,
-      targetCurrency: targetCurr,
-      details: {
-        institutionNumber,
-        transitNumber,
-        routingNumber,
-        interacEmail,
-        bicSwift,
-        clearingNumber,
-        motive,
-      },
-    });
-
-    setIsSuccess(true);
-
     try {
-      confetti({
-        particleCount: 80,
-        spread: 70,
-        origin: { y: 0.6 },
+      setIsSubmitting(true);
+      setSubmitError('');
+      await addTransfer({
+        sourceAccountId,
+        recipientName,
+        recipientAccount: recipientAccountStr,
+        transferType,
+        amount: numericAmount,
+        currency: sourceAccount?.currency,
+        convertedAmount: convertedTargetAmount,
+        targetCurrency: targetCurr,
+        details: {
+          institutionNumber,
+          transitNumber,
+          routingNumber,
+          interacEmail,
+          bicSwift,
+          clearingNumber,
+          motive,
+        },
       });
-    } catch (err) {}
+      setIsSuccess(true);
 
-    setTimeout(() => {
-      setIsSuccess(false);
-      setIsTransferModalOpen(false);
-      setRecipientName('');
-      setStep(1);
-    }, 2000);
+      setTimeout(() => {
+        setIsSuccess(false);
+        setIsTransferModalOpen(false);
+        setRecipientName('');
+        setStep(1);
+      }, 2500);
+    } catch (caughtError) {
+      setSubmitError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : 'L’instruction n’a pas pu être enregistrée.',
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!isTransferModalOpen) return null;
 
   const stepsLabels = {
-    fr: ['Destinataire', 'Banque', 'Montant'],
-    en: ['Recipient', 'Bank Details', 'Amount'],
-    es: ['Destinatario', 'Banco', 'Monto'],
-    de: ['Empfänger', 'Bankdaten', 'Betrag'],
+    fr: ['Destinataire', 'Coordonnées externes', 'Montant'],
+    en: ['Recipient', 'External details', 'Amount'],
+    es: ['Destinatario', 'Datos externos', 'Monto'],
+    de: ['Empfänger', 'Externe Daten', 'Betrag'],
   };
 
   const stepNames = stepsLabels[language] || stepsLabels.fr;
@@ -300,7 +304,9 @@ export default function WireTransferModal() {
               </div>
               <div>
                 <h3 className="text-base sm:text-lg font-extrabold">{t.newTransferTitle}</h3>
-                <p className="text-[11px] sm:text-xs text-slate-400">Conforme aux normes bancaires internationales</p>
+                <p className="text-[11px] sm:text-xs text-slate-400">
+                  Instruction préparée dans KALY — exécution hors application
+                </p>
               </div>
             </div>
             <button
@@ -355,14 +361,15 @@ export default function WireTransferModal() {
               <div className="w-16 h-16 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-full flex items-center justify-center mx-auto">
                 <CheckCircle2 className="w-10 h-10" />
               </div>
-              <h3 className="text-xl font-extrabold text-slate-900">{t.transferSuccessMsg}</h3>
+              <h3 className="text-xl font-extrabold text-slate-900">Instruction enregistrée</h3>
               <p className="text-xs sm:text-sm text-slate-600 max-w-md mx-auto">
-                Un e-mail de confirmation a été automatiquement envoyé. Notre équipe de conformité vérifie les détails.
+                Aucun transfert bancaire n&apos;a encore été exécuté. L&apos;instruction doit
+                être contrôlée, exécutée hors de KALY, puis confirmée par un second opérateur.
               </p>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="p-6 space-y-6 text-xs sm:text-sm">
-              {Object.values(errors).some((err) => err && err.trim() !== '') && (
+              {(submitError || Object.values(errors).some((err) => err && err.trim() !== '')) && (
                 <div className="bg-rose-50 text-rose-800 border border-rose-200/60 p-3.5 rounded-2xl flex items-start space-x-2.5" id="wire-error-banner">
                   <span className="text-base">⚠️</span>
                   <div className="text-xs">
@@ -372,6 +379,7 @@ export default function WireTransferModal() {
                         : 'Please fill all required fields in red :'}
                     </p>
                     <ul className="list-disc list-inside mt-1 font-medium space-y-0.5">
+                      {submitError && <li>{submitError}</li>}
                       {Object.values(errors).filter((err) => err && err.trim() !== '').map((err, idx) => (
                         <li key={idx}>{err}</li>
                       ))}
@@ -424,7 +432,11 @@ export default function WireTransferModal() {
                         >
                           {accounts.map((acc) => (
                             <option key={acc.id} value={acc.id} className="bg-white text-slate-900">
-                              {acc.name} - {formatDirectCurrency(acc.balance, acc.currency, language)}
+                              {acc.name} — disponible interne : {formatDirectCurrency(
+                                acc.availableBalance ?? acc.balance,
+                                acc.currency,
+                                language,
+                              )}
                             </option>
                           ))}
                         </select>
@@ -815,7 +827,7 @@ export default function WireTransferModal() {
                               )}
                             </div>
                             <div>
-                              <label className="block text-xs font-bold text-slate-700 mb-1">Nom de la Banque *</label>
+                              <label className="block text-xs font-bold text-slate-700 mb-1">Établissement destinataire déclaré *</label>
                               <input
                                 type="text"
                                 placeholder="ex: Banco do Brasil, Banamex"
@@ -888,7 +900,7 @@ export default function WireTransferModal() {
                               )}
                             </div>
                             <div>
-                              <label className="block text-xs font-bold text-slate-700 mb-1">Code BIC / SWIFT / Banque *</label>
+                              <label className="block text-xs font-bold text-slate-700 mb-1">Code externe BIC / SWIFT / établissement *</label>
                               <input
                                 type="text"
                                 placeholder="ex: SGABSNDAKAR, Attijariwafa"
@@ -975,14 +987,15 @@ export default function WireTransferModal() {
                       </div>
 
                       <div className="flex items-center justify-between text-xs text-blue-100 pt-2 border-t border-blue-800/80">
-                        <span>{t.estimatedFees} : <strong className="text-emerald-300">{t.freeFees}</strong></span>
+                        <span>Frais externes : <strong className="text-amber-200">non connus par KALY</strong></span>
+                        <span>Taux indicatif au {new Date(rates.updatedAt).toLocaleString(language)}</span>
                       </div>
                     </div>
 
                     <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-slate-600 text-xs space-y-1">
-                      <p className="font-bold text-slate-800">Récapitulatif de transaction :</p>
+                      <p className="font-bold text-slate-800">Récapitulatif de l&apos;instruction :</p>
                       <p>Bénéficiaire : <strong className="text-slate-900">{recipientName}</strong></p>
-                      <p>Depuis le compte : <strong className="text-slate-900">{sourceAccount?.name}</strong></p>
+                      <p>Position interne source : <strong className="text-slate-900">{sourceAccount?.name}</strong></p>
                       {motive && <p>Motif : <strong className="text-slate-900">{motive}</strong></p>}
                     </div>
                   </motion.div>
@@ -1026,11 +1039,12 @@ export default function WireTransferModal() {
                   <button
                     key="submit-btn"
                     type="submit"
+                    disabled={isSubmitting}
                     id="submit-wire-transfer-btn"
-                    className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold transition shadow-md text-xs flex items-center space-x-2"
+                    className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-extrabold transition shadow-md text-xs flex items-center space-x-2"
                   >
                     <Send className="w-4 h-4" />
-                    <span>{t.submitTransfer}</span>
+                    <span>{isSubmitting ? 'Enregistrement…' : 'Enregistrer l’instruction'}</span>
                   </button>
                 )}
               </div>

@@ -9,10 +9,19 @@ export type TransferType = 'canada' | 'eurozone' | 'usa' | 'swiss' | 'uk' | 'lat
 export interface BankAccount {
   id: string;
   name: string;
+  /**
+   * A masked external reference when one was recorded manually.
+   * This is never presented as an account connected to KALY.
+   */
   iban: string;
+  /** Internally declared or reconciled position, not a live bank balance. */
   balance: number;
+  availableBalance?: number;
   currency: Currency;
   type: 'courant' | 'epargne';
+  positionKind?: 'declared' | 'internally_reconciled';
+  asOf?: string;
+  ownerId?: string;
 }
 
 export interface Transaction {
@@ -38,6 +47,15 @@ export interface PendingTransfer {
   targetCurrency: string;
   date: string;
   status: 'en_attente' | 'en_cours' | 'valide' | 'rejete';
+  workflowStatus?:
+    | 'submitted'
+    | 'under_review'
+    | 'approved_for_external_execution'
+    | 'external_execution_recorded'
+    | 'external_settlement_confirmed'
+    | 'rejected'
+    | 'cancelled'
+    | 'external_failed';
   complianceStep: number; // 1 to 4
   complianceProgress: number; // 0 to 100 percentage
   complianceChecks: {
@@ -69,6 +87,15 @@ export interface LoanApplication {
   repaidAmount: number;
   currency: Currency;
   status: 'en_cours' | 'en_analyse' | 'valide' | 'refuse' | 'decaisse';
+  workflowStatus?:
+    | 'submitted'
+    | 'under_review'
+    | 'approved_for_external_funding'
+    | 'external_funding_recorded'
+    | 'external_settlement_confirmed'
+    | 'rejected'
+    | 'cancelled'
+    | 'external_failed';
   currentStep: number; // 1: Demande envoyée, 2: Analyse, 3: Validation, 4: Conformité, 5: Décaissement, 6: Viré
   complianceProgress: number; // 0 to 100 percentage
   nextDueDate: string;
@@ -95,8 +122,8 @@ export interface SystemNotification {
 
 export interface KYCApplication {
   id: string;
+  ownerId?: string;
   email: string;
-  pin: string;
   firstName: string;
   lastName: string;
   dateOfBirth: string;
@@ -121,29 +148,10 @@ export interface KYCApplication {
     selfieUrl: string;
   };
   status: 'en_attente' | 'valide' | 'rejete';
+  workflowStatus?: 'submitted' | 'under_review' | 'approved' | 'rejected' | 'needs_information';
   submittedAt: string;
   iban?: string;
   rejectionReason?: string;
-}
-
-export interface EmailNotification {
-  id: string;
-  recipientEmail: string;
-  recipientName: string;
-  subject: string;
-  previewText: string;
-  bodyHtml: string;
-  sentAt: string;
-  type:
-    | 'wire_submitted'
-    | 'wire_approved'
-    | 'loan_submitted'
-    | 'loan_updated'
-    | 'compliance_alert'
-    | 'otp_verification'
-    | 'kyc_submitted'
-    | 'account_approved'
-    | 'action_required';
 }
 
 export interface AdminActivityLog {

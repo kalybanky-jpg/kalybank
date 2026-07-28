@@ -15,7 +15,6 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import confetti from 'canvas-confetti';
 
 export default function LoanApplicationModal() {
   const {
@@ -30,13 +29,12 @@ export default function LoanApplicationModal() {
   const t = translations[language] || translations.fr;
 
   const [step, setStep] = useState(1);
-  const [clientName, setClientName] = useState('Thomas Martin');
-  const [clientEmail, setClientEmail] = useState('urbainmorel@gmail.com');
   const [motive, setMotive] = useState('Prêt personnel');
   const [requestedAmount, setRequestedAmount] = useState(8000);
   const [durationMonths, setDurationMonths] = useState(36);
-  const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const clearError = (field: string) => {
@@ -56,25 +54,26 @@ export default function LoanApplicationModal() {
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      const names = Array.from(e.target.files).map((f) => f.name);
-      setUploadedFiles((prev) => [...prev, ...names]);
+      const selectedFiles = Array.from(e.target.files);
+      const invalid = selectedFiles.find(
+        (file) =>
+          file.size > 10 * 1024 * 1024 ||
+          !['image/jpeg', 'image/png', 'application/pdf'].includes(file.type),
+      );
+      if (invalid) {
+        setErrors((current) => ({
+          ...current,
+          uploadedFiles: 'PDF, PNG ou JPEG uniquement, 10 Mo maximum par fichier.',
+        }));
+        return;
+      }
+      setUploadedFiles((prev) => [...prev, ...selectedFiles]);
       clearError('uploadedFiles');
     }
   };
 
   const handleNextStep = () => {
     const newErrors: Record<string, string> = {};
-    if (step === 1) {
-      if (!clientName.trim()) {
-        newErrors.clientName = language === 'fr' ? 'Le nom du demandeur est obligatoire.' : 'Applicant name is required.';
-      }
-      if (!clientEmail.trim()) {
-        newErrors.clientEmail = language === 'fr' ? "L'adresse e-mail est obligatoire." : 'Email address is required.';
-      } else if (!clientEmail.includes('@')) {
-        newErrors.clientEmail = language === 'fr' ? 'Veuillez entrer une adresse e-mail valide.' : 'Please enter a valid email address.';
-      }
-    }
-
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       return;
@@ -89,7 +88,7 @@ export default function LoanApplicationModal() {
     setStep((prev) => Math.max(prev - 1, 1));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (step < 3) {
       handleNextStep();
@@ -97,15 +96,6 @@ export default function LoanApplicationModal() {
     }
 
     const newErrors: Record<string, string> = {};
-    if (!clientName.trim()) {
-      newErrors.clientName = language === 'fr' ? 'Le nom du demandeur est obligatoire.' : 'Applicant name is required.';
-    }
-    if (!clientEmail.trim()) {
-      newErrors.clientEmail = language === 'fr' ? "L'adresse e-mail est obligatoire." : 'Email address is required.';
-    } else if (!clientEmail.includes('@')) {
-      newErrors.clientEmail = language === 'fr' ? 'Veuillez entrer une adresse e-mail valide.' : 'Please enter a valid email address.';
-    }
-
     if (uploadedFiles.length === 0) {
       newErrors.uploadedFiles = language === 'fr'
         ? 'Veuillez télécharger au moins un document justificatif (pièce d\'identité, justificatif de domicile ou de revenu) pour valider votre demande.'
@@ -119,29 +109,38 @@ export default function LoanApplicationModal() {
 
     setErrors({});
 
-    addLoanApplication({
-      clientName,
-      clientEmail,
-      requestedAmount,
-      approvedAmount: requestedAmount,
-      currency: currency,
-      durationMonths,
-      monthlyPayment: Math.round(estimatedMonthlyPayment),
-      motive,
-      disbursementAccount: 'Compte courant (FR76 1234 5678 9012 3456 789)',
-      nextDueDate: '15 du mois prochain',
-    });
-
-    setIsSuccess(true);
     try {
-      confetti({ particleCount: 70, spread: 60 });
-    } catch (err) {}
-
-    setTimeout(() => {
-      setIsSuccess(false);
-      setIsLoanModalOpen(false);
-      setStep(1);
-    }, 2500);
+      setIsSubmitting(true);
+      await addLoanApplication({
+        clientName: '',
+        clientEmail: '',
+        requestedAmount,
+        approvedAmount: 0,
+        currency,
+        durationMonths,
+        monthlyPayment: Math.round(estimatedMonthlyPayment),
+        motive,
+        disbursementAccount: 'Destination externe non connectée',
+        nextDueDate: 'Non applicable avant contractualisation externe',
+        evidenceFiles: uploadedFiles,
+      });
+      setIsSuccess(true);
+      setTimeout(() => {
+        setIsSuccess(false);
+        setIsLoanModalOpen(false);
+        setUploadedFiles([]);
+        setStep(1);
+      }, 2500);
+    } catch (caughtError) {
+      setErrors({
+        submission:
+          caughtError instanceof Error
+            ? caughtError.message
+            : 'La demande n’a pas pu être déposée.',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!isLoanModalOpen) return null;
@@ -233,7 +232,8 @@ export default function LoanApplicationModal() {
                 PP-2024-DOSSIER
               </p>
               <p className="text-xs text-slate-600 max-w-md mx-auto">
-                Votre demande est maintenant visible dans l&apos;espace administrateur et dans votre jauge de conformité. Un e-mail de confirmation vous a été adressé.
+                Votre demande est enregistrée pour étude. La simulation ne constitue
+                ni une offre de crédit, ni une approbation, ni une promesse de versement.
               </p>
             </div>
           ) : (
@@ -265,49 +265,9 @@ export default function LoanApplicationModal() {
                     transition={{ duration: 0.15 }}
                     className="space-y-4"
                   >
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block font-bold text-slate-700 mb-1">{t.client} *</label>
-                        <input
-                          type="text"
-                          required
-                          value={clientName}
-                          onChange={(e) => {
-                            setClientName(e.target.value);
-                            clearError('clientName');
-                          }}
-                          id="loan-client-name-input"
-                          className={`w-full px-3.5 py-2.5 rounded-xl border bg-slate-50 text-slate-900 font-bold focus:ring-2 outline-none transition-colors ${
-                            errors.clientName
-                              ? 'border-rose-500 focus:ring-rose-500/20 bg-rose-50/10'
-                              : 'border-slate-200 focus:ring-emerald-500'
-                          }`}
-                        />
-                        {errors.clientName && (
-                          <p className="text-rose-600 text-xs mt-1 font-bold">⚠️ {errors.clientName}</p>
-                        )}
-                      </div>
-                      <div>
-                        <label className="block font-bold text-slate-700 mb-1">E-mail de notification *</label>
-                        <input
-                          type="email"
-                          required
-                          value={clientEmail}
-                          onChange={(e) => {
-                            setClientEmail(e.target.value);
-                            clearError('clientEmail');
-                          }}
-                          id="loan-client-email-input"
-                          className={`w-full px-3.5 py-2.5 rounded-xl border bg-slate-50 text-slate-900 font-bold focus:ring-2 outline-none transition-colors ${
-                            errors.clientEmail
-                              ? 'border-rose-500 focus:ring-rose-500/20 bg-rose-50/10'
-                              : 'border-slate-200 focus:ring-emerald-500'
-                          }`}
-                        />
-                        {errors.clientEmail && (
-                          <p className="text-rose-600 text-xs mt-1 font-bold">⚠️ {errors.clientEmail}</p>
-                        )}
-                      </div>
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900">
+                      Le demandeur est identifié par la session Supabase Auth. Aucun
+                      nom ou e-mail libre ne peut remplacer cette identité.
                     </div>
 
                     <div>
@@ -396,7 +356,7 @@ export default function LoanApplicationModal() {
                         </div>
                       </div>
                       <span className="text-[10px] bg-emerald-800 px-2.5 py-1 rounded-full text-emerald-100 font-mono font-bold">
-                        TAEG fixe 3.5%
+                        Hypothèse indicative 3,5 %
                       </span>
                     </div>
                   </motion.div>
@@ -437,9 +397,9 @@ export default function LoanApplicationModal() {
                       )}
                       {uploadedFiles.length > 0 && (
                         <div className="mt-2 flex flex-wrap gap-1.5">
-                          {uploadedFiles.map((fn, idx) => (
+                          {uploadedFiles.map((file, idx) => (
                             <span key={idx} className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-md font-bold">
-                              ✓ {fn}
+                              ✓ {file.name}
                             </span>
                           ))}
                         </div>
@@ -482,11 +442,12 @@ export default function LoanApplicationModal() {
                 ) : (
                   <button
                     type="submit"
+                    disabled={isSubmitting}
                     id="submit-loan-application-btn"
-                    className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold transition shadow-md text-xs flex items-center space-x-2"
+                    className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-extrabold transition shadow-md text-xs flex items-center space-x-2"
                   >
                     <FileText className="w-4 h-4" />
-                    <span>{t.submitLoan}</span>
+                    <span>{isSubmitting ? 'Dépôt…' : t.submitLoan}</span>
                   </button>
                 )}
               </div>

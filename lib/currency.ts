@@ -25,63 +25,9 @@ export const DEFAULT_RATES: CurrencyRates = {
   updatedAt: '2026-07-23T00:00:00.000Z',
 };
 
-const RATE_CACHE_KEY = 'novabank_currency_rates_v1_updated';
-
 export async function fetchLiveCurrencyRates(): Promise<CurrencyRates> {
-  if (typeof window !== 'undefined') {
-    const cached = localStorage.getItem(RATE_CACHE_KEY);
-    if (cached) {
-      try {
-        const parsed: CurrencyRates = JSON.parse(cached);
-        const age = Date.now() - new Date(parsed.updatedAt).getTime();
-        // Use cache if under 1 hour old
-        if (age < 3600000 && parsed.rates?.CAD && parsed.rates?.USD && parsed.rates?.GBP) {
-          return parsed;
-        }
-      } catch (e) {
-        console.warn('Failed to parse cached currency rates', e);
-      }
-    }
-  }
-
-  try {
-    const response = await fetch('https://open.er-api.com/v6/latest/EUR', {
-      cache: 'no-store',
-    });
-    if (response.ok) {
-      const data = await response.json();
-      if (data && data.rates) {
-        const newRates: CurrencyRates = {
-          base: 'EUR',
-          rates: {
-            EUR: 1.0,
-            USD: data.rates.USD || DEFAULT_RATES.rates.USD,
-            CAD: data.rates.CAD || DEFAULT_RATES.rates.CAD,
-            CHF: data.rates.CHF || DEFAULT_RATES.rates.CHF,
-            GBP: data.rates.GBP || DEFAULT_RATES.rates.GBP,
-            MXN: data.rates.MXN || DEFAULT_RATES.rates.MXN,
-            BRL: data.rates.BRL || DEFAULT_RATES.rates.BRL,
-            COP: data.rates.COP || DEFAULT_RATES.rates.COP,
-            ARS: data.rates.ARS || DEFAULT_RATES.rates.ARS,
-            XOF: data.rates.XOF || DEFAULT_RATES.rates.XOF,
-            XAF: data.rates.XAF || DEFAULT_RATES.rates.XAF,
-            MAD: data.rates.MAD || DEFAULT_RATES.rates.MAD,
-            ZAR: data.rates.ZAR || DEFAULT_RATES.rates.ZAR,
-            EGP: data.rates.EGP || DEFAULT_RATES.rates.EGP,
-            NGN: data.rates.NGN || DEFAULT_RATES.rates.NGN,
-          },
-          updatedAt: new Date().toISOString(),
-        };
-        if (typeof window !== 'undefined') {
-          localStorage.setItem(RATE_CACHE_KEY, JSON.stringify(newRates));
-        }
-        return newRates;
-      }
-    }
-  } catch (err) {
-    console.warn('Could not fetch live exchange rates, using fallback baseline', err);
-  }
-
+  // No banking or market-data API is called. These rates are an explicit
+  // configurable baseline used only for non-binding estimates.
   return DEFAULT_RATES;
 }
 

@@ -1,5 +1,5 @@
 begin;
-select plan(89);
+select plan(97);
 
 -- Schema and database API contract.
 -- 1
@@ -1359,6 +1359,262 @@ select is(
   ),
   'fr',
   'the forbidden profile update leaves the other preference unchanged'
+);
+
+-- Demo provisioning is privileged, deterministic and idempotent.
+-- 90
+select has_function(
+  'public',
+  'provision_demo_accounts',
+  array['uuid', 'uuid', 'text'],
+  'the demo provisioner RPC exists'
+);
+-- 91
+select ok(
+  not has_function_privilege(
+    'anon',
+    'public.provision_demo_accounts(uuid,uuid,text)',
+    'execute'
+  ),
+  'anonymous sessions cannot provision demo accounts'
+);
+-- 92
+select ok(
+  not has_function_privilege(
+    'authenticated',
+    'public.provision_demo_accounts(uuid,uuid,text)',
+    'execute'
+  ),
+  'authenticated sessions cannot provision demo accounts'
+);
+-- 93
+select ok(
+  has_function_privilege(
+    'service_role',
+    'public.provision_demo_accounts(uuid,uuid,text)',
+    'execute'
+  ),
+  'only the server worker role can reach the demo provisioner'
+);
+
+-- A developer database may already contain the persistent demo accounts. The
+-- whole pgTAP file runs in a transaction that is rolled back, so temporarily
+-- isolate their deterministic fixtures and emails before exercising the RPC
+-- with stable test UUIDs.
+delete from public.kyc_events
+where kyc_id in (
+  select id
+  from public.kyc_applications
+  where owner_id in (
+    select id
+    from auth.users
+    where lower(email) in (
+      'admin.demo@monalyz.com',
+      'client.demo@monalyz.com'
+    )
+  )
+);
+
+delete from public.audit_events
+where actor_id in (
+  select id
+  from auth.users
+  where lower(email) in (
+    'admin.demo@monalyz.com',
+    'client.demo@monalyz.com'
+  )
+);
+
+delete from public.financial_positions
+where owner_id in (
+  select id
+  from auth.users
+  where lower(email) in (
+    'admin.demo@monalyz.com',
+    'client.demo@monalyz.com'
+  )
+);
+
+delete from public.kyc_applications
+where owner_id in (
+  select id
+  from auth.users
+  where lower(email) in (
+    'admin.demo@monalyz.com',
+    'client.demo@monalyz.com'
+  )
+);
+
+delete from public.staff_members
+where user_id in (
+  select id
+  from auth.users
+  where lower(email) in (
+    'admin.demo@monalyz.com',
+    'client.demo@monalyz.com'
+  )
+);
+
+update public.profiles
+set email = 'pgtap-existing-' || user_id::text || '@monalyz.invalid'
+where user_id in (
+  select id
+  from auth.users
+  where lower(email) in (
+    'admin.demo@monalyz.com',
+    'client.demo@monalyz.com'
+  )
+);
+
+update auth.users
+set email = 'pgtap-existing-' || id::text || '@monalyz.invalid'
+where lower(email) in (
+  'admin.demo@monalyz.com',
+  'client.demo@monalyz.com'
+);
+
+insert into auth.users (id, email, raw_app_meta_data)
+values
+  (
+    'd2000000-0000-4000-8000-000000000001',
+    'admin.demo@monalyz.com',
+    '{"monalyz_demo":true,"demo_role":"admin"}'::jsonb
+  ),
+  (
+    'd2000000-0000-4000-8000-000000000002',
+    'client.demo@monalyz.com',
+    '{"monalyz_demo":true,"demo_role":"client"}'::jsonb
+  );
+
+set local role service_role;
+select set_config(
+  'request.jwt.claims',
+  '{"role":"service_role"}',
+  true
+);
+-- 94
+select lives_ok(
+  $test$
+    select public.provision_demo_accounts(
+      'd2000000-0000-4000-8000-000000000001',
+      'd2000000-0000-4000-8000-000000000002',
+      'local'
+    )
+  $test$,
+  'the service worker can provision the two synthetic identities'
+);
+-- 95
+select lives_ok(
+  $test$
+    select public.provision_demo_accounts(
+      'd2000000-0000-4000-8000-000000000001',
+      'd2000000-0000-4000-8000-000000000002',
+      'local'
+    )
+  $test$,
+  'a second provisioning run is idempotent'
+);
+reset role;
+
+-- 96
+select is(
+  jsonb_build_object(
+    'active_admins',
+    (
+      select count(*)
+      from public.staff_members
+      where user_id = 'd2000000-0000-4000-8000-000000000001'
+        and role = 'admin'
+        and active
+    ),
+    'client_staff',
+    (
+      select count(*)
+      from public.staff_members
+      where user_id = 'd2000000-0000-4000-8000-000000000002'
+    ),
+    'client_kyc',
+    (
+      select count(*)
+      from public.kyc_applications
+      where id = 'd3000000-0000-4000-8000-000000000001'
+        and owner_id = 'd2000000-0000-4000-8000-000000000002'
+        and status = 'approved'
+        and document_object_paths = '{}'::jsonb
+        and address ->> 'monalyz_demo' = 'true'
+    ),
+    'client_positions',
+    (
+      select count(*)
+      from public.financial_positions
+      where id = 'd3000000-0000-4000-8000-000000000003'
+        and owner_id = 'd2000000-0000-4000-8000-000000000002'
+        and account_type = 'current'
+        and currency = 'EUR'
+        and amount_minor = 2500000
+        and external_identifier_masked is null
+    ),
+    'kyc_events',
+    (
+      select count(*)
+      from public.kyc_events
+      where kyc_id = 'd3000000-0000-4000-8000-000000000001'
+        and event_type = 'demo_approved'
+    ),
+    'audit_events',
+    (
+      select count(*)
+      from public.audit_events
+      where actor_id = 'd2000000-0000-4000-8000-000000000001'
+        and metadata ->> 'source' = 'demo_provisioner'
+    )
+  ),
+  jsonb_build_object(
+    'active_admins', 1,
+    'client_staff', 0,
+    'client_kyc', 1,
+    'client_positions', 1,
+    'kyc_events', 1,
+    'audit_events', 4
+  ),
+  'demo fixtures remain exact after two runs'
+);
+
+-- 97
+select is(
+  jsonb_build_object(
+    'admin_kyc',
+    (
+      select count(*)
+      from public.kyc_applications
+      where owner_id = 'd2000000-0000-4000-8000-000000000001'
+    ),
+    'admin_positions',
+    (
+      select count(*)
+      from public.financial_positions
+      where owner_id = 'd2000000-0000-4000-8000-000000000001'
+    ),
+    'transfers',
+    (
+      select count(*)
+      from public.transfer_intents
+      where owner_id = 'd2000000-0000-4000-8000-000000000002'
+    ),
+    'loans',
+    (
+      select count(*)
+      from public.loan_applications
+      where owner_id = 'd2000000-0000-4000-8000-000000000002'
+    )
+  ),
+  jsonb_build_object(
+    'admin_kyc', 0,
+    'admin_positions', 0,
+    'transfers', 0,
+    'loans', 0
+  ),
+  'demo provisioning creates no bank workflow or client fixture for the admin'
 );
 
 select * from finish();

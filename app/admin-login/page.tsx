@@ -3,12 +3,13 @@
 import React, { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Building2, KeyRound, Mail, ShieldAlert } from 'lucide-react';
+import { Building2, Mail, ShieldAlert } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { safeInternalPath } from '@/lib/security/navigation';
 import LanguageSelector from '@/components/LanguageSelector';
 import { useAppStore } from '@/lib/store';
 import { publicMessages } from '@/lib/public-i18n';
+import PasswordField from '@/components/auth/PasswordField';
 
 function AdminLoginContent() {
   const searchParams = useSearchParams();
@@ -69,54 +70,66 @@ function AdminLoginContent() {
 
       <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-md px-4 sm:px-0">
         <div className="bg-slate-900 py-8 px-6 shadow-2xl rounded-3xl border border-slate-800 sm:px-10">
-          <form className="space-y-5" onSubmit={handleAdminLogin}>
+          <form className="space-y-5" onSubmit={handleAdminLogin} aria-busy={isLoading}>
             {displayedError && (
-              <div role="alert" className="p-3.5 rounded-xl bg-rose-950 border border-rose-500/40 text-rose-200 text-xs">
+              <div id="admin-login-error" role="alert" className="p-3.5 rounded-xl bg-rose-950 border border-rose-500/60 text-rose-100 text-xs">
                 {displayedError}
               </div>
             )}
 
-            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
-              {copy.email}
+            <div>
+              <label htmlFor="admin-email" className="block text-xs font-bold text-slate-200">
+                {copy.email}
+              </label>
               <span className="relative block mt-1.5">
-                <Mail className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-500" />
+                <Mail aria-hidden="true" className="pointer-events-none absolute left-3.5 top-3.5 w-4 h-4 text-slate-500" />
                 <input
+                  id="admin-email"
+                  name="email"
                   type="email"
                   autoComplete="email"
+                  inputMode="email"
+                  autoCapitalize="none"
+                  spellCheck={false}
                   required
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm normal-case tracking-normal text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  placeholder={copy.emailPlaceholder}
+                  aria-describedby={displayedError ? 'admin-login-error' : undefined}
+                  aria-invalid={Boolean(displayedError)}
+                  className={`w-full pl-10 pr-4 py-3 bg-slate-950 border rounded-xl text-sm normal-case tracking-normal text-white placeholder:text-slate-500 outline-none transition focus:border-amber-400 focus:ring-4 focus:ring-amber-400/35 ${
+                    displayedError ? 'border-rose-500' : 'border-slate-700'
+                  }`}
                 />
               </span>
-            </label>
+            </div>
 
-            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
-              {copy.password}
-              <span className="relative block mt-1.5">
-                <KeyRound className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-500" />
-                <input
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm normal-case tracking-normal text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
-                />
-              </span>
-            </label>
+            <PasswordField
+              id="admin-password"
+              label={copy.password}
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              autoComplete="current-password"
+              placeholder={copy.passwordPlaceholder}
+              showPasswordLabel={copy.showPassword}
+              hidePasswordLabel={copy.hidePassword}
+              describedBy={displayedError ? 'admin-login-error' : undefined}
+              invalid={Boolean(displayedError)}
+              dark
+              accent="amber"
+            />
 
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3.5 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-sm rounded-xl transition disabled:opacity-50"
+              className="w-full py-3.5 px-4 bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold text-sm rounded-xl transition disabled:cursor-wait disabled:opacity-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-amber-400/35 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
             >
               {isLoading ? copy.submitting : copy.submit}
             </button>
           </form>
         </div>
         <p className="text-center mt-6 text-xs text-slate-500">
-          <Link href="/login" className="hover:text-white">{copy.backToUser}</Link>
+          <Link href="/login" className="rounded text-slate-400 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950">{copy.backToUser}</Link>
         </p>
       </div>
     </div>

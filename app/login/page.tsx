@@ -3,13 +3,14 @@
 import React, { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { ShieldCheck, Lock, Mail, ArrowRight } from 'lucide-react';
+import { ShieldCheck, Mail, ArrowRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { safeInternalPath } from '@/lib/security/navigation';
 import LanguageSelector from '@/components/LanguageSelector';
 import { useAppStore } from '@/lib/store';
 import { publicMessages } from '@/lib/public-i18n';
+import PasswordField from '@/components/auth/PasswordField';
 
 function LoginContent() {
   const searchParams = useSearchParams();
@@ -79,45 +80,55 @@ function LoginContent() {
         className="mt-8 sm:mx-auto sm:w-full sm:max-w-md z-10 px-4 sm:px-0"
       >
         <div className="bg-white py-8 px-6 shadow-2xl rounded-3xl border border-slate-200 sm:px-10">
-          <form className="space-y-5" onSubmit={handleLogin}>
+          <form className="space-y-5" onSubmit={handleLogin} aria-busy={isLoading}>
             {displayedError && (
-              <div role="alert" className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
+              <div id="login-error" role="alert" className="p-3.5 rounded-xl bg-rose-50 border border-rose-300 text-rose-800 text-xs font-medium">
                 {displayedError}
               </div>
             )}
 
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-              {copy.email}
+            <div>
+              <label htmlFor="login-email" className="block text-xs font-bold text-slate-700">
+                {copy.email}
+              </label>
               <span className="relative block mt-1.5">
-                <Mail className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
+                <Mail aria-hidden="true" className="pointer-events-none absolute left-3.5 top-3.5 w-4 h-4 text-slate-500" />
                 <input
+                  id="login-email"
+                  name="email"
                   type="email"
                   autoComplete="email"
+                  inputMode="email"
+                  autoCapitalize="none"
+                  spellCheck={false}
                   required
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm normal-case tracking-normal text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  placeholder={copy.emailPlaceholder}
+                  aria-describedby={displayedError ? 'login-error' : undefined}
+                  aria-invalid={Boolean(displayedError)}
+                  className={`w-full pl-10 pr-4 py-3 bg-slate-50 border rounded-xl text-sm normal-case tracking-normal text-slate-950 placeholder:text-slate-500 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 ${
+                    displayedError ? 'border-rose-500' : 'border-slate-300'
+                  }`}
                 />
               </span>
-            </label>
+            </div>
 
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-              {copy.password}
-              <span className="relative block mt-1.5">
-                <Lock className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
-                <input
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm normal-case tracking-normal text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600"
-                />
-              </span>
-            </label>
+            <PasswordField
+              id="login-password"
+              label={copy.password}
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              autoComplete="current-password"
+              placeholder={copy.passwordPlaceholder}
+              showPasswordLabel={copy.showPassword}
+              hidePasswordLabel={copy.hidePassword}
+              describedBy={displayedError ? 'login-error' : undefined}
+              invalid={Boolean(displayedError)}
+            />
 
             <div className="flex justify-end">
-              <Link href="/reset-pin" className="text-xs font-bold text-blue-600 hover:underline">
+              <Link href="/reset-pin" className="rounded text-xs font-bold text-blue-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2">
                 {copy.forgotPassword}
               </Link>
             </div>
@@ -125,7 +136,7 @@ function LoginContent() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3.5 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-extrabold text-sm transition disabled:opacity-50 flex items-center justify-center gap-2"
+              className="w-full py-3.5 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-extrabold text-sm transition hover:from-blue-700 hover:to-indigo-700 disabled:cursor-wait disabled:opacity-50 flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-500/40 focus-visible:ring-offset-2"
             >
               <span>{isLoading ? copy.submitting : copy.submit}</span>
               {!isLoading && <ArrowRight className="w-4 h-4" />}
@@ -135,7 +146,7 @@ function LoginContent() {
 
         <p className="text-center mt-6 text-xs text-slate-400">
           {copy.newUser}{' '}
-          <Link href="/register" className="font-extrabold text-blue-400 hover:underline">
+          <Link href="/register" className="rounded font-extrabold text-blue-300 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900">
             {copy.register}
           </Link>
         </p>

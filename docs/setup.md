@@ -62,6 +62,9 @@ set role = excluded.role, active = true;
 Les rôles autorisés sont `reviewer`, `operator`, `supervisor` et `admin`.
 Aucun compte staff ou jeu de transactions n’est préchargé.
 
+Pour créer les deux accès synthétiques réutilisables sans les inscrire dans le
+seed ou le snapshot, suivez [Comptes de démonstration](demo-accounts.md).
+
 Les modèles d’inscription et de récupération locaux sont versionnés dans
 `supabase/templates`. Ils dirigent les liens vers `/auth/confirm`, où le
 `token_hash` est échangé côté serveur contre des cookies de session.

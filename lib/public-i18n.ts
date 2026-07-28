@@ -7,6 +7,10 @@ interface PublicMessages {
     subtitle: string;
     email: string;
     password: string;
+    emailPlaceholder: string;
+    passwordPlaceholder: string;
+    showPassword: string;
+    hidePassword: string;
     forgotPassword: string;
     submit: string;
     submitting: string;
@@ -22,6 +26,13 @@ interface PublicMessages {
     email: string;
     password: string;
     confirmPassword: string;
+    displayNamePlaceholder: string;
+    emailPlaceholder: string;
+    passwordPlaceholder: string;
+    confirmPasswordPlaceholder: string;
+    passwordHint: string;
+    showPassword: string;
+    hidePassword: string;
     submit: string;
     submitting: string;
     passwordPolicyError: string;
@@ -35,6 +46,10 @@ interface PublicMessages {
     restricted: string;
     email: string;
     password: string;
+    emailPlaceholder: string;
+    passwordPlaceholder: string;
+    showPassword: string;
+    hidePassword: string;
     submit: string;
     submitting: string;
     backToUser: string;
@@ -48,6 +63,12 @@ interface PublicMessages {
     email: string;
     password: string;
     confirmPassword: string;
+    emailPlaceholder: string;
+    passwordPlaceholder: string;
+    confirmPasswordPlaceholder: string;
+    passwordHint: string;
+    showPassword: string;
+    hidePassword: string;
     requestSubmit: string;
     updateSubmit: string;
     submitting: string;
@@ -69,6 +90,10 @@ export const publicMessages: Record<Language, PublicMessages> = {
         'Monalyz initie et suit vos instructions. Aucune banque n’est connectée.',
       email: 'Adresse e-mail',
       password: 'Mot de passe',
+      emailPlaceholder: 'vous@exemple.com',
+      passwordPlaceholder: 'Saisissez votre mot de passe',
+      showPassword: 'Afficher le mot de passe',
+      hidePassword: 'Masquer le mot de passe',
       forgotPassword: 'Mot de passe oublié ?',
       submit: 'Se connecter',
       submitting: 'Connexion…',
@@ -90,6 +115,14 @@ export const publicMessages: Record<Language, PublicMessages> = {
       email: 'Adresse e-mail',
       password: 'Mot de passe (10 caractères minimum, avec lettre et chiffre)',
       confirmPassword: 'Confirmation du mot de passe',
+      displayNamePlaceholder: 'Ex. Aïcha Martin',
+      emailPlaceholder: 'vous@exemple.com',
+      passwordPlaceholder: 'Créez un mot de passe sécurisé',
+      confirmPasswordPlaceholder: 'Saisissez à nouveau votre mot de passe',
+      passwordHint:
+        'Utilisez au moins 10 caractères, dont une lettre et un chiffre.',
+      showPassword: 'Afficher le mot de passe',
+      hidePassword: 'Masquer le mot de passe',
       submit: 'Créer mon compte applicatif',
       submitting: 'Création…',
       passwordPolicyError:
@@ -105,6 +138,10 @@ export const publicMessages: Record<Language, PublicMessages> = {
       restricted: 'Accès réservé au chef d’agence',
       email: 'E-mail professionnel',
       password: 'Mot de passe',
+      emailPlaceholder: 'prenom.nom@monalyz.com',
+      passwordPlaceholder: 'Saisissez votre mot de passe',
+      showPassword: 'Afficher le mot de passe',
+      hidePassword: 'Masquer le mot de passe',
       submit: 'Ouvrir l’espace chef d’agence',
       submitting: 'Vérification des habilitations…',
       backToUser: 'Retour à l’espace utilisateur',
@@ -122,6 +159,13 @@ export const publicMessages: Record<Language, PublicMessages> = {
       email: 'Adresse e-mail',
       password: 'Nouveau mot de passe',
       confirmPassword: 'Confirmation',
+      emailPlaceholder: 'vous@exemple.com',
+      passwordPlaceholder: 'Créez un nouveau mot de passe',
+      confirmPasswordPlaceholder: 'Confirmez le nouveau mot de passe',
+      passwordHint:
+        'Utilisez au moins 10 caractères, dont une lettre et un chiffre.',
+      showPassword: 'Afficher le mot de passe',
+      hidePassword: 'Masquer le mot de passe',
       requestSubmit: 'Envoyer le lien sécurisé',
       updateSubmit: 'Enregistrer',
       submitting: 'Traitement…',
@@ -144,6 +188,10 @@ export const publicMessages: Record<Language, PublicMessages> = {
         'Monalyz initiates and tracks your instructions. No bank is connected.',
       email: 'Email address',
       password: 'Password',
+      emailPlaceholder: 'you@example.com',
+      passwordPlaceholder: 'Enter your password',
+      showPassword: 'Show password',
+      hidePassword: 'Hide password',
       forgotPassword: 'Forgot your password?',
       submit: 'Sign in',
       submitting: 'Signing in…',
@@ -165,6 +213,14 @@ export const publicMessages: Record<Language, PublicMessages> = {
       email: 'Email address',
       password: 'Password (at least 10 characters, including a letter and a number)',
       confirmPassword: 'Confirm password',
+      displayNamePlaceholder: 'e.g. Aisha Martin',
+      emailPlaceholder: 'you@example.com',
+      passwordPlaceholder: 'Create a secure password',
+      confirmPasswordPlaceholder: 'Enter your password again',
+      passwordHint:
+        'Use at least 10 characters, including one letter and one number.',
+      showPassword: 'Show password',
+      hidePassword: 'Hide password',
       submit: 'Create my application account',
       submitting: 'Creating…',
       passwordPolicyError:
@@ -180,6 +236,10 @@ export const publicMessages: Record<Language, PublicMessages> = {
       restricted: 'Branch manager access only',
       email: 'Work email',
       password: 'Password',
+      emailPlaceholder: 'first.last@monalyz.com',
+      passwordPlaceholder: 'Enter your password',
+      showPassword: 'Show password',
+      hidePassword: 'Hide password',
       submit: 'Open the branch manager workspace',
       submitting: 'Checking permissions…',
       backToUser: 'Back to the user workspace',
@@ -197,6 +257,13 @@ export const publicMessages: Record<Language, PublicMessages> = {
       email: 'Email address',
       password: 'New password',
       confirmPassword: 'Confirmation',
+      emailPlaceholder: 'you@example.com',
+      passwordPlaceholder: 'Create a new password',
+      confirmPasswordPlaceholder: 'Confirm your new password',
+      passwordHint:
+        'Use at least 10 characters, including one letter and one number.',
+      showPassword: 'Show password',
+      hidePassword: 'Hide password',
       requestSubmit: 'Send the secure link',
       updateSubmit: 'Save',
       submitting: 'Processing…',
@@ -219,6 +286,10 @@ export const publicMessages: Record<Language, PublicMessages> = {
         'Monalyz erfasst und verfolgt Ihre Anweisungen. Es ist keine Bank verbunden.',
       email: 'E-Mail-Adresse',
       password: 'Passwort',
+      emailPlaceholder: 'sie@beispiel.de',
+      passwordPlaceholder: 'Geben Sie Ihr Passwort ein',
+      showPassword: 'Passwort anzeigen',
+      hidePassword: 'Passwort ausblenden',
       forgotPassword: 'Passwort vergessen?',
       submit: 'Anmelden',
       submitting: 'Anmeldung…',
@@ -241,6 +312,14 @@ export const publicMessages: Record<Language, PublicMessages> = {
       email: 'E-Mail-Adresse',
       password: 'Passwort (mindestens 10 Zeichen, mit Buchstabe und Zahl)',
       confirmPassword: 'Passwort bestätigen',
+      displayNamePlaceholder: 'z. B. Aisha Martin',
+      emailPlaceholder: 'sie@beispiel.de',
+      passwordPlaceholder: 'Erstellen Sie ein sicheres Passwort',
+      confirmPasswordPlaceholder: 'Geben Sie Ihr Passwort erneut ein',
+      passwordHint:
+        'Verwenden Sie mindestens 10 Zeichen, darunter einen Buchstaben und eine Zahl.',
+      showPassword: 'Passwort anzeigen',
+      hidePassword: 'Passwort ausblenden',
       submit: 'Anwendungskonto erstellen',
       submitting: 'Erstellung…',
       passwordPolicyError:
@@ -256,6 +335,10 @@ export const publicMessages: Record<Language, PublicMessages> = {
       restricted: 'Nur für Filialleiter',
       email: 'Geschäftliche E-Mail-Adresse',
       password: 'Passwort',
+      emailPlaceholder: 'vorname.nachname@monalyz.com',
+      passwordPlaceholder: 'Geben Sie Ihr Passwort ein',
+      showPassword: 'Passwort anzeigen',
+      hidePassword: 'Passwort ausblenden',
       submit: 'Filialleiterbereich öffnen',
       submitting: 'Berechtigungen werden geprüft…',
       backToUser: 'Zurück zum Benutzerbereich',
@@ -273,6 +356,13 @@ export const publicMessages: Record<Language, PublicMessages> = {
       email: 'E-Mail-Adresse',
       password: 'Neues Passwort',
       confirmPassword: 'Bestätigung',
+      emailPlaceholder: 'sie@beispiel.de',
+      passwordPlaceholder: 'Erstellen Sie ein neues Passwort',
+      confirmPasswordPlaceholder: 'Bestätigen Sie Ihr neues Passwort',
+      passwordHint:
+        'Verwenden Sie mindestens 10 Zeichen, darunter einen Buchstaben und eine Zahl.',
+      showPassword: 'Passwort anzeigen',
+      hidePassword: 'Passwort ausblenden',
       requestSubmit: 'Sicheren Link senden',
       updateSubmit: 'Speichern',
       submitting: 'Verarbeitung…',
@@ -295,6 +385,10 @@ export const publicMessages: Record<Language, PublicMessages> = {
         'Monalyz inicia y sigue sus instrucciones. No hay ningún banco conectado.',
       email: 'Correo electrónico',
       password: 'Contraseña',
+      emailPlaceholder: 'usted@ejemplo.com',
+      passwordPlaceholder: 'Introduzca su contraseña',
+      showPassword: 'Mostrar contraseña',
+      hidePassword: 'Ocultar contraseña',
       forgotPassword: '¿Olvidó su contraseña?',
       submit: 'Iniciar sesión',
       submitting: 'Conectando…',
@@ -316,6 +410,14 @@ export const publicMessages: Record<Language, PublicMessages> = {
       email: 'Correo electrónico',
       password: 'Contraseña (mínimo 10 caracteres, con una letra y un número)',
       confirmPassword: 'Confirmar contraseña',
+      displayNamePlaceholder: 'Ej. Aisha Martín',
+      emailPlaceholder: 'usted@ejemplo.com',
+      passwordPlaceholder: 'Cree una contraseña segura',
+      confirmPasswordPlaceholder: 'Introduzca de nuevo su contraseña',
+      passwordHint:
+        'Use al menos 10 caracteres, con una letra y un número.',
+      showPassword: 'Mostrar contraseña',
+      hidePassword: 'Ocultar contraseña',
       submit: 'Crear mi cuenta de aplicación',
       submitting: 'Creando…',
       passwordPolicyError:
@@ -331,6 +433,10 @@ export const publicMessages: Record<Language, PublicMessages> = {
       restricted: 'Acceso exclusivo para el director de sucursal',
       email: 'Correo profesional',
       password: 'Contraseña',
+      emailPlaceholder: 'nombre.apellido@monalyz.com',
+      passwordPlaceholder: 'Introduzca su contraseña',
+      showPassword: 'Mostrar contraseña',
+      hidePassword: 'Ocultar contraseña',
       submit: 'Abrir el espacio del director de sucursal',
       submitting: 'Comprobando permisos…',
       backToUser: 'Volver al espacio de usuario',
@@ -348,6 +454,13 @@ export const publicMessages: Record<Language, PublicMessages> = {
       email: 'Correo electrónico',
       password: 'Nueva contraseña',
       confirmPassword: 'Confirmación',
+      emailPlaceholder: 'usted@ejemplo.com',
+      passwordPlaceholder: 'Cree una contraseña nueva',
+      confirmPasswordPlaceholder: 'Confirme la nueva contraseña',
+      passwordHint:
+        'Use al menos 10 caracteres, con una letra y un número.',
+      showPassword: 'Mostrar contraseña',
+      hidePassword: 'Ocultar contraseña',
       requestSubmit: 'Enviar el enlace seguro',
       updateSubmit: 'Guardar',
       submitting: 'Procesando…',

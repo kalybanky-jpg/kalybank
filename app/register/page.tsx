@@ -9,6 +9,7 @@ import LanguageSelector from '@/components/LanguageSelector';
 import { useAppStore } from '@/lib/store';
 import { publicMessages } from '@/lib/public-i18n';
 import { registrationLanguageMetadata } from '@/lib/language';
+import PasswordField from '@/components/auth/PasswordField';
 
 export default function RegisterPage() {
   const { language } = useAppStore();
@@ -20,6 +21,8 @@ export default function RegisterPage() {
   const [error, setError] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const passwordPolicyInvalid = error === copy.passwordPolicyError;
+  const confirmationInvalid = error === copy.passwordMismatchError;
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -86,63 +89,87 @@ export default function RegisterPage() {
             </Link>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-5" aria-busy={isLoading}>
             {error && (
-              <div role="alert" className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs">
+              <div id="register-error" role="alert" className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/50 text-rose-200 text-xs">
                 {error}
               </div>
             )}
 
-            <label className="block text-xs font-bold text-slate-300">
-              {copy.displayName}
+            <div>
+              <label htmlFor="register-display-name" className="block text-xs font-bold text-slate-200">
+                {copy.displayName}
+              </label>
               <input
+                id="register-display-name"
+                name="displayName"
                 type="text"
+                autoComplete="name"
                 required
                 value={displayName}
                 onChange={(event) => setDisplayName(event.target.value)}
-                className="mt-1.5 w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder={copy.displayNamePlaceholder}
+                aria-invalid={false}
+                className="mt-1.5 w-full px-4 py-3 bg-slate-950 border border-slate-700 rounded-xl text-white placeholder:text-slate-500 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30"
               />
-            </label>
-            <label className="block text-xs font-bold text-slate-300">
-              {copy.email}
+            </div>
+            <div>
+              <label htmlFor="register-email" className="block text-xs font-bold text-slate-200">
+                {copy.email}
+              </label>
               <input
+                id="register-email"
+                name="email"
                 type="email"
                 autoComplete="email"
+                inputMode="email"
+                autoCapitalize="none"
+                spellCheck={false}
                 required
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                className="mt-1.5 w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder={copy.emailPlaceholder}
+                aria-describedby={error === copy.genericError ? 'register-error' : undefined}
+                aria-invalid={false}
+                className="mt-1.5 w-full px-4 py-3 bg-slate-950 border border-slate-700 rounded-xl text-white placeholder:text-slate-500 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30"
               />
-            </label>
-            <label className="block text-xs font-bold text-slate-300">
-              {copy.password}
-              <input
-                type="password"
-                autoComplete="new-password"
-                minLength={10}
-                required
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                className="mt-1.5 w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </label>
-            <label className="block text-xs font-bold text-slate-300">
-              {copy.confirmPassword}
-              <input
-                type="password"
-                autoComplete="new-password"
-                minLength={10}
-                required
-                value={confirmPassword}
-                onChange={(event) => setConfirmPassword(event.target.value)}
-                className="mt-1.5 w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </label>
+            </div>
+            <PasswordField
+              id="register-password"
+              label={copy.password}
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              autoComplete="new-password"
+              placeholder={copy.passwordPlaceholder}
+              showPasswordLabel={copy.showPassword}
+              hidePasswordLabel={copy.hidePassword}
+              describedBy={passwordPolicyInvalid ? 'register-error' : undefined}
+              helpText={copy.passwordHint}
+              helpTextId="register-password-hint"
+              invalid={passwordPolicyInvalid}
+              minLength={10}
+              dark
+            />
+            <PasswordField
+              id="register-confirm-password"
+              name="confirmPassword"
+              label={copy.confirmPassword}
+              value={confirmPassword}
+              onChange={(event) => setConfirmPassword(event.target.value)}
+              autoComplete="new-password"
+              placeholder={copy.confirmPasswordPlaceholder}
+              showPasswordLabel={copy.showPassword}
+              hidePasswordLabel={copy.hidePassword}
+              describedBy={confirmationInvalid ? 'register-error' : undefined}
+              invalid={confirmationInvalid}
+              minLength={10}
+              dark
+            />
 
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 rounded-xl font-extrabold text-sm"
+              className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 disabled:cursor-wait disabled:opacity-50 rounded-xl font-extrabold text-sm transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-500/40 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
             >
               {isLoading ? copy.submitting : copy.submit}
             </button>

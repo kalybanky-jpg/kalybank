@@ -17,7 +17,8 @@
     "auth:email:check:resend": "tsx --env-file=.env scripts/configure-supabase-auth-email.ts resend --dry-run",
     "auth:email:configure:resend": "tsx --env-file=.env scripts/configure-supabase-auth-email.ts resend",
     "auth:email:check:brevo": "tsx --env-file=.env.email.brevo.local scripts/configure-supabase-auth-email.ts brevo --dry-run",
-    "auth:email:configure:brevo": "tsx --env-file=.env.email.brevo.local scripts/configure-supabase-auth-email.ts brevo"
+    "auth:email:configure:brevo": "tsx --env-file=.env.email.brevo.local scripts/configure-supabase-auth-email.ts brevo",
+    "demo:provision": "tsx scripts/provision-demo-accounts.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "5.5.7",

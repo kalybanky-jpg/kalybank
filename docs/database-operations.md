@@ -72,6 +72,12 @@ Ne jamais exporter ou committer :
 Les jeux de test éventuels doivent être synthétiques, minimaux et écrits
 manuellement dans `supabase/seed.sql`.
 
+Les deux comptes de démonstration réutilisables font exception au seed : ils
+sont matérialisés explicitement dans l’environnement ciblé par la procédure
+[Comptes de démonstration](demo-accounts.md). Seuls le script, la RPC et leurs
+UUID déterministes sont versionnés ; les identités Auth et les lignes produites
+ne sont jamais exportées dans `supabase/schema.sql`.
+
 ## Déploiement et vérification
 
 Après chaque déploiement :

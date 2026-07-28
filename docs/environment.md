@@ -21,6 +21,13 @@ d’administration décrit dans [E-mails transactionnels](transactional-email.md
 Le profil Resend utilise `.env`; le profil Brevo utilise
 `.env.email.brevo.local`. Ces fichiers restent hors Git.
 
+Le provisionneur de [comptes de démonstration](demo-accounts.md) lit
+`DEMO_ADMIN_PASSWORD`, `DEMO_CLIENT_PASSWORD` et, hors simulation,
+`DEMO_SUPABASE_SECRET_KEY` uniquement depuis l’environnement du processus.
+`DEMO_SUPABASE_URL` est facultative et doit correspondre exactement à la cible
+locale ou au projet distant canonique. Ces variables ne doivent être ajoutées
+à aucun fichier `.env`.
+
 ## Règles de sécurité
 
 - Ne jamais exposer de clé `service_role` au navigateur.
@@ -30,6 +37,7 @@ Le profil Resend utilise `.env`; le profil Brevo utilise
 - Refaire le build quand une variable `NEXT_PUBLIC_*` change.
 - Garder `.env.example` sans secret et les fichiers `.env*` réels hors Git.
 - Ne jamais injecter un jeton Management API ou un secret SMTP dans Next.js.
+- Supprimer les variables `DEMO_*` du terminal après le provisionnement.
 
 ## Taux de conversion
 

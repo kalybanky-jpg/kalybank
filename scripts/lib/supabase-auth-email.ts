@@ -38,6 +38,8 @@ export interface SupabaseAuthEmailConfig {
 
 const PLACEHOLDER_PATTERN =
   /(?:replace[-_ ]?me|your[-_ ]|your-domain|votre[-_ ]|example\.(?:com|net|org)|<[^>]+>)/i;
+const WORDMARK_MARKER =
+  "{{ .SiteURL }}/brand/monalyz/monalyz-wordmark-email-360.png";
 
 function requiredValue(
   environment: AuthEmailEnvironment,
@@ -149,15 +151,19 @@ export function buildSupabaseAuthEmailConfig(
   assertSenderName(senderName);
   assertTemplate("confirmation", templates.confirmation, [
     "{{ .SiteURL }}",
+    WORDMARK_MARKER,
     "{{ .TokenHash }}",
     "type=email",
   ]);
   assertTemplate("recovery", templates.recovery, [
     "{{ .SiteURL }}",
+    WORDMARK_MARKER,
     "{{ .TokenHash }}",
     "type=recovery",
   ]);
   assertTemplate("password_changed_notification", templates.passwordChanged, [
+    "{{ .SiteURL }}",
+    WORDMARK_MARKER,
     "{{ .Email }}",
   ]);
 

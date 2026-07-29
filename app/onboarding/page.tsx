@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import { FileCheck2, ShieldCheck } from 'lucide-react';
+import { FileCheck2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { deleteEvidence, uploadEvidence } from '@/lib/evidence';
+import BrandLogo from '@/components/brand/BrandLogo';
 
 type EvidenceKey = 'id_front' | 'id_back' | 'selfie';
 
@@ -125,14 +126,16 @@ export default function OnboardingPage() {
         className="max-w-3xl mx-auto bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6"
       >
         <header>
-          <div className="flex items-center gap-3">
-            <ShieldCheck className="w-9 h-9 text-blue-400" />
-            <div>
-              <h1 className="text-xl font-extrabold">Dossier de vérification d&apos;identité</h1>
-              <p className="text-xs text-slate-400">
-                Contrôle humain interne. Une approbation ne crée ni compte bancaire ni IBAN.
-              </p>
-            </div>
+          <BrandLogo
+            tone="reversed-white"
+            priority
+            className="mb-4 h-auto w-[180px]"
+          />
+          <div>
+            <h1 className="text-xl font-extrabold">Dossier de vérification d&apos;identité</h1>
+            <p className="text-xs text-slate-400">
+              Contrôle humain interne. Une approbation ne crée ni compte bancaire ni IBAN.
+            </p>
           </div>
         </header>
 

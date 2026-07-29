@@ -14,9 +14,15 @@ import {
 
 const baseEnvironment: NodeJS.ProcessEnv = {
   NODE_ENV: 'test',
+  APP_ORIGIN: 'http://127.0.0.1:3000',
   TRANSACTIONAL_EMAIL_FROM_EMAIL: 'support@monalyz.com',
   TRANSACTIONAL_EMAIL_FROM_NAME: 'Monalyz',
   TRANSACTIONAL_EMAIL_REPLY_TO: 'support@monalyz.com',
+};
+
+const branding = {
+  wordmarkUrl:
+    'https://assets.monalyz.test/brand/monalyz/monalyz-wordmark-email-360.png',
 };
 
 const job: TransactionalEmailJob = {
@@ -45,6 +51,7 @@ test('la configuration métier Resend exige RESEND_API_KEY', () => {
     fromEmail: 'support@monalyz.com',
     fromName: 'Monalyz',
     replyTo: 'support@monalyz.com',
+    assetBaseUrl: 'http://127.0.0.1:3000',
   });
   assert.throws(
     () =>
@@ -55,6 +62,52 @@ test('la configuration métier Resend exige RESEND_API_KEY', () => {
       }),
     /RESEND_API_KEY/,
   );
+});
+
+test('la base des assets suit la priorité documentée et exige HTTPS en production', () => {
+  const config = getTransactionalEmailConfig({
+    ...baseEnvironment,
+    NODE_ENV: 'production',
+    TRANSACTIONAL_EMAIL_PROVIDER: 'resend',
+    RESEND_API_KEY: 're_transactional_secret',
+    NEXT_PUBLIC_APP_ORIGIN: 'https://public.monalyz.test',
+    APP_ORIGIN: 'https://app.monalyz.test',
+    TRANSACTIONAL_EMAIL_ASSET_BASE_URL: 'https://cdn.monalyz.test/emails/',
+  });
+
+  assert.equal(config.assetBaseUrl, 'https://cdn.monalyz.test/emails');
+
+  assert.throws(
+    () =>
+      getTransactionalEmailConfig({
+        ...baseEnvironment,
+        NODE_ENV: 'production',
+        TRANSACTIONAL_EMAIL_PROVIDER: 'resend',
+        RESEND_API_KEY: 're_transactional_secret',
+      }),
+    /doit utiliser HTTPS/,
+  );
+});
+
+test('la base des assets se replie sur APP_ORIGIN puis NEXT_PUBLIC_APP_ORIGIN', () => {
+  const common = {
+    ...baseEnvironment,
+    TRANSACTIONAL_EMAIL_PROVIDER: 'resend',
+    RESEND_API_KEY: 're_transactional_secret',
+  };
+  const fromAppOrigin = getTransactionalEmailConfig({
+    ...common,
+    APP_ORIGIN: 'https://app.monalyz.test/',
+    NEXT_PUBLIC_APP_ORIGIN: 'https://public.monalyz.test',
+  });
+  const fromPublicOrigin = getTransactionalEmailConfig({
+    ...common,
+    APP_ORIGIN: '',
+    NEXT_PUBLIC_APP_ORIGIN: 'https://public.monalyz.test/',
+  });
+
+  assert.equal(fromAppOrigin.assetBaseUrl, 'https://app.monalyz.test');
+  assert.equal(fromPublicOrigin.assetBaseUrl, 'https://public.monalyz.test');
 });
 
 test('la configuration métier Brevo utilise BREVO_API_KEY, pas le secret SMTP', () => {
@@ -151,18 +204,25 @@ for (const [template, expected] of Object.entries(expectedCopy) as Array<
   [TransactionalEmailTemplate, (typeof expectedCopy)[TransactionalEmailTemplate]]
 >) {
   test(`le modèle ${template} rend un objet complet et cohérent`, () => {
-    const rendered = renderTransactionalEmail(template, {
-      amountMinor: 125050,
-      currency: 'EUR',
-      recipientName: 'Marie Dupont',
-      reference: 'MONALYZ-LOAN-123',
-    });
+    const rendered = renderTransactionalEmail(
+      template,
+      {
+        amountMinor: 125050,
+        currency: 'EUR',
+        recipientName: 'Marie Dupont',
+        reference: 'MONALYZ-LOAN-123',
+      },
+      branding,
+    );
 
     assert.match(rendered.subject, expected.subject);
     assert.match(rendered.text, expected.body);
     assert.match(rendered.html, expected.body);
     assert.match(rendered.text, /support@monalyz\.com/);
     assert.match(rendered.html, /support@monalyz\.com/);
+    assert.match(rendered.html, /width="180"/);
+    assert.match(rendered.html, /alt="Monalyz"/);
+    assert.match(rendered.html, new RegExp(escapeRegExp(branding.wordmarkUrl)));
   });
 }
 
@@ -188,6 +248,7 @@ for (const language of languages) {
           recipientName: 'Marie Dupont',
           reference: 'MONALYZ-LOAN-123',
         },
+        branding,
         language,
       );
 
@@ -208,6 +269,7 @@ for (const language of languages) {
         currency: 'EUR',
         recipientName: 'Client',
       },
+      branding,
       language,
     );
     const expectedAmount = new Intl.NumberFormat(
@@ -220,16 +282,41 @@ for (const language of languages) {
 }
 
 test('le rendu HTML neutralise les valeurs non fiables du payload', () => {
-  const rendered = renderTransactionalEmail('transfer_submitted', {
-    amountMinor: 1000,
-    currency: 'EUR',
-    recipientName: '<script>alert("xss")</script>',
-  });
+  const rendered = renderTransactionalEmail(
+    'transfer_submitted',
+    {
+      amountMinor: 1000,
+      currency: 'EUR',
+      recipientName: '<script>alert("xss")</script>',
+    },
+    branding,
+  );
 
   assert.doesNotMatch(rendered.html, /<script>/);
   assert.match(
     rendered.html,
     /&lt;script&gt;alert\(&quot;xss&quot;\)&lt;\/script&gt;/,
+  );
+});
+
+test('le rendu exige une URL absolue HTTP(S) pour le wordmark', () => {
+  assert.throws(
+    () =>
+      renderTransactionalEmail(
+        'transfer_submitted',
+        {},
+        { wordmarkUrl: '/brand/monalyz/logo.png' },
+      ),
+    /URL du wordmark e-mail invalide/,
+  );
+  assert.throws(
+    () =>
+      renderTransactionalEmail(
+        'transfer_submitted',
+        {},
+        { wordmarkUrl: 'data:image/png;base64,unsafe' },
+      ),
+    /URL du wordmark e-mail invalide/,
   );
 });
 
@@ -253,6 +340,7 @@ test('Resend reçoit le bon endpoint, le bon payload et une clé d’idempotence
       fromEmail: 'support@monalyz.com',
       fromName: 'Monalyz',
       replyTo: 'support@monalyz.com',
+      assetBaseUrl: 'https://assets.monalyz.test/email-assets?version=2',
     },
     'fr',
     fetchMock,
@@ -278,6 +366,10 @@ test('Resend reçoit le bon endpoint, le bon payload et une clé d’idempotence
   assert.deepEqual(payload.to, ['client@example.com']);
   assert.equal(payload.reply_to, 'support@monalyz.com');
   assert.match(String(payload.subject), /virement.*effectué/i);
+  assert.match(
+    String(payload.html),
+    /https:\/\/assets\.monalyz\.test\/email-assets\/brand\/monalyz\/monalyz-wordmark-email-360\.png\?version=2/,
+  );
 });
 
 test('Brevo reçoit le bon endpoint, le bon payload et l’en-tête d’idempotence', async () => {
@@ -308,6 +400,7 @@ test('Brevo reçoit le bon endpoint, le bon payload et l’en-tête d’idempote
       fromEmail: 'support@monalyz.com',
       fromName: 'Monalyz',
       replyTo: 'support@monalyz.com',
+      assetBaseUrl: 'https://assets.monalyz.test',
     },
     'fr',
     fetchMock,
@@ -336,6 +429,10 @@ test('Brevo reçoit le bon endpoint, le bon payload et l’en-tête d’idempote
   assert.equal(payload.replyTo.email, 'support@monalyz.com');
   assert.equal(payload.headers['Idempotency-Key'], `monalyz-${job.id}`);
   assert.match(payload.subject, /prêt.*décaissé/i);
+  assert.match(
+    String((payload as Record<string, unknown>).htmlContent),
+    /https:\/\/assets\.monalyz\.test\/brand\/monalyz\/monalyz-wordmark-email-360\.png/,
+  );
 });
 
 test('la préférence linguistique absente utilise le français et une valeur invalide échoue', async () => {
@@ -377,6 +474,7 @@ test('une panne de lecture du profil est réessayable et bloque l’envoi', asyn
         fromEmail: 'support@monalyz.com',
         fromName: 'Monalyz',
         replyTo: 'support@monalyz.com',
+        assetBaseUrl: 'https://assets.monalyz.test',
       },
       language,
       fetchMock,
@@ -410,6 +508,7 @@ test('la langue du profil est relue juste avant le dispatch', async () => {
       fromEmail: 'support@monalyz.com',
       fromName: 'Monalyz',
       replyTo: 'support@monalyz.com',
+      assetBaseUrl: 'https://assets.monalyz.test',
     },
     language,
     fetchMock,

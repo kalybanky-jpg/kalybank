@@ -3,7 +3,7 @@
 import React, { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { ShieldCheck, Mail, ArrowRight } from 'lucide-react';
+import { Mail, ArrowRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { safeInternalPath } from '@/lib/security/navigation';
@@ -11,6 +11,7 @@ import LanguageSelector from '@/components/LanguageSelector';
 import { useAppStore } from '@/lib/store';
 import { publicMessages } from '@/lib/public-i18n';
 import PasswordField from '@/components/auth/PasswordField';
+import BrandLogo from '@/components/brand/BrandLogo';
 
 function LoginContent() {
   const searchParams = useSearchParams();
@@ -62,12 +63,11 @@ function LoginContent() {
       />
 
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center z-10">
-        <div className="flex items-center justify-center space-x-3 mb-3">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-xl shadow-blue-500/20">
-            <ShieldCheck className="w-7 h-7" />
-          </div>
-          <span className="text-3xl font-extrabold tracking-tight text-white font-mono">Monalyz</span>
-        </div>
+        <BrandLogo
+          tone="reversed-white"
+          priority
+          className="mx-auto mb-3 h-auto w-[196px]"
+        />
         <h1 className="text-xl font-bold text-slate-200">{copy.title}</h1>
         <p className="mt-1 text-xs text-slate-400">
           {copy.subtitle}

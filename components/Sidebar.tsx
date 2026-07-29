@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { createClient } from '@/lib/supabase/client';
+import BrandLogo from '@/components/brand/BrandLogo';
 
 interface SidebarProps {
   isOpenOnMobile?: boolean;
@@ -69,20 +70,23 @@ export default function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps)
   };
 
   const content = (
-    <div className="flex flex-col h-full bg-[#0A0F2D] text-white select-none justify-between p-4 w-64 border-r border-blue-950/40 shadow-2xl">
+    <div className="flex flex-col h-full bg-[var(--brand-aubergine)] text-white select-none justify-between p-4 w-64 border-r border-blue-950/40 shadow-2xl">
       {/* Top Header & Logo */}
       <div>
         <div className="flex items-center justify-between mb-8 px-2 pt-2">
-          <div className="flex items-center space-x-3 cursor-pointer" onClick={() => setActiveTab('dashboard')}>
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-500 to-purple-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
-              <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </div>
-            <span className="text-xl font-extrabold tracking-tight text-white font-sans">
-              Monalyz
-            </span>
-          </div>
+          <button
+            type="button"
+            aria-label="Monalyz — accueil"
+            className="rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-lilac)] focus-visible:ring-offset-4 focus-visible:ring-offset-[var(--brand-aubergine)]"
+            onClick={() => setActiveTab('dashboard')}
+          >
+            <BrandLogo
+              tone="reversed-white"
+              decorative
+              priority
+              className="h-auto w-[148px]"
+            />
+          </button>
 
           {/* Mobile close button */}
           {onCloseMobile && (

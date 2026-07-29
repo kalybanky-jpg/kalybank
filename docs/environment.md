@@ -8,6 +8,7 @@
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Oui | Client, serveur, proxy | Clé publique RLS |
 | `NEXT_PUBLIC_APP_ORIGIN` | Oui | Client Auth | Origine des callbacks e-mail |
 | `APP_ORIGIN` | Oui en production | Routes serveur | Origine canonique anti-redirection |
+| `TRANSACTIONAL_EMAIL_ASSET_BASE_URL` | Non | Worker d’e-mails métier | Base publique des images de marque |
 
 `NEXT_PUBLIC_SUPABASE_ANON_KEY` reste accepté comme compatibilité technique,
 mais la clé publiable est la convention documentée.
@@ -20,6 +21,11 @@ Les secrets SMTP sont accessibles uniquement au serveur et au script
 d’administration décrit dans [E-mails transactionnels](transactional-email.md).
 Le profil Resend utilise `.env`; le profil Brevo utilise
 `.env.email.brevo.local`. Ces fichiers restent hors Git.
+
+Le worker résout les assets e-mail depuis
+`TRANSACTIONAL_EMAIL_ASSET_BASE_URL`, puis `APP_ORIGIN`, puis
+`NEXT_PUBLIC_APP_ORIGIN`. La valeur doit être une URL HTTP(S) absolue et doit
+obligatoirement utiliser HTTPS en production.
 
 Le provisionneur de [comptes de démonstration](demo-accounts.md) lit
 `DEMO_ADMIN_PASSWORD`, `DEMO_CLIENT_PASSWORD` et, hors simulation,

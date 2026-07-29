@@ -1,9 +1,12 @@
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 import {
   PDFDocument,
   StandardFonts,
   degrees,
   rgb,
   type PDFFont,
+  type PDFImage,
   type PDFPage,
 } from 'pdf-lib';
 
@@ -20,6 +23,13 @@ interface OfficialDocumentPdfInput {
 }
 
 const A4 = { width: 595.28, height: 841.89 };
+const WORDMARK_PATH = path.join(
+  process.cwd(),
+  'public',
+  'brand',
+  'monalyz',
+  'monalyz-wordmark-reversed-white.png',
+);
 
 function printable(value: unknown): string {
   if (value === null || value === undefined || value === '') return '—';
@@ -93,6 +103,7 @@ function wrapText(text: string, font: PDFFont, size: number, width: number) {
 
 function drawPageChrome(
   page: PDFPage,
+  wordmark: PDFImage,
   regular: PDFFont,
   bold: PDFFont,
   input: OfficialDocumentPdfInput,
@@ -107,12 +118,12 @@ function drawPageChrome(
     height: 82,
     color: navy,
   });
-  page.drawText('MONALYZ', {
+  const wordmarkSize = wordmark.scaleToFit(150, 30);
+  page.drawImage(wordmark, {
     x: 42,
     y: A4.height - 50,
-    font: bold,
-    size: 21,
-    color: rgb(1, 1, 1),
+    width: wordmarkSize.width,
+    height: wordmarkSize.height,
   });
   page.drawText('DOCUMENT BANCAIRE EMIS PAR MONALYZ', {
     x: 42,
@@ -161,19 +172,20 @@ export async function renderOfficialDocumentPdf(
   const pdf = await PDFDocument.create();
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const wordmark = await pdf.embedPng(await readFile(WORDMARK_PATH));
   const rows = flattenSnapshot(input.snapshot).filter(
     ([label]) => !label.toLowerCase().includes('secret'),
   );
   let pageNumber = 0;
   let page = pdf.addPage([A4.width, A4.height]);
   pageNumber += 1;
-  drawPageChrome(page, regular, bold, input, pageNumber);
+  drawPageChrome(page, wordmark, regular, bold, input, pageNumber);
   let y = A4.height - 125;
 
   const addPage = () => {
     page = pdf.addPage([A4.width, A4.height]);
     pageNumber += 1;
-    drawPageChrome(page, regular, bold, input, pageNumber);
+    drawPageChrome(page, wordmark, regular, bold, input, pageNumber);
     y = A4.height - 118;
   };
 

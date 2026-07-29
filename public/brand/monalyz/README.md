@@ -1,8 +1,9 @@
 # Kit de logo Monalyz — Cadence
 
-Ce dossier contient les déclinaisons de production du concept 02 retenu pour
-Monalyz. Le mot-symbole complet est la signature principale. Le `M` seul est
-réservé aux surfaces trop étroites pour afficher correctement « Monalyz ».
+Ce dossier contient les masters vectoriels et les exports reproductibles du
+concept 02 retenu. Le mot-symbole complet est la signature principale. Le `M`
+seul est réservé aux surfaces trop étroites pour afficher correctement
+« Monalyz ».
 
 ## Palette
 
@@ -10,67 +11,78 @@ réservé aux surfaces trop étroites pour afficher correctement « Monalyz ».
 - Lilas d'accent : `#B574FC`
 - Porcelaine : `#FBFAF7`
 
-Les nuances internes présentes dans les masters raster font partie du rendu
-validé. Ces trois références restent les aplats à utiliser dans l'interface.
+Tous les masters utilisent exclusivement ces aplats. Ils ne contiennent ni
+police, texte vivant, image raster, contour, filtre, motif ou dégradé.
 
-## Signatures horizontales
+## Masters SVG
 
-| Fichier | Fond conseillé | Usage |
-| --- | --- | --- |
-| `monalyz-wordmark-primary.png` | clair | Signature principale, documents et grands écrans |
-| `monalyz-wordmark-monochrome-dark.png` | clair | Impression monochrome et contextes sobres |
-| `monalyz-wordmark-reversed-white.png` | aubergine ou sombre | Connexion, administration et surfaces sombres |
-| `monalyz-wordmark-web-720.png` | clair | Export web optimisé |
-| `monalyz-wordmark-email-360.png` | clair | E-mails transactionnels |
-
-Les trois masters horizontaux sont des PNG transparents recadrés. Conserver la
-zone de respiration incluse dans chaque fichier.
-
-## Monogramme M
-
-| Fichier | Fond conseillé | Usage |
-| --- | --- | --- |
-| `monalyz-mark-m-primary.png` | clair | Navigation compacte et marque autonome |
-| `monalyz-mark-m-monochrome-dark.png` | clair | Documents monochromes |
-| `monalyz-mark-m-reversed-white.png` | sombre | Navigation compacte sur fond sombre |
-
-Ne jamais recomposer le `M` avec une police. Ne pas déplacer l'accent lilas et
-ne pas l'ajouter à la version monochrome.
-
-## Icônes et plateformes
-
-| Fichier | Dimensions | Usage |
+| Fichier | Dimensions intrinsèques | Usage |
 | --- | ---: | --- |
-| `monalyz-app-icon-master.png` | 1254 × 1254 | Master raster carré |
-| `monalyz-app-icon-1024.png` | 1024 × 1024 | Stores et communications |
-| `monalyz-app-icon-512.png` | 512 × 512 | Application web |
-| `monalyz-maskable-icon-512.png` | 512 × 512 | Icône PWA maskable |
-| `monalyz-app-icon-192.png` | 192 × 192 | Icône PWA |
-| `monalyz-apple-touch-icon-180.png` | 180 × 180 | Apple touch icon |
-| `monalyz-favicon.ico` | 16, 32 et 48 px | Favicon multi-résolution |
-| `monalyz-favicon-16.png` | 16 × 16 | Favicon minimal |
-| `monalyz-favicon-32.png` | 32 × 32 | Favicon standard |
-| `monalyz-favicon-48.png` | 48 × 48 | Favicon haute densité |
-| `monalyz-avatar-1024.png` | 1024 × 1024 | Avatar de marque et réseaux |
+| `monalyz-wordmark-primary.svg` | 1120 × 320 | Signature couleur sur fond clair |
+| `monalyz-wordmark-monochrome-dark.svg` | 1120 × 320 | Impression monochrome sur fond clair |
+| `monalyz-wordmark-reversed-white.svg` | 1120 × 320 | Signature porcelaine sur fond sombre |
+| `monalyz-mark-m-primary.svg` | 320 × 320 | Navigation compacte sur fond clair |
+| `monalyz-mark-m-monochrome-dark.svg` | 320 × 320 | Monogramme monochrome |
+| `monalyz-mark-m-reversed-white.svg` | 320 × 320 | Navigation compacte sur fond sombre |
+| `monalyz-app-icon.svg` | 1024 × 1024 | Source carrée pour icônes et favicons |
 
-Les icônes sont volontairement carrées et sans masque arrondi externe : le
-système cible applique lui-même sa forme. Le dessin reste dans la zone sûre
-centrale pour supporter les masques adaptatifs.
+Le monogramme reprend exactement l'anatomie asymétrique du premier glyphe du
+wordmark : hampe gauche fine, diagonale descendante forte, remontée et hampe
+droite contrastées. Son terminal lilas reste au même emplacement dans l'icône
+d'application. La géométrie et le placement de l'accent sont optimisés pour
+rester lisibles entre 16 et 24 px.
 
-## Règles essentielles
+## Exports PNG et ICO
 
-- Utiliser le mot-symbole dès que la largeur disponible le permet.
-- Utiliser le `M` seul sous environ 160 px de largeur disponible.
-- Ne pas étirer, incliner, contourer ou recolorer les fichiers.
+Les 19 exports historiques conservent leurs noms et dimensions :
+
+- wordmarks : `monalyz-wordmark-primary.png` (1399 × 362),
+  `monalyz-wordmark-monochrome-dark.png` (1286 × 333),
+  `monalyz-wordmark-reversed-white.png` (1279 × 327),
+  `monalyz-wordmark-web-720.png` (720 × 186) et
+  `monalyz-wordmark-email-360.png` (360 × 93) ;
+- monogrammes : `monalyz-mark-m-primary.png` (931 × 860),
+  `monalyz-mark-m-monochrome-dark.png` (917 × 874) et
+  `monalyz-mark-m-reversed-white.png` (917 × 874) ;
+- icônes : master 1254 px, formats 1024, 512 et 192 px, maskable 512 px,
+  Apple touch 180 px, avatar 1024 px et favicons PNG 16, 32 et 48 px ;
+- `monalyz-favicon.ico`, qui contient les trois résolutions 16, 32 et 48 px.
+
+Les cartes sociales opaques
+`monalyz-opengraph-1200x630.png` et
+`monalyz-twitter-1200x630.png` sont également générées en 1200 × 630.
+
+## Génération et contrôle
+
+```bash
+npm run brand:build
+npm run brand:check
+```
+
+`brand:build` rend tous les PNG avec `sharp`, puis assemble les trois PNG de
+favicon dans un ICO multi-résolution. `brand:check` est strictement non mutant :
+il reconstruit les sorties en mémoire et vérifie leur identité binaire avec les
+fichiers suivis.
+
+Les contrôles portent sur les dimensions, la transparence, la zone sûre des
+icônes, la palette, la structure path-only des SVG et le contenu du favicon.
+Toute modification d'un master doit être suivie de `brand:build`, puis de
+`brand:check`.
+
+## Règles d'utilisation
+
+- Utiliser le wordmark dès qu'au moins 160 px de largeur sont disponibles.
+- Utiliser le `M` seul dans les surfaces compactes.
+- Ne pas étirer, incliner, contourer, recomposer ou recolorer les fichiers.
+- Ne pas déplacer l'accent lilas.
 - Ne pas ajouter de bâtiment, bouclier, pièce, graphique ou symbole bancaire.
 - Préserver un contraste WCAG suffisant entre la variante et son fond.
 - Fournir un libellé accessible « Monalyz — accueil » sur un lien-logo ; rendre
   l'image décorative si le même texte est déjà annoncé.
 
-## Source et évolution
+## Source créative
 
-La source créative approuvée est
-`../concepts/monalyz-logo-concept-02-cadence.png`. Ce kit est un jeu de masters
-raster propre à la validation et à l'intégration MVP. Un redessin vectoriel
-manuel en tracés restera nécessaire avant impression grand format ou dépôt de
-marque ; aucun faux SVG contenant seulement un PNG encapsulé n'est fourni.
+La piste visuelle approuvée reste
+`../concepts/monalyz-logo-concept-02-cadence.png`. Les sept SVG de ce dossier
+sont désormais les masters de production ; les PNG et le favicon ne doivent
+pas être modifiés manuellement.

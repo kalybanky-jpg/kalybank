@@ -28,6 +28,11 @@ export interface TransactionalEmailConfig {
   fromEmail: string;
   fromName: string;
   replyTo: string;
+  assetBaseUrl: string;
+}
+
+export interface TransactionalEmailBranding {
+  wordmarkUrl: string;
 }
 
 interface RenderedEmail {
@@ -122,6 +127,33 @@ function assertEmail(value: string, key: string): string {
   return value;
 }
 
+function resolveAssetBaseUrl(environment: NodeJS.ProcessEnv): string {
+  const key = environment.TRANSACTIONAL_EMAIL_ASSET_BASE_URL?.trim()
+    ? 'TRANSACTIONAL_EMAIL_ASSET_BASE_URL'
+    : environment.APP_ORIGIN?.trim()
+      ? 'APP_ORIGIN'
+      : 'NEXT_PUBLIC_APP_ORIGIN';
+  const value = requiredValue(environment, key);
+  let url: URL;
+
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error(`URL d’assets e-mail invalide : ${key}.`);
+  }
+
+  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) {
+    throw new Error(`URL d’assets e-mail invalide : ${key}.`);
+  }
+  if (environment.NODE_ENV === 'production' && url.protocol !== 'https:') {
+    throw new Error(
+      `URL d’assets e-mail non sécurisée en production : ${key} doit utiliser HTTPS.`,
+    );
+  }
+
+  return url.toString().replace(/\/$/, '');
+}
+
 export function getTransactionalEmailConfig(
   environment: NodeJS.ProcessEnv = process.env,
 ): TransactionalEmailConfig {
@@ -162,6 +194,7 @@ export function getTransactionalEmailConfig(
     fromEmail,
     fromName,
     replyTo,
+    assetBaseUrl: resolveAssetBaseUrl(environment),
   };
 }
 
@@ -521,6 +554,7 @@ function messageForTemplate(
 export function renderTransactionalEmail(
   template: TransactionalEmailTemplate,
   payload: Record<string, unknown>,
+  branding: TransactionalEmailBranding,
   language: TransactionalEmailLanguage = 'fr',
 ): RenderedEmail {
   const content = messageForTemplate(template, payload, language);
@@ -528,6 +562,17 @@ export function renderTransactionalEmail(
   const safeHeading = escapeHtml(content.heading);
   const safeMessage = escapeHtml(content.message);
   const safeSupport = escapeHtml(support.html);
+  let wordmarkUrl: URL;
+
+  try {
+    wordmarkUrl = new URL(branding.wordmarkUrl);
+  } catch {
+    throw new Error('URL du wordmark e-mail invalide.');
+  }
+  if (!['http:', 'https:'].includes(wordmarkUrl.protocol)) {
+    throw new Error('URL du wordmark e-mail invalide.');
+  }
+  const safeWordmarkUrl = escapeHtml(wordmarkUrl.toString());
 
   return {
     subject: content.subject,
@@ -536,7 +581,9 @@ export function renderTransactionalEmail(
 <html lang="${language}">
   <body style="margin:0;background:#f4f6fa;font-family:Arial,sans-serif;color:#0f172a">
     <div style="max-width:600px;margin:0 auto;padding:32px 16px">
-      <div style="background:#0f172a;color:#fff;padding:18px 24px;border-radius:18px 18px 0 0;font-weight:700">Monalyz</div>
+      <div style="background:#FBFAF7;padding:18px 24px;border:1px solid #e8e2eb;border-bottom:0;border-radius:18px 18px 0 0">
+        <img src="${safeWordmarkUrl}" width="180" alt="Monalyz" style="display:block;width:180px;max-width:100%;height:auto;border:0">
+      </div>
       <div style="background:#fff;padding:28px 24px;border:1px solid #e2e8f0;border-radius:0 0 18px 18px">
         <h1 style="font-size:22px;margin:0 0 16px">${safeHeading}</h1>
         <p style="font-size:15px;line-height:1.6;margin:0">${safeMessage}</p>
@@ -553,6 +600,13 @@ async function responseError(response: Response): Promise<string> {
   return `Le fournisseur e-mail a répondu ${response.status}: ${body.slice(0, 300)}`;
 }
 
+function buildEmailWordmarkUrl(assetBaseUrl: string): string {
+  const wordmarkUrl = new URL(assetBaseUrl);
+  wordmarkUrl.pathname = `${wordmarkUrl.pathname.replace(/\/$/, '')}/brand/monalyz/monalyz-wordmark-email-360.png`;
+  wordmarkUrl.hash = '';
+  return wordmarkUrl.toString();
+}
+
 export async function sendTransactionalEmail(
   job: TransactionalEmailJob,
   config: TransactionalEmailConfig,
@@ -562,6 +616,9 @@ export async function sendTransactionalEmail(
   const email = renderTransactionalEmail(
     job.template_key,
     job.payload,
+    {
+      wordmarkUrl: buildEmailWordmarkUrl(config.assetBaseUrl),
+    },
     language,
   );
 

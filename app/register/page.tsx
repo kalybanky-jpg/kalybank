@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { CheckCircle2, ShieldCheck } from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { configuredAppOrigin } from '@/lib/security/navigation';
 import LanguageSelector from '@/components/LanguageSelector';
@@ -10,6 +10,7 @@ import { useAppStore } from '@/lib/store';
 import { publicMessages } from '@/lib/public-i18n';
 import { registrationLanguageMetadata } from '@/lib/language';
 import PasswordField from '@/components/auth/PasswordField';
+import BrandLogo from '@/components/brand/BrandLogo';
 
 export default function RegisterPage() {
   const { language } = useAppStore();
@@ -70,7 +71,11 @@ export default function RegisterPage() {
       <LanguageSelector dark compact className="absolute right-4 top-4" />
       <section className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl">
         <div className="text-center mb-7">
-          <ShieldCheck className="w-11 h-11 text-blue-400 mx-auto mb-3" />
+          <BrandLogo
+            tone="reversed-white"
+            priority
+            className="mx-auto mb-4 h-auto w-[180px]"
+          />
           <h1 className="text-2xl font-extrabold">{copy.title}</h1>
           <p className="text-xs text-slate-400 mt-2 leading-relaxed">
             {copy.subtitle}

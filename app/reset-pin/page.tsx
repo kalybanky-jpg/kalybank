@@ -10,6 +10,7 @@ import LanguageSelector from '@/components/LanguageSelector';
 import { useAppStore } from '@/lib/store';
 import { publicMessages } from '@/lib/public-i18n';
 import PasswordField from '@/components/auth/PasswordField';
+import BrandLogo from '@/components/brand/BrandLogo';
 
 function ResetPasswordContent() {
   const searchParams = useSearchParams();
@@ -77,6 +78,11 @@ function ResetPasswordContent() {
     <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center px-4 py-16 sm:py-10">
       <LanguageSelector dark compact className="absolute right-4 top-4" />
       <section className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl sm:p-8">
+        <BrandLogo
+          tone="reversed-white"
+          priority
+          className="mx-auto mb-5 h-auto w-[168px]"
+        />
         <KeyRound className="w-10 h-10 text-blue-400 mx-auto mb-4" />
         <h1 className="text-xl font-extrabold text-center">
           {isUpdateMode ? copy.updateTitle : copy.requestTitle}

@@ -61,6 +61,8 @@ préférence réellement absente utilise `fr`.
 
 Le rendu continue d’échapper toute donnée dynamique en HTML. L’idempotence
 reste fondée sur l’identifiant stable du job et ne dépend pas de la langue.
+Chaque version HTML affiche le wordmark Monalyz à 180 px. Son URL absolue est
+construite côté serveur afin qu’elle reste chargeable hors de l’application.
 
 ## Configuration des e-mails métier
 
@@ -72,11 +74,19 @@ Variables communes :
 | `TRANSACTIONAL_EMAIL_FROM_EMAIL` | Adresse expéditrice vérifiée |
 | `TRANSACTIONAL_EMAIL_FROM_NAME` | Nom visible, `Monalyz` par défaut |
 | `TRANSACTIONAL_EMAIL_REPLY_TO` | Adresse de réponse, sinon l’expéditeur |
+| `TRANSACTIONAL_EMAIL_ASSET_BASE_URL` | Base publique du wordmark, facultative si une origine applicative est définie |
 | `SUPABASE_SECRET_KEY` | Clé serveur privilégiée du worker d’outbox |
 
 `SUPABASE_SERVICE_ROLE_KEY` reste accepté pour les projets utilisant les
 anciennes clés JWT. Préférer `SUPABASE_SECRET_KEY`. Ces deux variables sont
 strictement serveur et ne doivent jamais porter le préfixe `NEXT_PUBLIC_`.
+
+La base des assets est résolue dans cet ordre :
+`TRANSACTIONAL_EMAIL_ASSET_BASE_URL`, `APP_ORIGIN`, puis
+`NEXT_PUBLIC_APP_ORIGIN`. Elle doit être une URL HTTP(S) absolue; en production,
+HTTPS est obligatoire. Le fichier
+`/brand/monalyz/monalyz-wordmark-email-360.png` doit être publiquement
+accessible sous cette base.
 
 ### Resend métier
 
@@ -85,6 +95,7 @@ TRANSACTIONAL_EMAIL_PROVIDER=resend
 TRANSACTIONAL_EMAIL_FROM_EMAIL=support@monalyz.com
 TRANSACTIONAL_EMAIL_FROM_NAME=Monalyz
 TRANSACTIONAL_EMAIL_REPLY_TO=support@monalyz.com
+TRANSACTIONAL_EMAIL_ASSET_BASE_URL=https://app.monalyz.com
 RESEND_API_KEY=re_replace_me
 SUPABASE_SECRET_KEY=sb_secret_replace_me
 ```
@@ -99,6 +110,7 @@ TRANSACTIONAL_EMAIL_PROVIDER=brevo
 TRANSACTIONAL_EMAIL_FROM_EMAIL=support@monalyz.com
 TRANSACTIONAL_EMAIL_FROM_NAME=Monalyz
 TRANSACTIONAL_EMAIL_REPLY_TO=support@monalyz.com
+TRANSACTIONAL_EMAIL_ASSET_BASE_URL=https://app.monalyz.com
 BREVO_API_KEY=xkeysib-replace_me
 SUPABASE_SECRET_KEY=sb_secret_replace_me
 ```
@@ -152,6 +164,11 @@ Variables d’administration :
 Le script exige une confirmation d’adresse, sécurise le changement d’adresse
 et de mot de passe, applique les modèles versionnés de `supabase/templates`,
 puis relit la configuration distante. Son résumé masque toujours les secrets.
+Les trois modèles incluent le wordmark à partir de
+`{{ .SiteURL }}/brand/monalyz/monalyz-wordmark-email-360.png` et conservent les
+liens sécurisés existants. Pour les nouveaux projets Free créés depuis le
+3 juin 2026, Supabase exige un SMTP personnalisé pour modifier les modèles
+Auth; les profils Resend et Brevo décrits ici satisfont cette condition.
 
 ## Exploitation de l’outbox
 

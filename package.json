@@ -6,6 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "brand:build": "tsx scripts/generate-brand-assets.ts",
+    "brand:check": "tsx scripts/generate-brand-assets.ts --check",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/**/*.test.ts",

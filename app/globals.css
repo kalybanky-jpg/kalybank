@@ -2,6 +2,12 @@
 @import "tw-animate-css";
 
 @layer base {
+  :root {
+    --brand-aubergine: #190b21;
+    --brand-lilac: #b574fc;
+    --brand-porcelain: #fbfaf7;
+  }
+
   body {
     background-color: #f4f6fa;
     color: #1e293b;

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="320" viewBox="0 0 1120 320">
+  <path fill="#FBFAF7" d="M30 250V60h28l63 128 50-128h23v190h-24V80l-49 145L36 79v171H30Z"/>
+  <path fill="#FBFAF7" fill-rule="evenodd" d="M238 160c0-57 33-89 82-89 50 0 82 32 82 89s-32 90-82 90c-49 0-82-33-82-90Zm31 0c0 52 17 78 51 78 35 0 52-26 52-78 0-51-17-77-52-77-34 0-51 26-51 77Z"/>
+  <path fill="#FBFAF7" d="M435 250V96h30v22c13-30 39-46 69-46 44 0 65 25 65 68v110h-30V141c0-39-14-57-42-57-35 0-62 25-62 62v104h-30Z"/>
+  <path fill="#FBFAF7" d="m634 250 61-182 6 14-52 151h66l-7 17h-74Z"/>
+  <path fill="#FBFAF7" d="m695 68 77 182h-33l-58-145 14-37Z"/>
+  <path fill="#FBFAF7" d="m708 233 31 0 7 17h-38Z"/>
+  <path fill="#FBFAF7" d="M802 250V60h30v190h-30Z"/>
+  <path fill="#FBFAF7" d="M858 96h30l44 108-13 34-61-142Z"/>
+  <path fill="#FBFAF7" d="M968 96h6l-50 151c-9 27-23 42-43 48v-18c14-5 24-17 32-40l55-141Z"/>
+  <path fill="#FBFAF7" d="M991 96h115l-85 138h58c12 0 22-4 31-12l-7 28H981l85-138h-75V96Z"/>
+</svg>

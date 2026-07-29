@@ -17,10 +17,11 @@ const commonEnvironment: AuthEmailEnvironment = {
 
 const templates = {
   confirmation:
-    '<a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email">confirmation</a>',
+    '<img src="{{ .SiteURL }}/brand/monalyz/monalyz-wordmark-email-360.png"><a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email">confirmation</a>',
   recovery:
-    '<a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery">recovery</a>',
-  passwordChanged: "<p>Password changed for {{ .Email }}</p>",
+    '<img src="{{ .SiteURL }}/brand/monalyz/monalyz-wordmark-email-360.png"><a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery">recovery</a>',
+  passwordChanged:
+    '<img src="{{ .SiteURL }}/brand/monalyz/monalyz-wordmark-email-360.png"><p>Password changed for {{ .Email }}</p>',
 };
 
 test("la configuration Resend utilise le profil SMTP officiel", () => {

@@ -3,13 +3,14 @@
 import React, { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Building2, Mail, ShieldAlert } from 'lucide-react';
+import { Mail, ShieldAlert } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { safeInternalPath } from '@/lib/security/navigation';
 import LanguageSelector from '@/components/LanguageSelector';
 import { useAppStore } from '@/lib/store';
 import { publicMessages } from '@/lib/public-i18n';
 import PasswordField from '@/components/auth/PasswordField';
+import BrandLogo from '@/components/brand/BrandLogo';
 
 function AdminLoginContent() {
   const searchParams = useSearchParams();
@@ -56,12 +57,11 @@ function AdminLoginContent() {
     <div className="min-h-screen bg-slate-950 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <LanguageSelector dark compact className="absolute right-4 top-4" />
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-        <div className="flex items-center justify-center gap-3 mb-3">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-indigo-600 flex items-center justify-center">
-            <Building2 className="w-7 h-7 text-white" />
-          </div>
-          <span className="text-3xl font-extrabold text-white font-mono">Monalyz</span>
-        </div>
+        <BrandLogo
+          tone="reversed-white"
+          priority
+          className="mx-auto mb-3 h-auto w-[196px]"
+        />
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-bold">
           <ShieldAlert className="w-3.5 h-3.5" />
           <span>{copy.restricted}</span>

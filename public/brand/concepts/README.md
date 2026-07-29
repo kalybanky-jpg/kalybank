@@ -19,6 +19,9 @@ une marque numérique premium.
 
 Fichier : `monalyz-logo-concept-02-cadence.png`
 
+**Piste retenue.** Ses déclinaisons de production sont documentées dans
+`../monalyz/README.md`.
+
 ## 03 — Counterform
 
 Une géométrie calme fondée sur le contre-espace et des interruptions maîtrisées.
@@ -40,8 +43,9 @@ piste est la plus affirmée, technologique et mémorable à petite taille.
 
 Fichier : `monalyz-logo-concept-05-modular.png`
 
-## Étape suivante
+## Statut
 
-La piste retenue devra être redessinée proprement en vectoriel, déclinée en
-monochrome, testée aux petites tailles et exportée en SVG, PNG transparent,
-favicon et variantes claire/sombre avant son intégration dans l'application.
+La piste 02 a été déclinée en signatures couleur, monochrome et inversée,
+monogrammes, icônes d'application, favicons et formats dédiés au web et aux
+e-mails. L'intégration dans les interfaces reste volontairement séparée de
+cette étape de validation de l'identité.

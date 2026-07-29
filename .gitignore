@@ -6,6 +6,7 @@ coverage/
 *.log
 *.tsbuildinfo
 next-env.d.ts
+/tmp/
 .env*
 !.env.example
 !.env.remote.example

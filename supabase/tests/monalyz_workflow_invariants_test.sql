@@ -1,5 +1,5 @@
 begin;
-select plan(97);
+select plan(137);
 
 -- Schema and database API contract.
 -- 1
@@ -97,7 +97,18 @@ insert into public.financial_positions (
   currency,
   amount_minor,
   as_of,
-  account_type
+  account_type,
+  account_number,
+  iban,
+  bic,
+  account_holder_name,
+  institution_name,
+  branch_name,
+  branch_code,
+  account_status,
+  opened_at,
+  declared_by,
+  is_demo
 )
 values
   (
@@ -107,7 +118,18 @@ values
     'EUR',
     100000,
     now(),
-    'current'
+    'current',
+    'TEST-EUR-000001',
+    'FR0299999999990000000001000',
+    'DEMOFRP1XXX',
+    'Propriétaire Test',
+    'Banque Test non routable',
+    'Agence Test',
+    'TEST-001',
+    'active',
+    now(),
+    '30000000-0000-0000-0000-000000000001',
+    true
   ),
   (
     '40000000-0000-0000-0000-000000000002',
@@ -116,7 +138,18 @@ values
     'EUR',
     20000,
     now(),
-    'savings'
+    'savings',
+    'TEST-EUR-000002',
+    'FR1899999999990000000001100',
+    'DEMOFRP1XXX',
+    'Propriétaire Test',
+    'Banque Test non routable',
+    'Agence Test',
+    'TEST-001',
+    'active',
+    now(),
+    '30000000-0000-0000-0000-000000000001',
+    true
   ),
   (
     '40000000-0000-0000-0000-000000000003',
@@ -125,7 +158,18 @@ values
     'USD',
     30000,
     now(),
-    'current'
+    'current',
+    'TEST-USD-000003',
+    'FR3499999999990000000001200',
+    'DEMOFRP1XXX',
+    'Propriétaire Test',
+    'Banque Test non routable',
+    'Agence Test',
+    'TEST-001',
+    'active',
+    now(),
+    '30000000-0000-0000-0000-000000000001',
+    true
   ),
   (
     '40000000-0000-0000-0000-000000000004',
@@ -134,7 +178,18 @@ values
     'EUR',
     50000,
     now(),
-    'current'
+    'current',
+    'TEST-EUR-000004',
+    'FR5099999999990000000001300',
+    'DEMOFRP1XXX',
+    'Autre Propriétaire Test',
+    'Banque Test non routable',
+    'Agence Test',
+    'TEST-001',
+    'active',
+    now(),
+    '30000000-0000-0000-0000-000000000001',
+    true
   );
 
 -- Successful transfer: submit, single-manager validation, then finalization.
@@ -159,7 +214,7 @@ select lives_ok(
       2500,
       'EUR',
       1,
-      now(),
+      timestamptz '2026-01-02 00:00:00+00',
       'Test de virement finalisé',
       '50000000-0000-0000-0000-000000000001'
     )
@@ -234,7 +289,7 @@ select lives_ok(
       2500,
       'EUR',
       1,
-      now(),
+      timestamptz '2026-01-02 00:00:00+00',
       'Nouvelle tentative idempotente',
       '50000000-0000-0000-0000-000000000001'
     )
@@ -553,7 +608,7 @@ select lives_ok(
       1000,
       'EUR',
       1,
-      now(),
+      timestamptz '2026-01-02 00:00:00+00',
       'Test de refus',
       '50000000-0000-0000-0000-000000000002'
     )
@@ -1401,6 +1456,36 @@ select ok(
 -- whole pgTAP file runs in a transaction that is rolled back, so temporarily
 -- isolate their deterministic fixtures and emails before exercising the RPC
 -- with stable test UUIDs.
+select set_config(
+  'monalyz.allow_official_document_maintenance',
+  'on',
+  true
+);
+delete from public.official_documents
+where owner_id in (
+  select id
+  from auth.users
+  where lower(email) in (
+    'admin.demo@monalyz.com',
+    'client.demo@monalyz.com'
+  )
+);
+
+select set_config(
+  'monalyz.allow_ledger_maintenance',
+  'on',
+  true
+);
+delete from public.financial_ledger_entries
+where owner_id in (
+  select id
+  from auth.users
+  where lower(email) in (
+    'admin.demo@monalyz.com',
+    'client.demo@monalyz.com'
+  )
+);
+
 delete from public.kyc_events
 where kyc_id in (
   select id
@@ -1453,6 +1538,17 @@ where user_id in (
     'admin.demo@monalyz.com',
     'client.demo@monalyz.com'
   )
+);
+
+select set_config(
+  'monalyz.allow_official_document_maintenance',
+  'off',
+  true
+);
+select set_config(
+  'monalyz.allow_ledger_maintenance',
+  'off',
+  true
 );
 
 update public.profiles
@@ -1615,6 +1711,654 @@ select is(
     'loans', 0
   ),
   'demo provisioning creates no bank workflow or client fixture for the admin'
+);
+
+-- Official accounts, append-only ledger and official documents.
+-- 98
+select has_column(
+  'public',
+  'financial_positions',
+  'account_number',
+  'financial positions expose the official account number'
+);
+-- 99
+select has_column(
+  'public',
+  'financial_positions',
+  'iban',
+  'financial positions expose a normalized IBAN'
+);
+-- 100
+select has_column(
+  'public',
+  'financial_positions',
+  'account_status',
+  'financial positions expose the bank account lifecycle'
+);
+-- 101
+select has_table(
+  'public',
+  'financial_ledger_entries',
+  'the append-only financial ledger exists'
+);
+-- 102
+select has_table(
+  'public',
+  'official_documents',
+  'the official document registry exists'
+);
+-- 103
+select ok(
+  (
+    select relrowsecurity
+    from pg_class
+    where oid = 'public.financial_ledger_entries'::regclass
+  ),
+  'RLS is enabled on financial ledger entries'
+);
+-- 104
+select ok(
+  (
+    select relrowsecurity
+    from pg_class
+    where oid = 'public.official_documents'::regclass
+  ),
+  'RLS is enabled on official documents'
+);
+-- 105
+select is(
+  private.normalize_iban('fr52 99999 99999 00000000001 00'),
+  'FR5299999999990000000000100',
+  'IBAN normalization removes spaces and uppercases letters'
+);
+-- 106
+select ok(
+  private.is_valid_iban('FR5299999999990000000000100'),
+  'the deterministic test IBAN passes MOD-97 validation'
+);
+-- 107
+select ok(
+  not private.is_valid_iban('FR0099999999990000000000100'),
+  'an IBAN with an invalid checksum is rejected'
+);
+-- 108
+select ok(
+  not has_function_privilege(
+    'authenticated',
+    'public.adjust_financial_position(uuid,bigint,timestamptz,text)',
+    'execute'
+  ),
+  'the legacy balance adjustment RPC is no longer callable'
+);
+
+insert into public.kyc_applications (
+  id,
+  owner_id,
+  idempotency_key,
+  first_name,
+  last_name,
+  date_of_birth,
+  place_of_birth,
+  nationality,
+  address,
+  occupation,
+  income_range,
+  fatca,
+  pep,
+  document_object_paths,
+  status,
+  reviewed_at,
+  reviewed_by,
+  review_note
+)
+values (
+  'b1000000-0000-4000-8000-000000000001',
+  '10000000-0000-0000-0000-000000000002',
+  'b1000000-0000-4000-8000-000000000002',
+  'Autre',
+  'Propriétaire',
+  date '1990-01-01',
+  'Test',
+  'Test',
+  '{"street":"Test","postalCode":"00000","city":"Test","country":"FR"}',
+  'Test',
+  'Test',
+  false,
+  false,
+  '{}'::jsonb,
+  'approved',
+  now(),
+  '30000000-0000-0000-0000-000000000001',
+  'Dossier de test approuvé.'
+);
+
+set local role authenticated;
+select set_config(
+  'request.jwt.claim.sub',
+  '20000000-0000-0000-0000-000000000001',
+  true
+);
+-- 109
+select throws_ok(
+  $test$
+    select public.branch_manager_declare_account(
+      '10000000-0000-0000-0000-000000000002',
+      'Compte officiel refusé',
+      'current',
+      'EUR',
+      'FR6699999999990000000001400',
+      'DEMOFRP1XXX',
+      'TEST-EUR-000005',
+      'Autre Propriétaire Test',
+      'Banque Test non routable',
+      'Agence Test',
+      'TEST-001',
+      70000,
+      timestamptz '2026-01-02 00:00:00+00',
+      true,
+      'Tentative par un non-administrateur.',
+      'b2000000-0000-4000-8000-000000000001'
+    )
+  $test$,
+  '42501',
+  'BRANCH_MANAGER_PERMISSION_REQUIRED',
+  'a non-admin cannot declare a bank account'
+);
+
+set local role authenticated;
+select set_config(
+  'request.jwt.claim.sub',
+  '30000000-0000-0000-0000-000000000001',
+  true
+);
+-- 110
+select lives_ok(
+  $test$
+    select public.branch_manager_declare_account(
+      '10000000-0000-0000-0000-000000000002',
+      'Compte officiel de test',
+      'current',
+      'EUR',
+      'FR6699999999990000000001400',
+      'DEMOFRP1XXX',
+      'TEST-EUR-000005',
+      'Autre Propriétaire Test',
+      'Banque Test non routable',
+      'Agence Test',
+      'TEST-001',
+      70000,
+      timestamptz '2026-01-02 00:00:00+00',
+      true,
+      'Ouverture déclarée après traitement interne.',
+      'b2000000-0000-4000-8000-000000000002'
+    )
+  $test$,
+  'the branch manager declares an active account atomically'
+);
+reset role;
+
+-- 111
+select is(
+  (
+    select jsonb_build_object(
+      'status', account_status,
+      'iban', iban,
+      'amount', amount_minor,
+      'demo', is_demo
+    )
+    from public.financial_positions
+    where declaration_idempotency_key =
+      'b2000000-0000-4000-8000-000000000002'
+  ),
+  jsonb_build_object(
+    'status', 'active',
+    'iban', 'FR6699999999990000000001400',
+    'amount', 70000,
+    'demo', true
+  ),
+  'the declared account persists its official identifiers and balance'
+);
+-- 112
+select is(
+  (
+    select count(*)
+    from public.financial_ledger_entries
+    where entry_key =
+      'account-opening:b2000000-0000-4000-8000-000000000002'
+      and entry_kind = 'account_opening'
+      and amount_minor = 70000
+      and balance_before_minor = 0
+      and balance_after_minor = 70000
+  ),
+  1::bigint,
+  'account declaration creates exactly one opening ledger entry'
+);
+
+set local role authenticated;
+select set_config(
+  'request.jwt.claim.sub',
+  '30000000-0000-0000-0000-000000000001',
+  true
+);
+-- 113
+select lives_ok(
+  $test$
+    select public.branch_manager_declare_account(
+      '10000000-0000-0000-0000-000000000002',
+      'Compte officiel de test',
+      'current',
+      'EUR',
+      'FR6699999999990000000001400',
+      'DEMOFRP1XXX',
+      'TEST-EUR-000005',
+      'Autre Propriétaire Test',
+      'Banque Test non routable',
+      'Agence Test',
+      'TEST-001',
+      70000,
+      timestamptz '2026-01-02 00:00:00+00',
+      true,
+      'Ouverture déclarée après traitement interne.',
+      'b2000000-0000-4000-8000-000000000002'
+    )
+  $test$,
+  'an exact account declaration retry is idempotent'
+);
+-- 114
+select lives_ok(
+  $test$
+    select public.branch_manager_adjust_balance(
+      (
+        select id
+        from public.financial_positions
+        where declaration_idempotency_key =
+          'b2000000-0000-4000-8000-000000000002'
+      ),
+      75000,
+      now(),
+      'Rapprochement interne de test.',
+      'b2000000-0000-4000-8000-000000000003'
+    )
+  $test$,
+  'the branch manager records an audited balance adjustment'
+);
+reset role;
+
+-- 115
+select is(
+  (
+    select amount_minor
+    from public.financial_positions
+    where declaration_idempotency_key =
+      'b2000000-0000-4000-8000-000000000002'
+  ),
+  75000::bigint,
+  'the balance aggregate reflects the adjustment'
+);
+-- 116
+select is(
+  (
+    select count(*)
+    from public.financial_ledger_entries
+    where entry_key =
+      'adjustment:b2000000-0000-4000-8000-000000000003'
+      and entry_kind = 'manual_adjustment'
+      and amount_minor = 5000
+      and balance_before_minor = 70000
+      and balance_after_minor = 75000
+  ),
+  1::bigint,
+  'the adjustment records exact before and after balances'
+);
+-- 117
+select throws_ok(
+  $test$
+    update public.financial_ledger_entries
+    set description = 'Mutation interdite'
+    where entry_key =
+      'adjustment:b2000000-0000-4000-8000-000000000003'
+  $test$,
+  '55000',
+  'FINANCIAL_LEDGER_IS_APPEND_ONLY',
+  'financial ledger entries cannot be modified'
+);
+-- 118
+select is(
+  (
+    select count(*)
+    from public.financial_ledger_entries
+    where source_transfer_id = (
+      select id
+      from public.transfer_intents
+      where idempotency_key =
+        '50000000-0000-0000-0000-000000000001'
+    )
+      and entry_kind = 'transfer_debit'
+      and amount_minor = -2500
+      and balance_before_minor = 100000
+      and balance_after_minor = 97500
+  ),
+  1::bigint,
+  'a finalized transfer creates exactly one matching debit'
+);
+-- 119
+select is(
+  (
+    select count(*)
+    from public.financial_ledger_entries
+    where source_transfer_id = (
+      select id
+      from public.transfer_intents
+      where idempotency_key =
+        '50000000-0000-0000-0000-000000000002'
+    )
+  ),
+  0::bigint,
+  'a rejected transfer creates no ledger entry'
+);
+-- 120
+select is(
+  (
+    select count(*)
+    from public.financial_ledger_entries
+    where source_loan_id = (
+      select id
+      from public.loan_applications
+      where idempotency_key =
+        '60000000-0000-0000-0000-000000000001'
+    )
+      and entry_kind = 'loan_credit'
+      and amount_minor = 15000
+  ),
+  1::bigint,
+  'a disbursed loan creates exactly one matching credit'
+);
+-- 121
+select is(
+  (
+    select count(*)
+    from public.financial_ledger_entries
+    where source_loan_id = (
+      select id
+      from public.loan_applications
+      where idempotency_key =
+        '60000000-0000-0000-0000-000000000002'
+    )
+  ),
+  0::bigint,
+  'a rejected loan creates no ledger entry'
+);
+-- 122
+select is(
+  (
+    select entry.balance_after_minor
+    from public.financial_ledger_entries as entry
+    where entry.account_id =
+      '40000000-0000-0000-0000-000000000001'
+    order by entry.sequence_no desc
+    limit 1
+  ),
+  (
+    select amount_minor
+    from public.financial_positions
+    where id = '40000000-0000-0000-0000-000000000001'
+  ),
+  'the latest ledger balance equals the account aggregate'
+);
+-- 123
+select ok(
+  not has_function_privilege(
+    'authenticated',
+    'public.complete_official_document(uuid,text,text,boolean,text)',
+    'execute'
+  ),
+  'authenticated users cannot complete official documents'
+);
+
+set local role authenticated;
+select set_config(
+  'request.jwt.claim.sub',
+  '20000000-0000-0000-0000-000000000001',
+  true
+);
+-- 124
+select throws_ok(
+  $test$
+    select public.branch_manager_issue_official_document(
+      '10000000-0000-0000-0000-000000000001',
+      '40000000-0000-0000-0000-000000000001',
+      null,
+      null,
+      'bank_details',
+      'RIB officiel de test',
+      'fr',
+      null,
+      null,
+      'b3000000-0000-4000-8000-000000000001'
+    )
+  $test$,
+  '42501',
+  'BRANCH_MANAGER_PERMISSION_REQUIRED',
+  'a non-admin cannot issue an official document'
+);
+
+set local role authenticated;
+select set_config(
+  'request.jwt.claim.sub',
+  '30000000-0000-0000-0000-000000000001',
+  true
+);
+-- 125
+select lives_ok(
+  $test$
+    select public.branch_manager_issue_official_document(
+      '10000000-0000-0000-0000-000000000001',
+      '40000000-0000-0000-0000-000000000001',
+      null,
+      null,
+      'bank_details',
+      'RIB officiel de test',
+      'fr',
+      null,
+      null,
+      'b3000000-0000-4000-8000-000000000002'
+    )
+  $test$,
+  'the branch manager creates an immutable pending document snapshot'
+);
+-- 126
+select lives_ok(
+  $test$
+    select public.branch_manager_issue_official_document(
+      '10000000-0000-0000-0000-000000000001',
+      '40000000-0000-0000-0000-000000000001',
+      null,
+      null,
+      'bank_details',
+      'RIB officiel de test',
+      'fr',
+      null,
+      null,
+      'b3000000-0000-4000-8000-000000000002'
+    )
+  $test$,
+  'an exact official-document retry is idempotent'
+);
+reset role;
+
+-- 127
+select is(
+  (
+    select count(*)
+    from public.official_documents
+    where owner_id = '10000000-0000-0000-0000-000000000001'
+      and idempotency_key =
+        'b3000000-0000-4000-8000-000000000002'
+      and status = 'pending'
+      and char_length(snapshot_hash) = 64
+      and snapshot -> 'account' ->> 'iban' =
+        'FR0299999999990000000001000'
+  ),
+  1::bigint,
+  'the pending document stores one hashed authoritative snapshot'
+);
+-- 128
+select is(
+  (
+    select count(*)
+    from public.official_documents
+    where owner_id = '10000000-0000-0000-0000-000000000001'
+      and idempotency_key =
+        'b3000000-0000-4000-8000-000000000002'
+  ),
+  1::bigint,
+  'an official-document retry does not duplicate the document'
+);
+
+set local role service_role;
+select set_config(
+  'request.jwt.claims',
+  '{"role":"service_role"}',
+  true
+);
+-- 129
+select lives_ok(
+  $test$
+    select public.complete_official_document(
+      (
+        select id
+        from public.official_documents
+        where idempotency_key =
+          'b3000000-0000-4000-8000-000000000002'
+      ),
+      '10000000-0000-0000-0000-000000000001/rib/v1.pdf',
+      repeat('a', 64),
+      true,
+      null
+    )
+  $test$,
+  'the service worker completes a rendered official PDF'
+);
+reset role;
+
+-- 130
+select is(
+  (
+    select jsonb_build_object(
+      'status', status,
+      'path', storage_path,
+      'hash', content_hash,
+      'issued', issued_at is not null
+    )
+    from public.official_documents
+    where idempotency_key =
+      'b3000000-0000-4000-8000-000000000002'
+  ),
+  jsonb_build_object(
+    'status', 'issued',
+    'path',
+      '10000000-0000-0000-0000-000000000001/rib/v1.pdf',
+    'hash', repeat('a', 64),
+    'issued', true
+  ),
+  'a completed document retains its immutable artifact metadata'
+);
+-- 131
+select throws_ok(
+  $test$
+    update public.official_documents
+    set snapshot = '{"tampered":true}'::jsonb
+    where idempotency_key =
+      'b3000000-0000-4000-8000-000000000002'
+  $test$,
+  '55000',
+  'OFFICIAL_DOCUMENT_SNAPSHOT_IS_IMMUTABLE',
+  'an issued document snapshot cannot be altered'
+);
+-- 132
+select is(
+  (
+    select count(*)
+    from public.official_documents
+    where idempotency_key =
+      'b3000000-0000-4000-8000-000000000002'
+      and snapshot ->> 'documentType' = 'bank_details'
+  ),
+  1::bigint,
+  'failed tampering leaves the official snapshot intact'
+);
+-- 133
+select is(
+  (
+    select jsonb_build_object(
+      'active', account_status,
+      'iban', iban,
+      'valid_iban', private.is_valid_iban(iban),
+      'demo', is_demo,
+      'holder', account_holder_name
+    )
+    from public.financial_positions
+    where id = 'd3000000-0000-4000-8000-000000000003'
+  ),
+  jsonb_build_object(
+    'active', 'active',
+    'iban', 'FR5299999999990000000000100',
+    'valid_iban', true,
+    'demo', true,
+    'holder', 'Client Démo Monalyz'
+  ),
+  'the demo position is an explicit validated non-routable demo account'
+);
+-- 134
+select is(
+  (
+    select count(*)
+    from public.financial_ledger_entries
+    where account_id = 'd3000000-0000-4000-8000-000000000003'
+      and balance_after_minor = 2500000
+      and metadata ->> 'demo' = 'true'
+  ),
+  1::bigint,
+  'the freshly provisioned demo account has one synthetic opening entry'
+);
+-- 135
+select is(
+  (
+    select count(*)
+    from public.official_documents
+    where owner_id = 'd2000000-0000-4000-8000-000000000002'
+      and account_id = 'd3000000-0000-4000-8000-000000000003'
+      and status = 'pending'
+      and is_demo
+      and snapshot -> 'demo' ->> 'watermark' =
+        'DÉMONSTRATION — AUCUNE VALEUR'
+  ),
+  3::bigint,
+  'the demo account exposes three pending watermarked documents'
+);
+-- 136
+select is(
+  (
+    select array_agg(document_type order by document_type)::text
+    from public.official_documents
+    where owner_id = 'd2000000-0000-4000-8000-000000000002'
+  ),
+  array[
+    'account_statement',
+    'balance_certificate',
+    'bank_details'
+  ]::text,
+  'the demo document set contains RIB, statement and balance certificate'
+);
+-- 137
+select is(
+  (
+    select count(*)
+    from public.official_documents
+    where owner_id = 'd2000000-0000-4000-8000-000000000001'
+  ),
+  0::bigint,
+  'the demo administrator receives no client official document'
 );
 
 select * from finish();

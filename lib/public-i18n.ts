@@ -87,7 +87,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
     login: {
       title: 'Connexion à votre espace',
       subtitle:
-        'Monalyz initie et suit vos instructions. Aucune banque n’est connectée.',
+        'Accédez à vos comptes, soldes, virements et prêts Monalyz en toute sécurité.',
       email: 'Adresse e-mail',
       password: 'Mot de passe',
       emailPlaceholder: 'vous@exemple.com',
@@ -98,7 +98,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
       submit: 'Se connecter',
       submitting: 'Connexion…',
       newUser: 'Nouveau sur Monalyz ?',
-      register: 'Créer un compte applicatif',
+      register: 'Ouvrir mon espace bancaire',
       genericError: 'Connexion impossible. Vérifiez vos identifiants.',
       errors: {
         auth_callback: 'Le lien de connexion est invalide ou expiré.',
@@ -110,7 +110,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
     register: {
       title: 'Créer un compte Monalyz',
       subtitle:
-        'Ce compte donne accès à un outil d’instruction et de suivi. Il ne crée ni compte bancaire, ni IBAN, ni connexion à une banque.',
+        'Créez votre accès sécurisé. Après validation de votre dossier, vous pourrez consulter vos comptes, soldes et IBAN Monalyz.',
       displayName: 'Nom affiché',
       email: 'Adresse e-mail',
       password: 'Mot de passe (10 caractères minimum, avec lettre et chiffre)',
@@ -123,7 +123,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
         'Utilisez au moins 10 caractères, dont une lettre et un chiffre.',
       showPassword: 'Afficher le mot de passe',
       hidePassword: 'Masquer le mot de passe',
-      submit: 'Créer mon compte applicatif',
+      submit: 'Créer mon espace bancaire',
       submitting: 'Création…',
       passwordPolicyError:
         'Le mot de passe doit comporter au moins 10 caractères, dont une lettre et un chiffre.',
@@ -185,7 +185,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
     login: {
       title: 'Sign in to your account',
       subtitle:
-        'Monalyz initiates and tracks your instructions. No bank is connected.',
+        'Securely access your Monalyz accounts, balances, transfers and loans.',
       email: 'Email address',
       password: 'Password',
       emailPlaceholder: 'you@example.com',
@@ -196,7 +196,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
       submit: 'Sign in',
       submitting: 'Signing in…',
       newUser: 'New to Monalyz?',
-      register: 'Create an application account',
+      register: 'Open my online banking',
       genericError: 'Unable to sign in. Check your credentials.',
       errors: {
         auth_callback: 'The sign-in link is invalid or has expired.',
@@ -208,7 +208,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
     register: {
       title: 'Create a Monalyz account',
       subtitle:
-        'This account provides access to an instruction and tracking tool. It does not create a bank account, IBAN, or bank connection.',
+        'Create your secure access. Once your file is approved, you can view your Monalyz accounts, balances and IBANs.',
       displayName: 'Display name',
       email: 'Email address',
       password: 'Password (at least 10 characters, including a letter and a number)',
@@ -221,7 +221,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
         'Use at least 10 characters, including one letter and one number.',
       showPassword: 'Show password',
       hidePassword: 'Hide password',
-      submit: 'Create my application account',
+      submit: 'Create my online banking',
       submitting: 'Creating…',
       passwordPolicyError:
         'The password must contain at least 10 characters, including a letter and a number.',
@@ -283,7 +283,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
     login: {
       title: 'Bei Ihrem Bereich anmelden',
       subtitle:
-        'Monalyz erfasst und verfolgt Ihre Anweisungen. Es ist keine Bank verbunden.',
+        'Greifen Sie sicher auf Ihre Monalyz-Konten, Salden, Überweisungen und Kredite zu.',
       email: 'E-Mail-Adresse',
       password: 'Passwort',
       emailPlaceholder: 'sie@beispiel.de',
@@ -294,7 +294,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
       submit: 'Anmelden',
       submitting: 'Anmeldung…',
       newUser: 'Neu bei Monalyz?',
-      register: 'Anwendungskonto erstellen',
+      register: 'Online-Banking eröffnen',
       genericError: 'Anmeldung nicht möglich. Prüfen Sie Ihre Zugangsdaten.',
       errors: {
         auth_callback: 'Der Anmeldelink ist ungültig oder abgelaufen.',
@@ -307,7 +307,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
     register: {
       title: 'Monalyz-Konto erstellen',
       subtitle:
-        'Dieses Konto bietet Zugriff auf ein Werkzeug zur Erfassung und Nachverfolgung. Es erstellt weder ein Bankkonto noch eine IBAN oder Bankverbindung.',
+        'Erstellen Sie Ihren sicheren Zugang. Nach Freigabe Ihrer Unterlagen sehen Sie Ihre Monalyz-Konten, Salden und IBANs.',
       displayName: 'Anzeigename',
       email: 'E-Mail-Adresse',
       password: 'Passwort (mindestens 10 Zeichen, mit Buchstabe und Zahl)',
@@ -320,7 +320,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
         'Verwenden Sie mindestens 10 Zeichen, darunter einen Buchstaben und eine Zahl.',
       showPassword: 'Passwort anzeigen',
       hidePassword: 'Passwort ausblenden',
-      submit: 'Anwendungskonto erstellen',
+      submit: 'Online-Banking erstellen',
       submitting: 'Erstellung…',
       passwordPolicyError:
         'Das Passwort muss mindestens 10 Zeichen sowie einen Buchstaben und eine Zahl enthalten.',
@@ -382,7 +382,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
     login: {
       title: 'Acceda a su espacio',
       subtitle:
-        'Monalyz inicia y sigue sus instrucciones. No hay ningún banco conectado.',
+        'Acceda de forma segura a sus cuentas, saldos, transferencias y préstamos Monalyz.',
       email: 'Correo electrónico',
       password: 'Contraseña',
       emailPlaceholder: 'usted@ejemplo.com',
@@ -393,7 +393,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
       submit: 'Iniciar sesión',
       submitting: 'Conectando…',
       newUser: '¿Es nuevo en Monalyz?',
-      register: 'Crear una cuenta de aplicación',
+      register: 'Abrir mi banca en línea',
       genericError: 'No se pudo iniciar sesión. Compruebe sus credenciales.',
       errors: {
         auth_callback: 'El enlace de inicio de sesión no es válido o ha caducado.',
@@ -405,7 +405,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
     register: {
       title: 'Crear una cuenta Monalyz',
       subtitle:
-        'Esta cuenta da acceso a una herramienta de instrucciones y seguimiento. No crea una cuenta bancaria, un IBAN ni una conexión bancaria.',
+        'Cree su acceso seguro. Una vez aprobado su expediente, podrá consultar sus cuentas, saldos e IBAN Monalyz.',
       displayName: 'Nombre visible',
       email: 'Correo electrónico',
       password: 'Contraseña (mínimo 10 caracteres, con una letra y un número)',
@@ -418,7 +418,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
         'Use al menos 10 caracteres, con una letra y un número.',
       showPassword: 'Mostrar contraseña',
       hidePassword: 'Ocultar contraseña',
-      submit: 'Crear mi cuenta de aplicación',
+      submit: 'Crear mi banca en línea',
       submitting: 'Creando…',
       passwordPolicyError:
         'La contraseña debe tener al menos 10 caracteres, incluida una letra y un número.',

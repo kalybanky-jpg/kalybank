@@ -9,12 +9,18 @@ export type TransferType = 'canada' | 'eurozone' | 'usa' | 'swiss' | 'uk' | 'lat
 export interface BankAccount {
   id: string;
   name: string;
-  /**
-   * A masked external reference when one was recorded manually.
-   * This is never presented as an account connected to Monalyz.
-   */
-  iban: string;
-  /** Internally declared or reconciled position, not a live bank balance. */
+  /** IBAN assigned through the bank's internal account-opening process. */
+  iban?: string;
+  accountNumber?: string;
+  bic?: string;
+  accountHolderName?: string;
+  institutionName?: string;
+  branchName?: string;
+  branchCode?: string;
+  accountStatus?: 'pending' | 'active' | 'restricted' | 'closed';
+  openedAt?: string;
+  isDemo?: boolean;
+  /** Balance maintained by bank staff in Monalyz. */
   balance: number;
   availableBalance?: number;
   currency: Currency;
@@ -26,13 +32,46 @@ export interface BankAccount {
 
 export interface Transaction {
   id: string;
+  accountId?: string;
   title: string;
   date: string;
   amount: number;
+  currency?: Currency;
+  balanceAfter?: number;
+  reference?: string;
   type: 'credit' | 'debit';
   category: 'salary' | 'shopping' | 'transfer' | 'entertainment' | 'groceries' | 'other';
   logo?: string;
   icon?: string;
+}
+
+export type OfficialDocumentType =
+  | 'bank_details'
+  | 'account_statement'
+  | 'balance_certificate'
+  | 'transfer_confirmation'
+  | 'loan_disbursement_confirmation'
+  | 'loan_decision';
+
+export interface OfficialDocument {
+  id: string;
+  ownerId: string;
+  accountId?: string;
+  transferId?: string;
+  loanId?: string;
+  documentNumber: string;
+  documentType: OfficialDocumentType;
+  title: string;
+  language: Language;
+  periodStart?: string;
+  periodEnd?: string;
+  version: number;
+  status: 'pending' | 'issued' | 'failed' | 'revoked';
+  contentHash?: string;
+  storagePath?: string;
+  issuedAt?: string;
+  revokedAt?: string;
+  isDemo: boolean;
 }
 
 export interface PendingTransfer {

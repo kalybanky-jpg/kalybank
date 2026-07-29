@@ -11,10 +11,12 @@
 | Tests unitaires | `npx bun run test` | Domaine, redirections et e-mails |
 | E-mails métier | `npx bun x tsx --test tests/transactional-email.test.ts` | Config, modèles, payloads et idempotence |
 | Langues | `npx bun x tsx --test tests/language.test.ts` | BCP 47, priorité et repli |
+| Registre bancaire | `npx bun x tsx --test tests/financial.test.ts tests/banking-i18n.test.ts` | Comptes, IBAN, soldes et traductions UI |
+| PDF officiels | `npx bun x tsx --test tests/official-document-pdf.test.ts` | Rendu, empreinte et filigrane démo |
 | Provisionnement démo | `npx bun x tsx --test tests/demo-provisioning.test.ts` | Cibles, secrets, refus de reprise et idempotence |
 | Schéma | `npx bun x supabase db lint --local --level warning --fail-on error` | Erreurs SQL |
 | Conseillers | `npx bun x supabase db advisors --local --type all --level warn --fail-on error` | Sécurité et performance |
-| pgTAP | `npx bun run test:db` | 97 invariants financiers, linguistiques et de provisionnement démo |
+| pgTAP | `npx bun run test:db` | 137 invariants financiers, documentaires, linguistiques et démo |
 | Snapshot | `npx bun run db:snapshot` puis `npx bun run test` | Copie SQL et manifeste |
 | Dépendances | `npx bun audit` | Vulnérabilités connues |
 | Production | `npx bun run build` | Compilation et pré-rendu |
@@ -26,7 +28,9 @@ tests/
   database-snapshot.test.ts
   email-config.test.ts
   financial.test.ts
+  banking-i18n.test.ts
   navigation.test.ts
+  official-document-pdf.test.ts
   transactional-email.test.ts
 supabase/tests/
   monalyz_workflow_invariants_test.sql
@@ -50,6 +54,21 @@ supabase/tests/
 10. Prévalider le provisionnement avec
     `npm run demo:provision -- --target=local --dry-run` ; cette commande ne
     contacte pas Supabase.
+11. Vérifier qu’une déclaration de compte crée une seule écriture d’ouverture,
+    normalise l’IBAN et refuse les doublons.
+12. Vérifier qu’approbations de virement et de prêt ne modifient aucun solde ;
+    les mouvements de grand livre apparaissent uniquement lors des
+    confirmations internes et dans la même transaction que le nouveau solde.
+13. Tenter `UPDATE` et `DELETE` sur `financial_ledger_entries` et confirmer
+    leur refus, puis vérifier la RLS propriétaire sur comptes et écritures.
+14. Émettre chaque type de document autorisé, comparer les empreintes du
+    snapshot et du PDF, puis vérifier téléchargement propriétaire, refus tiers,
+    révocation et immutabilité.
+15. Provisionner les fixtures démo dans un environnement jetable et contrôler
+    l’IBAN synthétique, `is_demo`, l’écriture d’ouverture et le filigrane des
+    PDF.
+16. Inspecter les requêtes réseau des flux financiers : aucun appel vers une
+    API bancaire, un agrégateur ou un moteur de paiement n’est autorisé.
 
 Le patch `patches/minimatch@3.1.5.patch` adapte l’ancien consommateur CommonJS
 à `brace-expansion` 5.0.8 corrigé. Ne le supprimer qu’après disparition de

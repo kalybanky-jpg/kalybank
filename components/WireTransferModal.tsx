@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
 import { translations } from '@/lib/i18n';
+import { bankingMessages } from '@/lib/banking-i18n';
 import { TransferType, Currency } from '@/lib/types';
 import { formatCurrency, convertAmount, convertAnyAmount, formatDirectCurrency } from '@/lib/currency';
 import {
@@ -28,6 +29,7 @@ export default function WireTransferModal() {
   } = useAppStore();
 
   const t = translations[language] || translations.fr;
+  const banking = bankingMessages[language];
 
   const [step, setStep] = useState(1);
   const [transferType, setTransferType] = useState<TransferType>('canada');
@@ -204,9 +206,15 @@ export default function WireTransferModal() {
 
     const availableBalance = sourceAccount?.availableBalance ?? sourceAccount?.balance ?? 0;
     if (numericAmount > availableBalance) {
-      newErrors.amountInput = language === 'fr'
-        ? `Le montant ne peut pas excéder la position interne disponible (${availableBalance.toFixed(2)} ${sourceAccount?.currency}).`
-        : `The amount cannot exceed the available internal position (${availableBalance.toFixed(2)} ${sourceAccount?.currency}).`;
+      newErrors.amountInput = `${t.amountToSend}: ${formatDirectCurrency(
+        numericAmount,
+        sourceAccount?.currency,
+        language,
+      )}. ${banking.accounts.availableBalance}: ${formatDirectCurrency(
+        availableBalance,
+        sourceAccount?.currency,
+        language,
+      )}.`;
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -361,10 +369,10 @@ export default function WireTransferModal() {
               <div className="w-16 h-16 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-full flex items-center justify-center mx-auto">
                 <CheckCircle2 className="w-10 h-10" />
               </div>
-              <h3 className="text-xl font-extrabold text-slate-900">Instruction enregistrée</h3>
+              <h3 className="text-xl font-extrabold text-slate-900">{t.transferSuccessMsg}</h3>
               <p className="text-xs sm:text-sm text-slate-600 max-w-md mx-auto">
-                Aucun transfert bancaire n&apos;a encore été exécuté. L&apos;instruction doit
-                être contrôlée, exécutée hors de Monalyz, puis confirmée par un second opérateur.
+                {banking.common.internalOperationsNotice}{' '}
+                {banking.transfers.progressHint}
               </p>
             </div>
           ) : (
@@ -432,7 +440,8 @@ export default function WireTransferModal() {
                         >
                           {accounts.map((acc) => (
                             <option key={acc.id} value={acc.id} className="bg-white text-slate-900">
-                              {acc.name} — disponible interne : {formatDirectCurrency(
+                              {acc.name} — {banking.accounts.availableBalance}:{' '}
+                              {formatDirectCurrency(
                                 acc.availableBalance ?? acc.balance,
                                 acc.currency,
                                 language,
@@ -993,9 +1002,9 @@ export default function WireTransferModal() {
                     </div>
 
                     <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-slate-600 text-xs space-y-1">
-                      <p className="font-bold text-slate-800">Récapitulatif de l&apos;instruction :</p>
+                      <p className="font-bold text-slate-800">{t.newTransferTitle}</p>
                       <p>Bénéficiaire : <strong className="text-slate-900">{recipientName}</strong></p>
-                      <p>Position interne source : <strong className="text-slate-900">{sourceAccount?.name}</strong></p>
+                      <p>{t.sourceAccount}: <strong className="text-slate-900">{sourceAccount?.name}</strong></p>
                       {motive && <p>Motif : <strong className="text-slate-900">{motive}</strong></p>}
                     </div>
                   </motion.div>

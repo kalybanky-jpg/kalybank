@@ -10,8 +10,11 @@
 4. [Comptes de démonstration](demo-accounts.md) pour les accès de test.
 5. [Exploitation Supabase](database-operations.md) pour les migrations et snapshots.
 6. [Architecture](architecture.md) pour comprendre les frontières de confiance.
-7. [Modèle de données](data-model.md) pour les machines d’état et invariants.
-8. [Tests](testing.md) avant toute modification métier.
+7. [ADR-0002](adr/0002-internal-official-banking-register.md) pour la décision
+   de registre bancaire interne.
+8. [Modèle de données](data-model.md) pour les comptes, le grand livre, les
+   documents, machines d’état et invariants.
+9. [Tests](testing.md) avant toute modification métier.
 
 ## Carte documentaire
 
@@ -28,8 +31,9 @@
 | [API](api.md) | Frontend et backend |
 | [Tests](testing.md) | Contributeurs |
 | [Déploiement](deployment.md) | Opérateurs |
-| [Incident de preuve externe](runbooks/external-evidence-incident.md) | Opérateurs |
-| [ADR-0001](adr/0001-external-financial-execution.md) | Tous |
+| [Incident de confirmation ou document](runbooks/external-evidence-incident.md) | Opérateurs |
+| [ADR-0001 — remplacé](adr/0001-external-financial-execution.md) | Historique |
+| [ADR-0002 — registre bancaire interne](adr/0002-internal-official-banking-register.md) | Tous |
 
 ## Règle de mise à jour
 

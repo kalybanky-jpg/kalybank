@@ -5,6 +5,7 @@ import { useAppStore } from '@/lib/store';
 import { Bell, LogOut, Menu } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { createClient } from '@/lib/supabase/client';
+import { bankingMessages } from '@/lib/banking-i18n';
 import LanguageSelector from './LanguageSelector';
 
 interface HeaderProps {
@@ -13,11 +14,13 @@ interface HeaderProps {
 
 export default function Header({ onToggleMobileMenu }: HeaderProps) {
   const {
+    language,
     role,
     notifications,
     setIsNotificationsDrawerOpen,
     lastError,
   } = useAppStore();
+  const t = bankingMessages[language];
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const unreadCount = notifications.filter((notification) => !notification.read).length;
 
@@ -34,16 +37,16 @@ export default function Header({ onToggleMobileMenu }: HeaderProps) {
             type="button"
             onClick={onToggleMobileMenu}
             className="lg:hidden p-2 rounded-xl border border-slate-200"
-            aria-label="Ouvrir le menu"
+            aria-label={t.header.openMenu}
           >
             <Menu className="w-5 h-5" />
           </button>
           <div className="min-w-0">
             <h1 className="text-lg sm:text-xl font-extrabold text-slate-900 truncate">
-              {role === 'admin' ? 'Espace chef d’agence Monalyz' : 'Espace Monalyz'}
+              {role === 'admin' ? t.header.adminTitle : t.header.userTitle}
             </h1>
             <p className="text-[11px] sm:text-xs text-slate-500 truncate">
-              Aucune banque connectée — opérations financières hors application
+              {t.header.subtitle}
             </p>
           </div>
         </div>
@@ -55,7 +58,7 @@ export default function Header({ onToggleMobileMenu }: HeaderProps) {
             type="button"
             onClick={() => setIsNotificationsDrawerOpen(true)}
             className="relative p-2 bg-white border border-slate-200 rounded-xl"
-            aria-label="Notifications"
+            aria-label={t.header.notifications}
           >
             <Bell className="w-5 h-5 text-slate-700" />
             {unreadCount > 0 && (
@@ -70,7 +73,7 @@ export default function Header({ onToggleMobileMenu }: HeaderProps) {
               type="button"
               onClick={() => setIsProfileOpen((open) => !open)}
               className="w-9 h-9 rounded-full bg-slate-900 text-white text-xs font-extrabold"
-              aria-label="Menu de session"
+              aria-label={t.header.sessionMenu}
             >
               {role === 'admin' ? 'CA' : 'M'}
             </button>
@@ -83,7 +86,7 @@ export default function Header({ onToggleMobileMenu }: HeaderProps) {
                   className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-xl p-2"
                 >
                   <p className="px-3 py-2 text-xs text-slate-500">
-                    {role === 'admin' ? 'Chef d’agence habilité' : 'Utilisateur authentifié'}
+                    {role === 'admin' ? t.header.adminSession : t.header.userSession}
                   </p>
                   <button
                     type="button"
@@ -91,7 +94,7 @@ export default function Header({ onToggleMobileMenu }: HeaderProps) {
                     className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold text-rose-700 hover:bg-rose-50"
                   >
                     <LogOut className="w-4 h-4" />
-                    Se déconnecter
+                    {t.header.logout}
                   </button>
                 </motion.div>
               )}

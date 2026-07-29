@@ -16,6 +16,8 @@ import type {
   KYCApplication,
   Language,
   LoanApplication,
+  OfficialDocument,
+  OfficialDocumentType,
   PendingTransfer,
   SystemNotification,
   Transaction,
@@ -64,6 +66,7 @@ interface AppState {
 
   accounts: BankAccount[];
   transactions: Transaction[];
+  officialDocuments: OfficialDocument[];
   pendingTransfers: PendingTransfer[];
   loans: LoanApplication[];
   notifications: SystemNotification[];
@@ -128,6 +131,33 @@ interface AppState {
     newAmount: number,
     reason?: string,
   ) => Promise<void>;
+  declareBankAccount: (account: {
+    ownerId: string;
+    label: string;
+    accountType: 'current' | 'savings';
+    currency: Currency;
+    iban: string;
+    bic: string;
+    accountNumber: string;
+    accountHolderName: string;
+    institutionName: string;
+    branchName: string;
+    branchCode: string;
+    openingBalance: number;
+    openedAt: string;
+    isDemo?: boolean;
+    reason: string;
+  }) => Promise<void>;
+  issueOfficialDocument: (document: {
+    ownerId: string;
+    accountId?: string;
+    transferId?: string;
+    loanId?: string;
+    documentType: OfficialDocumentType;
+    title: string;
+    periodStart?: string;
+    periodEnd?: string;
+  }) => Promise<void>;
 }
 
 interface ReviewRow {
@@ -146,6 +176,51 @@ interface PositionRow {
   as_of: string;
   external_identifier_masked: string | null;
   account_type: 'current' | 'savings';
+  account_number: string | null;
+  iban: string | null;
+  bic: string | null;
+  account_holder_name: string | null;
+  institution_name: string | null;
+  branch_name: string | null;
+  branch_code: string | null;
+  account_status: 'pending' | 'active' | 'restricted' | 'closed';
+  opened_at: string | null;
+  is_demo: boolean;
+}
+
+interface LedgerEntryRow {
+  id: string;
+  owner_id: string;
+  account_id: string;
+  entry_kind: string;
+  amount_minor: number;
+  balance_after_minor: number;
+  currency: Currency;
+  description: string;
+  internal_reference: string;
+  value_date: string;
+  booked_at: string;
+}
+
+interface OfficialDocumentRow {
+  id: string;
+  owner_id: string;
+  account_id: string | null;
+  transfer_id: string | null;
+  loan_id: string | null;
+  document_number: string;
+  document_type: OfficialDocumentType;
+  title: string;
+  language: Language;
+  period_start: string | null;
+  period_end: string | null;
+  version: number;
+  status: OfficialDocument['status'];
+  content_hash: string | null;
+  storage_path: string | null;
+  issued_at: string | null;
+  revoked_at: string | null;
+  is_demo: boolean;
 }
 
 interface TransferRow {
@@ -312,6 +387,7 @@ export function AppProvider({
 
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [officialDocuments, setOfficialDocuments] = useState<OfficialDocument[]>([]);
   const [pendingTransfers, setPendingTransfers] = useState<PendingTransfer[]>([]);
   const [loans, setLoans] = useState<LoanApplication[]>([]);
   const [notifications, setNotifications] = useState<SystemNotification[]>([]);
@@ -381,6 +457,7 @@ export function AppProvider({
   const clearBusinessData = useCallback(() => {
     setAccounts([]);
     setTransactions([]);
+    setOfficialDocuments([]);
     setPendingTransfers([]);
     setLoans([]);
     setNotifications([]);
@@ -427,12 +504,14 @@ export function AppProvider({
         positionsResult,
         transfersResult,
         loansResult,
+        ledgerResult,
+        officialDocumentsResult,
         notificationResult,
         kycResult,
         auditResult,
       ] = await Promise.all([
         supabase.rpc('current_app_role'),
-        supabase.from('profiles').select('user_id,email,preferred_language'),
+        supabase.from('profiles').select('user_id,email,display_name,preferred_language'),
         supabase.from('financial_positions').select('*').order('created_at'),
         supabase
           .from('transfer_intents')
@@ -442,6 +521,14 @@ export function AppProvider({
           .from('loan_applications')
           .select('*,loan_review_checks(check_kind,status)')
           .order('submitted_at', { ascending: false }),
+        supabase
+          .from('financial_ledger_entries')
+          .select('*')
+          .order('booked_at', { ascending: false }),
+        supabase
+          .from('official_documents')
+          .select('*')
+          .order('issued_at', { ascending: false, nullsFirst: false }),
         supabase.from('notifications').select('*').order('created_at', { ascending: false }),
         supabase.from('kyc_applications').select('*').order('submitted_at', { ascending: false }),
         supabase.from('audit_events').select('*').order('created_at', { ascending: false }).limit(100),
@@ -453,6 +540,8 @@ export function AppProvider({
         positionsResult,
         transfersResult,
         loansResult,
+        ledgerResult,
+        officialDocumentsResult,
         notificationResult,
         kycResult,
         auditResult,
@@ -471,6 +560,12 @@ export function AppProvider({
       const profileEmails = new Map(
         (profileResult.data ?? []).map((profile) => [profile.user_id, profile.email]),
       );
+      const profileNames = new Map(
+        (profileResult.data ?? []).map((profile) => [
+          profile.user_id,
+          profile.display_name || profile.email,
+        ]),
+      );
 
       const positionRows = (positionsResult.data ?? []) as PositionRow[];
       setAccounts(
@@ -478,7 +573,19 @@ export function AppProvider({
           id: position.id,
           ownerId: position.owner_id,
           name: position.label,
-          iban: position.external_identifier_masked ?? 'Référence externe non renseignée',
+          iban: position.iban ?? undefined,
+          accountNumber: position.account_number ?? undefined,
+          bic: position.bic ?? undefined,
+          accountHolderName:
+            position.account_holder_name ??
+            profileNames.get(position.owner_id) ??
+            undefined,
+          institutionName: position.institution_name ?? undefined,
+          branchName: position.branch_name ?? undefined,
+          branchCode: position.branch_code ?? undefined,
+          accountStatus: position.account_status,
+          openedAt: position.opened_at ?? undefined,
+          isDemo: position.is_demo,
           balance: fromMinorUnits(position.amount_minor, position.currency),
           availableBalance: fromMinorUnits(
             position.amount_minor - position.reserved_minor,
@@ -575,32 +682,46 @@ export function AppProvider({
       setLoans(mappedLoans);
 
       setTransactions(
-        [
-          ...mappedTransfers
-            .filter((transfer) => transfer.workflowStatus === 'external_settlement_confirmed')
-            .map((transfer) => ({
-              id: `transfer-${transfer.id}`,
-              title: `Virement effectué — ${transfer.recipientName}`,
-              date: transfer.date,
-              amount: -transfer.amount,
-              type: 'debit' as const,
-              category: 'transfer' as const,
-            })),
-          ...loanRows
-            .filter(
-              (loan) =>
-                loan.status === 'external_settlement_confirmed' &&
-                Boolean(loan.credited_position_id),
-            )
-            .map((loan) => ({
-              id: `loan-${loan.id}`,
-              title: `Prêt décaissé — ${loan.reference}`,
-              date: friendlyDate(loan.disbursed_at ?? loan.submitted_at),
-              amount: fromMinorUnits(loan.requested_amount_minor, loan.currency),
-              type: 'credit' as const,
-              category: 'other' as const,
-            })),
-        ],
+        ((ledgerResult.data ?? []) as LedgerEntryRow[]).map((entry) => ({
+          id: entry.id,
+          accountId: entry.account_id,
+          title: entry.description,
+          date: friendlyDate(entry.value_date ?? entry.booked_at),
+          amount: fromMinorUnits(entry.amount_minor, entry.currency),
+          currency: entry.currency,
+          balanceAfter: fromMinorUnits(entry.balance_after_minor, entry.currency),
+          reference: entry.internal_reference,
+          type: entry.amount_minor < 0 ? ('debit' as const) : ('credit' as const),
+          category:
+            entry.entry_kind === 'transfer_debit'
+              ? ('transfer' as const)
+              : ('other' as const),
+        })),
+      );
+
+      setOfficialDocuments(
+        ((officialDocumentsResult.data ?? []) as OfficialDocumentRow[]).map(
+          (document) => ({
+            id: document.id,
+            ownerId: document.owner_id,
+            accountId: document.account_id ?? undefined,
+            transferId: document.transfer_id ?? undefined,
+            loanId: document.loan_id ?? undefined,
+            documentNumber: document.document_number,
+            documentType: document.document_type,
+            title: document.title,
+            language: document.language,
+            periodStart: document.period_start ?? undefined,
+            periodEnd: document.period_end ?? undefined,
+            version: document.version,
+            status: document.status,
+            contentHash: document.content_hash ?? undefined,
+            storagePath: document.storage_path ?? undefined,
+            issuedAt: document.issued_at ?? undefined,
+            revokedAt: document.revoked_at ?? undefined,
+            isDemo: document.is_demo,
+          }),
+        ),
       );
 
       setNotifications(
@@ -958,27 +1079,74 @@ export function AppProvider({
   const updateAccountBalance: AppState['updateAccountBalance'] = async (
     accountId,
     newAmount,
-    reason = 'Rapprochement manuel avec justificatif externe.',
+    reason = 'Mise à jour du solde après traitement interne par le personnel bancaire.',
   ) => {
     const account = accounts.find((candidate) => candidate.id === accountId);
-    if (!account) throw new Error('Position introuvable.');
+    if (!account) throw new Error('Compte introuvable.');
     if (!Number.isFinite(newAmount) || newAmount < 0) {
-      throw new Error('La position déclarée ne peut pas être négative.');
+      throw new Error('Le solde ne peut pas être négatif.');
     }
     const factor = 10 ** currencyExponent(account.currency);
-    const currentMinor = Math.round(account.balance * factor);
     const targetMinor = Math.round(newAmount * factor);
-    const delta = targetMinor - currentMinor;
-    if (delta === 0) return;
+    if (targetMinor === Math.round(account.balance * factor)) return;
 
     await executeAndRefresh(() =>
-      createClient().rpc('adjust_financial_position', {
-        p_position_id: accountId,
-        p_delta_minor: delta,
-        p_as_of: new Date().toISOString(),
+      createClient().rpc('branch_manager_adjust_balance', {
+        p_account_id: accountId,
+        p_target_amount_minor: targetMinor,
+        p_value_date: new Date().toISOString(),
         p_reason: reason,
+        p_idempotency_key: crypto.randomUUID(),
       }),
     );
+  };
+
+  const declareBankAccount: AppState['declareBankAccount'] = async (account) => {
+    if (!account.iban.trim() || !account.bic.trim() || !account.accountNumber.trim()) {
+      throw new Error('L’IBAN, le BIC et le numéro de compte sont obligatoires.');
+    }
+    if (!Number.isFinite(account.openingBalance) || account.openingBalance < 0) {
+      throw new Error('Le solde d’ouverture doit être positif ou nul.');
+    }
+
+    await executeAndRefresh(() =>
+      createClient().rpc('branch_manager_declare_account', {
+        p_owner_id: account.ownerId,
+        p_label: account.label.trim(),
+        p_account_type: account.accountType,
+        p_currency: account.currency,
+        p_iban: account.iban.trim(),
+        p_bic: account.bic.trim(),
+        p_account_number: account.accountNumber.trim(),
+        p_account_holder_name: account.accountHolderName.trim(),
+        p_institution_name: account.institutionName.trim(),
+        p_branch_name: account.branchName.trim(),
+        p_branch_code: account.branchCode.trim(),
+        p_opening_balance_minor:
+          account.openingBalance === 0
+            ? 0
+            : toMinorUnits(account.openingBalance, account.currency),
+        p_opened_at: account.openedAt,
+        p_is_demo: Boolean(account.isDemo),
+        p_reason: account.reason.trim(),
+        p_idempotency_key: crypto.randomUUID(),
+      }),
+    );
+  };
+
+  const issueOfficialDocument: AppState['issueOfficialDocument'] = async (
+    document,
+  ) => {
+    const response = await fetch('/api/official-documents', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(document),
+    });
+    const payload = (await response.json()) as { error?: string };
+    if (!response.ok) {
+      throw new Error(payload.error ?? 'Émission du document impossible.');
+    }
+    await refreshData();
   };
 
   const value: AppState = {
@@ -998,6 +1166,7 @@ export function AppProvider({
     refreshData,
     accounts,
     transactions,
+    officialDocuments,
     pendingTransfers,
     loans,
     notifications,
@@ -1027,6 +1196,8 @@ export function AppProvider({
     approveKYCApplication,
     rejectKYCApplication,
     updateAccountBalance,
+    declareBankAccount,
+    issueOfficialDocument,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

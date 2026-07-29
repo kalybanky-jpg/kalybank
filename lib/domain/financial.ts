@@ -69,12 +69,6 @@ export function loanProgress(status: string, completedChecks: number) {
   return Math.min(70, Math.max(5, completedChecks * 17));
 }
 
-export function assertSecondActor(executedBy: string, confirmingUserId: string) {
-  if (executedBy === confirmingUserId) {
-    throw new Error('Un second membre habilité doit confirmer le règlement externe.');
-  }
-}
-
 export function isTerminalWorkflowStatus(status: string) {
   return [
     'external_settlement_confirmed',

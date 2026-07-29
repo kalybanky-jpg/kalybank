@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  assertSecondActor,
   currencyExponent,
   fromMinorUnits,
   isTerminalWorkflowStatus,
@@ -43,11 +42,6 @@ test('workflow progress never represents execution before evidence and confirmat
   assert.equal(loanProgress('approved_for_external_funding', 4), 75);
   assert.equal(loanProgress('external_funding_recorded', 4), 90);
   assert.equal(loanProgress('external_settlement_confirmed', 4), 100);
-});
-
-test('the external actor cannot self-confirm settlement', () => {
-  assert.throws(() => assertSecondActor('staff-a', 'staff-a'), /second membre/i);
-  assert.doesNotThrow(() => assertSecondActor('staff-a', 'staff-b'));
 });
 
 test('terminal statuses are explicit and finite', () => {

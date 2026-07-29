@@ -1,30 +1,32 @@
 # Architecture
 
-> Monalyz enregistre les demandes et les décisions du chef d’agence. Les
-> contrôles bancaires et les mouvements financiers réels restent hors de
-> l’application.
+> Monalyz est le registre numérique des comptes, IBAN, soldes, opérations et
+> documents officiels déclarés par l’établissement. Il ne se connecte à aucune
+> banque et n’exécute aucun mouvement automatiquement.
 
 ## Vue d’ensemble
 
 | Zone | Responsabilité |
 | --- | --- |
-| Next.js | UI, sessions SSR, CSP et route de justificatifs |
+| Next.js | UI, sessions SSR, CSP, génération et téléchargement des PDF |
 | Supabase Auth | Identité et session |
-| PostgreSQL | RLS, machines d’état, réservations et audit |
-| Storage | Justificatifs privés KYC et prêt |
+| PostgreSQL | Comptes enrichis, grand livre, RLS, machines d’état et audit |
+| Storage | Justificatifs privés KYC/prêt et documents officiels PDF |
 | Resend ou Brevo | Notifications métier multilingues, sans donnée bancaire |
-| Banque | Contrôles internes et mouvements financiers, hors Monalyz |
+| Personnel de l’établissement | Contrôles et exécutions opérationnelles internes, hors Monalyz |
+| Chef d’agence | Autorité unique de déclaration, décision et finalisation dans Monalyz |
 
 ```mermaid
 flowchart LR
   U["Utilisateur"] --> N["Application Monalyz"]
   C["Chef d’agence"] --> N
   N --> A["Supabase Auth"]
-  N --> D["PostgreSQL + RLS/RPC"]
-  N --> P["Storage privé"]
-  B["Personnel de la banque"] --> X["Contrôles et exécution hors application"]
+  N --> D["Comptes + grand livre + RLS/RPC"]
+  N --> P["Storage privé : preuves et PDF"]
+  B["Personnel de l’établissement"] --> X["Contrôles et exécution internes hors Monalyz"]
   X --> C
-  X -. "aucune API bancaire, aucune connexion" .-> N
+  X -. "confirmation humaine uniquement" .-> N
+  E["Resend ou Brevo"] <-->|"notifications seulement"| N
 ```
 
 ## Frontières
@@ -33,7 +35,40 @@ flowchart LR
 - `lib/store.tsx` ne modifie pas directement les tables métier : il appelle les RPC.
 - les fonctions `SECURITY DEFINER` vérifient `auth.uid()`, les rôles et les états ;
 - la route `/api/evidence` vérifie origine, session, taille, MIME et signature binaire ;
-- le navigateur ne reçoit que des URL signées de courte durée pour les preuves.
+- les routes `/api/official-documents` émettent et téléchargent les PDF après
+  contrôle de session, de rôle et de RLS ;
+- le navigateur n’accède jamais à une clé privilégiée ni à un bucket public ;
+- aucune API bancaire, aucun agrégateur de comptes et aucun moteur de paiement
+  ne fait partie de l’architecture.
+
+## Registre des comptes et des soldes
+
+`financial_positions` est l’agrégat de compte consommé par l’application. Une
+position active porte les données déclarées par l’établissement : titulaire,
+numéro de compte, IBAN, BIC, établissement, agence, devise, type de compte et
+solde. Le chef d’agence déclare le compte avec
+`branch_manager_declare_account` après sa création dans les procédures
+internes. L’approbation KYC seule ne crée donc aucun compte.
+
+Chaque création ou variation effective du solde ajoute, dans la même
+transaction, une ligne à `financial_ledger_entries`. Ce grand livre est
+append-only : une erreur est corrigée par une nouvelle écriture motivée via
+`branch_manager_adjust_balance`, jamais en réécrivant l’historique. Le solde de
+`financial_positions` reste l’agrégat courant ; le grand livre en fournit la
+provenance séquencée.
+
+```mermaid
+flowchart LR
+  K["KYC approuvé"] --> I["Compte créé dans les processus internes"]
+  I --> C["Déclaration par le chef d’agence"]
+  C --> P["financial_positions actif"]
+  C --> L["Écriture d’ouverture du grand livre"]
+  L --> V["Compte et IBAN visibles par le client"]
+```
+
+Les comptes de démonstration utilisent un IBAN synthétique valide et
+`is_demo = true`. Ils sont clairement marqués dans l’interface et ne peuvent
+pas être confondus avec une exécution réelle.
 
 ## Résolution de la langue
 
@@ -57,13 +92,14 @@ les cookies et, après authentification, le profil Supabase.
 
 1. L’utilisateur remplit et soumet le formulaire de virement. La base réserve
    le montant sur sa position interne, sans débit définitif.
-2. Le personnel compétent de la banque réalise tous les contrôles nécessaires
-   hors de Monalyz.
+2. Le personnel compétent de l’établissement réalise tous les contrôles
+   nécessaires dans ses processus internes, hors de Monalyz.
 3. Après ces contrôles, le chef d’agence complète seul les contrôles requis
    dans l’application et valide la demande.
-4. Le dossier devient autorisé pour exécution externe, toujours sans débit.
-5. Un opérateur réalise le virement hors Monalyz et remet les preuves au chef
-   d’agence hors de l’application.
+4. Le dossier devient autorisé pour exécution interne, toujours sans débit.
+5. Un opérateur réalise le virement dans les systèmes ou procédures internes
+   de l’établissement, hors Monalyz, et remet les éléments de confirmation au
+   chef d’agence.
 6. Le chef d’agence confirme dans Monalyz que le virement est effectif.
 7. La position interne est débitée, le dossier devient final et l’utilisateur
    reçoit un e-mail de réussite.
@@ -74,8 +110,8 @@ Une annulation ou un rejet libère la réservation ; elle ne crée pas un
 ## Flux d’un prêt
 
 1. L’utilisateur soumet sa demande avec les justificatifs nécessaires.
-2. Le personnel compétent de la banque réalise tous les contrôles nécessaires
-   hors de Monalyz.
+2. Le personnel compétent de l’établissement réalise tous les contrôles
+   nécessaires dans ses procédures internes, hors de Monalyz.
 3. Après ces contrôles, le chef d’agence complète seul les contrôles requis
    dans l’application et valide la demande.
 4. Le personnel compétent effectue le décaissement réel en interne, hors de
@@ -93,10 +129,32 @@ submitted
   -> external_settlement_confirmed
 ```
 
-Les anciens états intermédiaires restent acceptés pour les dossiers déjà
-existants. Le chef d’agence peut refuser une demande avant sa finalisation.
+Les noms `external_*` sont conservés dans le schéma pour compatibilité
+historique. Dans le MVP actuel, ils signifient « exécuté hors Monalyz dans les
+processus internes de l’établissement », et non « transmis à une API bancaire
+externe ». Les anciens états intermédiaires restent acceptés pour les dossiers
+déjà existants. Le chef d’agence peut refuser une demande avant sa finalisation.
 Monalyz ne gère pas les contrôles bancaires, le contrat, l’échéancier, le
 remboursement automatique ou le recouvrement.
+
+## Documents officiels
+
+Le chef d’agence peut émettre un RIB, un relevé de compte, une attestation de
+solde, une confirmation de virement ou une décision/confirmation de prêt. La
+RPC `branch_manager_issue_official_document` fige un snapshot métier,
+sa langue, son numéro et son empreinte. La route serveur rend le PDF, calcule
+son SHA-256, le dépose dans le bucket privé `official-documents`, puis le
+finalise avec la RPC réservée au `service_role`
+`complete_official_document`.
+
+`official_documents` conserve la version, l’émetteur, les empreintes, le
+chemin privé et les éventuelles révocations. Une révocation ajoute son acteur
+et son motif ; elle ne détruit ni la ligne ni le fichier audité. Les PDF de
+démonstration portent un filigrane explicite et `is_demo = true`.
+
+Le terme « officiel » signifie ici « émis et traçable par l’établissement ».
+Il ne suppose ni certification par un tiers, ni connexion à une banque, ni
+exécution automatique.
 
 ## E-mails métier
 
@@ -118,7 +176,8 @@ refus, l’échec et le décaissement d’un prêt.
 - navigation interne normalisée contre les redirections ouvertes ;
 - RLS sur toutes les tables publiques ;
 - privilèges directs révoqués au profit de RPC étroites ;
-- identifiants financiers masqués dans les projections UI ;
+- accès propriétaire ou chef d’agence aux comptes, écritures et documents ;
 - montants stockés en unités mineures entières.
 
-Voir [le modèle de données](data-model.md) et [l’ADR fondatrice](adr/0001-external-financial-execution.md).
+Voir [le modèle de données](data-model.md) et
+[l’ADR-0002](adr/0002-internal-official-banking-register.md).

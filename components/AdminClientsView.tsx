@@ -22,11 +22,12 @@ export default function AdminClientsView() {
       <header className="bg-slate-900 text-white rounded-3xl p-6">
         <div className="flex items-center gap-2 text-blue-300 text-xs font-bold uppercase">
           <Users className="w-4 h-4" />
-          <span>Profils applicatifs</span>
+          <span>Registre clients</span>
         </div>
         <h1 className="text-2xl font-extrabold mt-1">Utilisateurs et contrôles d&apos;identité</h1>
         <p className="text-xs text-slate-300 mt-2">
-          Cet annuaire ne représente pas des clients bancaires et n&apos;attribue aucun IBAN.
+          Consultez les clients, leur contrôle d&apos;identité et les comptes
+          bancaires déclarés après traitement interne.
         </p>
       </header>
 
@@ -41,7 +42,7 @@ export default function AdminClientsView() {
               <tr className="border-b text-[10px] uppercase text-slate-500">
                 <th className="pb-3 px-2">Utilisateur</th>
                 <th className="pb-3 px-2">Contrôle identité</th>
-                <th className="pb-3 px-2">Positions internes</th>
+                <th className="pb-3 px-2">Comptes bancaires</th>
                 <th className="pb-3 px-2">Dossier</th>
               </tr>
             </thead>

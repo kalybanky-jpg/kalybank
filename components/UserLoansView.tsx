@@ -3,21 +3,12 @@
 import React from 'react';
 import { useAppStore } from '@/lib/store';
 import { formatDirectCurrency } from '@/lib/currency';
+import { bankingMessages } from '@/lib/banking-i18n';
 import { Calculator, Clock, FileText } from 'lucide-react';
-
-const STATUS_LABELS: Record<string, string> = {
-  submitted: 'Demande enregistrée',
-  under_review: 'Dossier en étude',
-  approved_for_external_funding: 'Autorisé pour contractualisation/financement externe',
-  external_funding_recorded: 'Versement externe déclaré, second contrôle requis',
-  external_settlement_confirmed: 'Versement externe confirmé sur preuve',
-  rejected: 'Demande rejetée',
-  cancelled: 'Demande annulée',
-  external_failed: 'Versement externe déclaré en échec',
-};
 
 export default function UserLoansView() {
   const { language, loans, setIsLoanModalOpen } = useAppStore();
+  const t = bankingMessages[language];
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
@@ -25,20 +16,17 @@ export default function UserLoansView() {
         <div>
           <div className="flex items-center gap-2 text-indigo-300 text-xs font-bold uppercase">
             <FileText className="w-4 h-4" />
-            <span>Demandes de financement</span>
+            <span>{t.loans.eyebrow}</span>
           </div>
-          <h1 className="text-2xl font-extrabold mt-1">Dossiers et simulations</h1>
-          <p className="text-xs text-slate-300 mt-2 max-w-2xl">
-            Toute estimation est non contractuelle. Monalyz ne prête pas, ne débite pas
-            et ne verse pas automatiquement de fonds.
-          </p>
+          <h1 className="text-2xl font-extrabold mt-1">{t.loans.title}</h1>
+          <p className="text-xs text-slate-300 mt-2 max-w-2xl">{t.loans.subtitle}</p>
         </div>
         <button
           type="button"
           onClick={() => setIsLoanModalOpen(true)}
           className="px-4 py-3 bg-indigo-600 rounded-xl font-bold text-xs"
         >
-          Nouvelle demande
+          {t.loans.newLoan}
         </button>
       </header>
 
@@ -57,11 +45,13 @@ export default function UserLoansView() {
 
             <div className="grid grid-cols-2 gap-3 mt-4">
               <div className="p-3 bg-slate-50 rounded-xl">
-                <p className="text-[10px] text-slate-500">Durée simulée</p>
-                <p className="text-xs font-bold text-slate-900">{loan.durationMonths} mois</p>
+                <p className="text-[10px] text-slate-500">{t.loans.simulatedDuration}</p>
+                <p className="text-xs font-bold text-slate-900">
+                  {loan.durationMonths} {t.loans.months}
+                </p>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl">
-                <p className="text-[10px] text-slate-500">Mensualité indicative</p>
+                <p className="text-[10px] text-slate-500">{t.loans.indicativePayment}</p>
                 <p className="text-xs font-bold text-slate-900">
                   {formatDirectCurrency(loan.monthlyPayment, loan.currency, language)}
                 </p>
@@ -72,11 +62,10 @@ export default function UserLoansView() {
               <Clock className="w-4 h-4 text-indigo-600 shrink-0" />
               <div>
                 <p className="text-xs font-bold text-indigo-900">
-                  {STATUS_LABELS[loan.workflowStatus ?? 'submitted']}
+                  {t.loans.statuses[loan.workflowStatus ?? 'submitted']}
                 </p>
                 <p className="text-[10px] text-indigo-700 mt-1">
-                  Contrôles internes : {loan.complianceProgress} %. Cette jauge
-                  n&apos;indique ni approbation contractuelle ni versement bancaire.
+                  {t.loans.progress}: {loan.complianceProgress} %. {t.loans.progressHint}
                 </p>
               </div>
             </div>
@@ -85,7 +74,7 @@ export default function UserLoansView() {
         {!loans.length && (
           <div className="lg:col-span-2 py-14 bg-white rounded-3xl border text-center">
             <Calculator className="w-9 h-9 text-slate-300 mx-auto" />
-            <p className="mt-3 text-sm text-slate-500">Aucune demande enregistrée.</p>
+            <p className="mt-3 text-sm text-slate-500">{t.loans.noLoans}</p>
           </div>
         )}
       </section>

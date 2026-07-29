@@ -2,9 +2,16 @@
 
 | Élément | Valeur |
 | --- | --- |
-| Statut | Accepté |
+| Statut | Remplacé par [ADR-0002](0002-internal-official-banking-register.md) |
 | Date | 2026-07-27 |
 | Propriétaire | Équipe Monalyz |
+
+> [!NOTE]
+> Cette décision est conservée comme historique. Le principe « aucune API
+> bancaire, aucune exécution automatique » reste valide, mais le modèle à deux
+> validateurs et le refus d’un registre de comptes ont été remplacés le
+> 2026-07-29 par un chef d’agence unique et un registre bancaire officiel
+> interne.
 
 ## Contexte
 
@@ -36,3 +43,6 @@ ajustement de position.
 
 Toute future intégration financière exigerait un nouvel ADR, une revue de menace,
 un modèle de rapprochement et une autorisation explicite du propriétaire produit.
+
+Le suivi actif de cette décision est désormais porté par
+[ADR-0002](0002-internal-official-banking-register.md).

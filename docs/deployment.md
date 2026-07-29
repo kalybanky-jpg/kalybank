@@ -10,7 +10,9 @@
    [authentication.md](authentication.md).
 4. Prévalider puis appliquer exactement un profil SMTP depuis
    [E-mails transactionnels](transactional-email.md).
-5. Vérifier que les buckets créés par migration restent privés.
+5. Vérifier que `kyc-evidence`, `loan-evidence`,
+   `external-execution-evidence` et `official-documents` restent privés ; le
+   dernier n’accepte que des PDF de 10 Mo maximum.
 6. Régénérer et vérifier `supabase/schema.sql`.
 7. Accorder les rôles staff seulement après création des comptes Auth.
 8. Exécuter les portes qualité de [testing.md](testing.md).
@@ -28,7 +30,8 @@ Les variables `NEXT_PUBLIC_*` doivent être présentes au moment du build.
 
 ## Smoke tests
 
-- `/login` affiche « Aucune banque n’est connectée » sans erreur console.
+- `/login` indique sans ambiguïté qu’aucune API bancaire n’est connectée et que
+  les exécutions sont prises en charge en interne par l’établissement.
 - `/myaccount` sans session redirige vers `/login`.
 - `/admin` sans session redirige vers `/admin-login`.
 - un lien d’inscription confirme la session puis ouvre `/onboarding` ;
@@ -39,15 +42,26 @@ Les variables `NEXT_PUBLIC_*` doivent être présentes au moment du build.
 - le CSP contient un nonce et tous les scripts HTML utilisent ce même nonce ;
 - l’API de justificatifs refuse session absente, origine étrangère, fichier
   trop volumineux et contenu dont la signature ne correspond pas au MIME ;
-- un transfert de test ne change pas la position avant confirmation externe.
+- le chef d’agence peut déclarer un compte avec IBAN ; le client propriétaire
+  voit le compte et son grand livre, sans accès aux comptes tiers ;
+- le compte client démo affiche son IBAN synthétique et `is_demo`, sans jamais
+  être présenté comme routable ;
+- un RIB ou relevé émis est téléchargeable en PDF privé par son propriétaire,
+  tandis qu’un autre client reçoit `404` ;
+- tout PDF démo affiche « DÉMONSTRATION — AUCUNE VALEUR » ;
+- une approbation de virement ne change pas le solde ; seule la confirmation
+  par le chef d’agence après exécution interne ajoute le débit au grand livre ;
+- une approbation de prêt ne change pas le solde ; seule la confirmation du
+  décaissement interne crédite le compte courant ;
+- aucun appel réseau n’est effectué vers une API bancaire ou un agrégateur.
 
 ## Rollback
 
 1. Redéployer la version applicative précédente.
 2. Ne jamais rétrograder une migration destructivement sans migration inverse
    revue et sauvegarde validée.
-3. Suspendre les nouvelles transitions externes si le schéma et l’application
-   ne sont plus compatibles.
+3. Suspendre les nouvelles déclarations et confirmations internes si le schéma
+   et l’application ne sont plus compatibles.
 
 ## État plateforme
 

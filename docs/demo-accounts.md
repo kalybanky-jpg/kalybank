@@ -8,10 +8,20 @@
 | Administrateur | `admin.demo@monalyz.com` | Back-office, rôle SQL `admin` actif |
 | Client | `client.demo@monalyz.com` | Espace client uniquement |
 
-Le client reçoit un KYC synthétique approuvé sans justificatif et une position
-interne fictive « Compte courant démo » de 25 000 EUR. Il ne reçoit aucun IBAN,
-connexion bancaire, virement, prêt ou mouvement externe. L’administrateur ne
-reçoit ni KYC ni position.
+Le client reçoit un KYC synthétique approuvé sans justificatif et un compte
+fictif « Compte courant démo » de 25 000 EUR. Ce compte porte :
+
+- le numéro synthétique `DEMO-EUR-000001` ;
+- l’IBAN de test non routable `FR5299999999990000000000100` ;
+- le BIC synthétique `DEMOFRP1XXX` ;
+- `is_demo = true`, une agence de démonstration et une écriture d’ouverture
+  explicitement sans valeur réelle ;
+- trois documents synthétiques : RIB, relevé et attestation de solde.
+
+Les snapshots documentaires et tout PDF rendu à partir d’eux portent le
+filigrane « DÉMONSTRATION — AUCUNE VALEUR ». Aucun de ces identifiants ne
+permet un routage bancaire. Le client ne reçoit aucun virement, prêt ou
+mouvement réel ; l’administrateur ne reçoit ni KYC ni compte.
 
 ## Prévalidation
 
@@ -68,11 +78,14 @@ Remove-Item Env:DEMO_SUPABASE_SECRET_KEY
 - Les UUID du KYC et de la position sont déterministes ; toute collision avec
   une donnée non marquée démo, un autre propriétaire ou une fixture client
   supplémentaire interrompt l’opération sans écrasement.
+- L’IBAN, le compte, l’écriture d’ouverture et les trois documents sont des
+  fixtures déterministes marquées `is_demo`; une réexécution ne les duplique
+  pas.
 - Un compte existant sous une adresse démo sans marqueur compatible n’est
   jamais adopté ni modifié.
 - La vérification finale exige deux identités, un administrateur actif, aucun
-  rôle staff client, un KYC, une position, quatre audits filtrés et zéro flux
-  financier.
+  rôle staff client, un KYC, un compte, une écriture d’ouverture, trois
+  documents de démonstration et zéro virement ou prêt.
 - Les mots de passe ne sont ni affichés, ni écrits dans un fichier, ni ajoutés
   au snapshot SQL.
 

@@ -14,13 +14,13 @@ export default function AdminReportsView() {
     loans.filter((item) =>
       ['rejected', 'cancelled', 'external_failed'].includes(item.workflowStatus ?? ''),
     ).length;
-  const externalConfirmed =
+  const completedOperations =
     pendingTransfers.filter(
       (item) => item.workflowStatus === 'external_settlement_confirmed',
     ).length +
     loans.filter((item) => item.workflowStatus === 'external_settlement_confirmed').length;
   const openWorkflows =
-    pendingTransfers.length + loans.length - terminalFailures - externalConfirmed;
+    pendingTransfers.length + loans.length - terminalFailures - completedOperations;
 
   return (
     <div className="space-y-6">
@@ -31,7 +31,8 @@ export default function AdminReportsView() {
         </div>
         <h1 className="text-2xl font-extrabold mt-1">Rapport opérationnel Monalyz</h1>
         <p className="text-xs text-slate-300 mt-2">
-          Les métriques portent sur les dossiers enregistrés. Elles ne mesurent aucun flux bancaire.
+          Les métriques portent sur les comptes et opérations enregistrés par le
+          personnel dans Monalyz.
         </p>
       </header>
 
@@ -44,8 +45,8 @@ export default function AdminReportsView() {
             color: 'text-amber-700 bg-amber-50',
           },
           {
-            label: 'Règlements externes confirmés',
-            value: externalConfirmed,
+            label: 'Opérations bancaires finalisées',
+            value: completedOperations,
             icon: CheckCircle2,
             color: 'text-emerald-700 bg-emerald-50',
           },

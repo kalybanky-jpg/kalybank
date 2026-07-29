@@ -1,11 +1,14 @@
 # Monalyz
 
-> Application d’instruction, de contrôle et de traçabilité d’opérations financières réalisées hors application.
+> Registre bancaire numérique pour déclarer et suivre les comptes, IBAN,
+> soldes, virements, prêts et documents officiels de l’établissement.
 
 > [!IMPORTANT]
-> Monalyz n’utilise aucune API bancaire, n’est relié à aucune banque et ne déplace
-> jamais d’argent. Les contrôles et mouvements réels ont lieu hors application ;
-> le chef d’agence en confirme ensuite le résultat dans Monalyz.
+> Monalyz n’utilise aucune API bancaire, n’est relié à aucun système bancaire
+> tiers et ne déclenche aucun mouvement automatique. Pour ce MVP, le personnel
+> de l’établissement réalise les contrôles et les exécutions dans ses processus
+> internes, hors Monalyz. Le chef d’agence est l’unique autorité qui déclare,
+> valide et finalise ensuite ces opérations dans l’application.
 
 | Élément | Valeur |
 | --- | --- |
@@ -17,13 +20,20 @@
 
 ## Fonctions actuelles
 
+- comptes bancaires déclarés dans `financial_positions`, avec titulaire,
+  numéro de compte, IBAN, BIC, agence, statut et solde courant ;
+- grand livre append-only des soldes d’ouverture, ajustements, débits de
+  virements confirmés et crédits de prêts décaissés ;
 - comptes applicatifs et dossiers KYC contrôlés humainement ;
 - intentions de transfert avec réservation, validation et finalisation par le
-  chef d’agence après traitement bancaire hors application ;
+  chef d’agence après exécution interne par le personnel de l’établissement ;
 - demandes de prêt validées puis décaissées par le chef d’agence après
   traitement interne, avec crédit de la position courante ;
-- positions financières déclarées ou rapprochées, datées et non connectées ;
-- rôles staff, RLS, journal d’audit, justificatifs privés et outbox e-mail.
+- documents officiels PDF versionnés — RIB, relevés, attestations, confirmations
+  de virement et décisions ou confirmations de prêt — conservés dans un bucket
+  Storage privé ;
+- rôles staff, RLS, journal d’audit, justificatifs privés et e-mails
+  transactionnels multilingues via Resend ou Brevo.
 
 ## Démarrage rapide
 
@@ -41,7 +51,7 @@ avant de créer le premier rôle staff.
 ## Carte du dépôt
 
 ```text
-app/                  Routes Next.js, Auth et API de justificatifs
+app/                  Routes Next.js, Auth et API de fichiers/documents
 components/           Interfaces utilisateur et back-office
 lib/                  Store Supabase, domaine financier et sécurité
 supabase/migrations/  Schéma, RLS, RPC et machines d’état
@@ -63,10 +73,12 @@ docs/                 Architecture et procédures d’exploitation
 | [Base Supabase](docs/database-operations.md) | Liaison, migrations et snapshot |
 | [E-mails transactionnels](docs/transactional-email.md) | Profils SMTP Resend et Brevo |
 | [Déploiement](docs/deployment.md) | Prévol, smoke tests et rollback |
+| [ADR-0002](docs/adr/0002-internal-official-banking-register.md) | Registre bancaire officiel interne |
 
 ## État actuel
 
 Le dépôt ne contient ni configuration de plateforme de déploiement ni CI.
 Les taux de conversion sont des références statiques datées, jamais des cours
-de marché en direct. Les preuves de transaction proviennent exclusivement de
-l’exécution externe documentée par des opérateurs habilités.
+de marché en direct. Les soldes, IBAN et documents sont officiels au sens où
+ils sont déclarés ou émis par le personnel habilité de l’établissement et
+audités dans Monalyz ; ils ne proviennent d’aucune synchronisation bancaire.

@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
+import { createHash } from "node:crypto";
 
 import {
   buildDemoProvisioningConfig,
@@ -9,6 +10,7 @@ import {
   type DemoUserAttributes,
   type DemoVerification,
 } from "./lib/demo-provisioning";
+import { renderOfficialDocumentPdf } from "../lib/server/official-document-pdf";
 
 const USER_PAGE_SIZE = 1_000;
 
@@ -151,6 +153,80 @@ class SupabaseDemoGateway implements DemoProvisioningGateway {
 
     return verification;
   }
+
+  async publishPendingDemoDocuments(): Promise<number> {
+    const { data, error } = await this.client
+      .from("official_documents")
+      .select(
+        "id,owner_id,document_number,document_type,title,language,version,is_demo,snapshot,content_hash",
+      )
+      .eq("is_demo", true)
+      .eq("status", "pending");
+    if (error) {
+      throw new Error(
+        `Lecture des documents démo en attente impossible : ${error.message}`,
+      );
+    }
+
+    let published = 0;
+    for (const document of data ?? []) {
+      const storagePath = `${document.owner_id}/${document.id}/v${document.version}.pdf`;
+      try {
+        const bytes = Buffer.from(
+          await renderOfficialDocumentPdf({
+            documentNumber: document.document_number,
+            documentType: document.document_type,
+            title: document.title,
+            language: document.language,
+            version: document.version,
+            issuedAt: new Date().toISOString(),
+            isDemo: true,
+            contentHash: document.content_hash,
+            snapshot: document.snapshot as Record<string, unknown>,
+          }),
+        );
+        const contentHash = createHash("sha256").update(bytes).digest("hex");
+        const { error: uploadError } = await this.client.storage
+          .from("official-documents")
+          .upload(storagePath, bytes, {
+            contentType: "application/pdf",
+            cacheControl: "3600",
+            upsert: false,
+          });
+        if (uploadError && !/already exists|duplicate/i.test(uploadError.message)) {
+          throw uploadError;
+        }
+
+        const { error: completeError } = await this.client.rpc(
+          "complete_official_document",
+          {
+            p_document_id: document.id,
+            p_storage_path: storagePath,
+            p_content_hash: contentHash,
+            p_succeeded: true,
+            p_error: null,
+          },
+        );
+        if (completeError) throw completeError;
+        published += 1;
+      } catch (caughtError) {
+        await this.client.storage.from("official-documents").remove([storagePath]);
+        await this.client.rpc("complete_official_document", {
+          p_document_id: document.id,
+          p_storage_path: null,
+          p_content_hash: null,
+          p_succeeded: false,
+          p_error:
+            caughtError instanceof Error
+              ? caughtError.message.slice(0, 1000)
+              : "Échec de publication du document démo.",
+        });
+        throw caughtError;
+      }
+    }
+
+    return published;
+  }
 }
 
 async function main(): Promise<void> {
@@ -171,10 +247,9 @@ async function main(): Promise<void> {
       detectSessionInUrl: false,
     },
   });
-  const result = await provisionDemoAccounts(
-    new SupabaseDemoGateway(client, config.target),
-    config,
-  );
+  const gateway = new SupabaseDemoGateway(client, config.target);
+  const result = await provisionDemoAccounts(gateway, config);
+  const publishedDemoDocuments = await gateway.publishPendingDemoDocuments();
 
   console.log(
     JSON.stringify(
@@ -182,6 +257,7 @@ async function main(): Promise<void> {
         status: "provisioned-and-verified",
         createdUsers: result.createdUsers,
         updatedUsers: result.updatedUsers,
+        publishedDemoDocuments,
         verification: result.verification,
       },
       null,

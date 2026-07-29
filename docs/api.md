@@ -1,6 +1,7 @@
 # API et RPC
 
-> Surface serveur volontairement étroite : une route de fichiers et des RPC Supabase authentifiées.
+> Surface serveur volontairement étroite : routes de fichiers/PDF et RPC
+> Supabase authentifiées. Aucune route n’appelle une API bancaire.
 
 ## Route HTTP
 
@@ -24,6 +25,51 @@ entre MIME déclaré et signature binaire. Réponse réussie :
 Supprime jusqu’à dix chemins préfixés par l’UUID du téléverseur, après contrôle
 de session, d’origine et de RLS. Cette route sert au nettoyage compensatoire
 lorsqu’une RPC métier échoue.
+
+`external-execution-evidence` est un nom historique qui signifie « preuve
+d’une exécution effectuée hors Monalyz ». Dans le MVP actuel, cette exécution
+est réalisée dans les procédures internes de l’établissement, sans API ni
+banque tierce connectée.
+
+### `POST /api/official-documents`
+
+Émet un document à la demande du chef d’agence. Le JSON contient :
+
+```json
+{
+  "ownerId": "<uuid>",
+  "accountId": "<uuid|null>",
+  "transferId": "<uuid|null>",
+  "loanId": "<uuid|null>",
+  "documentType": "account_statement",
+  "title": "Relevé de compte",
+  "periodStart": "2026-07-01",
+  "periodEnd": "2026-07-31"
+}
+```
+
+`documentType` accepte `bank_details`, `account_statement`,
+`balance_certificate`, `transfer_confirmation`,
+`loan_disbursement_confirmation` ou `loan_decision`. La route exige une
+session, une origine canonique et le rôle actif `admin`. Elle relit la langue
+du propriétaire, fige le snapshot par RPC, rend le PDF côté serveur, calcule
+son SHA-256, l’enregistre dans le bucket privé `official-documents` et termine
+le job avec un client `service_role`. Réponse réussie :
+
+```json
+{
+  "id": "<uuid>",
+  "documentNumber": "<numéro-unique>",
+  "status": "issued"
+}
+```
+
+### `GET /api/official-documents/:documentId`
+
+Télécharge un PDF `issued` après authentification et application de la RLS sur
+`official_documents` et Storage. La réponse est privée, non mise en cache,
+forcée en téléchargement et protégée par `nosniff`. Un document non finalisé
+retourne `409`; une ligne ou un objet inaccessible retourne `404`.
 
 ### `GET /auth/callback`
 
@@ -77,13 +123,105 @@ opaque renvoyé lors de la réclamation.
 | `review_kyc_application` | Décider le dossier KYC |
 | `mark_notification_read` | Marquer une notification |
 | `set_user_access_status` | Geler ou rétablir un accès |
-| `record_financial_position` | Créer une position interne |
-| `adjust_financial_position` | Rapprocher une position avec motif |
+| `branch_manager_declare_account` | Déclarer un compte/IBAN et son écriture d’ouverture |
+| `branch_manager_adjust_balance` | Porter un compte vers un solde cible avec une écriture motivée |
+| `branch_manager_issue_official_document` | Figer le snapshot d’un document à rendre |
+| `branch_manager_revoke_official_document` | Révoquer un document émis sans supprimer son historique |
+| `complete_official_document` | Finaliser ou échouer le PDF (`service_role`) |
 | `claim_transactional_emails` | Réclamer atomiquement des jobs (`service_role`) |
 | `complete_transactional_email` | Terminer un claim avec son jeton (`service_role`) |
 
 Les privilèges `anon` et les écritures directes métier sont révoqués. Les RPC
 revalident toujours l’identité, le rôle, l’état courant et les préconditions.
+Les anciennes RPC `record_financial_position` et `adjust_financial_position`
+restent présentes pour compatibilité de migration, mais les nouveaux parcours
+de compte utilisent les RPC `branch_manager_*` et le grand livre.
+
+## Signatures du registre bancaire
+
+```sql
+branch_manager_declare_account(
+  p_owner_id uuid,
+  p_label text,
+  p_account_type text,
+  p_currency text,
+  p_iban text,
+  p_bic text,
+  p_account_number text,
+  p_account_holder_name text,
+  p_institution_name text,
+  p_branch_name text,
+  p_branch_code text,
+  p_opening_balance_minor bigint,
+  p_opened_at timestamptz,
+  p_is_demo boolean,
+  p_reason text,
+  p_idempotency_key uuid
+) returns financial_positions
+
+branch_manager_adjust_balance(
+  p_account_id uuid,
+  p_target_amount_minor bigint,
+  p_value_date timestamptz,
+  p_reason text,
+  p_idempotency_key uuid
+) returns financial_positions
+```
+
+La déclaration et l’ajustement sont idempotents. Seul le chef d’agence actif
+peut les appeler. L’ajustement reçoit un solde cible, calcule le delta sous
+verrou et ajoute l’écriture de grand livre dans la même transaction.
+
+```sql
+branch_manager_issue_official_document(
+  p_owner_id uuid,
+  p_account_id uuid,
+  p_transfer_id uuid,
+  p_loan_id uuid,
+  p_document_type text,
+  p_title text,
+  p_language text,
+  p_period_start date,
+  p_period_end date,
+  p_idempotency_key uuid
+) returns official_documents
+
+complete_official_document(
+  p_document_id uuid,
+  p_storage_path text,
+  p_content_hash text,
+  p_succeeded boolean,
+  p_error text
+) returns official_documents
+
+branch_manager_revoke_official_document(
+  p_document_id uuid,
+  p_reason text
+) returns official_documents
+```
+
+L’émission et la révocation exigent le chef d’agence. La complétion est
+réservée au `service_role` de la route serveur ; aucune clé privilégiée
+n’atteint le navigateur.
+
+Les RPC financières existantes conservent leurs signatures exactes :
+
+```sql
+branch_manager_finalize_transfer(
+  p_transfer_id uuid,
+  p_note text
+) returns transfer_intents
+
+branch_manager_disburse_loan(
+  p_loan_id uuid,
+  p_destination_position_id uuid,
+  p_note text
+) returns loan_applications
+```
+
+Ces deux fonctions n’enregistrent un mouvement de grand livre qu’après la
+confirmation par le chef d’agence de l’exécution déjà réalisée par le personnel
+de l’établissement. Une approbation seule ne modifie jamais le solde.
 
 ## Codes HTTP de `/api/evidence`
 

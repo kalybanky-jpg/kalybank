@@ -3,18 +3,8 @@
 import React, { useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import { formatDirectCurrency } from '@/lib/currency';
+import { bankingMessages } from '@/lib/banking-i18n';
 import { Clock, Search, Send } from 'lucide-react';
-
-const STATUS_LABELS: Record<string, string> = {
-  submitted: 'Instruction enregistrée',
-  under_review: 'En contrôle',
-  approved_for_external_execution: 'Autorisée pour exécution externe',
-  external_execution_recorded: 'Exécution externe déclarée, second contrôle requis',
-  external_settlement_confirmed: 'Règlement externe confirmé',
-  rejected: 'Rejetée sans mouvement bancaire par Monalyz',
-  cancelled: 'Annulée avant confirmation externe',
-  external_failed: 'Exécution externe déclarée en échec',
-};
 
 export default function UserTransfersView() {
   const {
@@ -23,6 +13,7 @@ export default function UserTransfersView() {
     accounts,
     setIsTransferModalOpen,
   } = useAppStore();
+  const t = bankingMessages[language];
   const [searchQuery, setSearchQuery] = useState('');
 
   const filtered = pendingTransfers.filter((transfer) => {
@@ -39,13 +30,10 @@ export default function UserTransfersView() {
         <div>
           <div className="flex items-center gap-2 text-blue-300 text-xs font-bold uppercase">
             <Send className="w-4 h-4" />
-            <span>Instructions externes</span>
+            <span>{t.transfers.eyebrow}</span>
           </div>
-          <h1 className="text-2xl font-extrabold mt-1">Suivi des transferts</h1>
-          <p className="text-xs text-slate-300 mt-2 max-w-2xl">
-            Monalyz prépare et contrôle les instructions. Leur exécution financière
-            se déroule hors de l&apos;application et nécessite une preuve puis une seconde confirmation.
-          </p>
+          <h1 className="text-2xl font-extrabold mt-1">{t.transfers.title}</h1>
+          <p className="text-xs text-slate-300 mt-2 max-w-2xl">{t.transfers.subtitle}</p>
         </div>
         <button
           type="button"
@@ -53,7 +41,7 @@ export default function UserTransfersView() {
           onClick={() => setIsTransferModalOpen(true)}
           className="px-4 py-3 bg-blue-600 rounded-xl font-bold text-xs disabled:opacity-40"
         >
-          Nouvelle instruction
+          {t.transfers.newTransfer}
         </button>
       </header>
 
@@ -64,7 +52,7 @@ export default function UserTransfersView() {
             type="search"
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder="Bénéficiaire ou référence"
+            placeholder={t.transfers.searchPlaceholder}
             className="w-full pl-9 pr-3 py-2 bg-slate-50 border rounded-xl text-xs"
           />
         </div>
@@ -89,11 +77,11 @@ export default function UserTransfersView() {
                 <Clock className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
                 <div>
                   <p className="text-xs font-bold text-slate-800">
-                    {STATUS_LABELS[transfer.workflowStatus ?? 'submitted']}
+                    {t.transfers.statuses[transfer.workflowStatus ?? 'submitted']}
                   </p>
                   <p className="text-[10px] text-slate-500 mt-1">
-                    Progression des contrôles internes : {transfer.complianceProgress} %.
-                    Cette progression ne prouve jamais une exécution bancaire.
+                    {t.transfers.progress}: {transfer.complianceProgress} %.{' '}
+                    {t.transfers.progressHint}
                   </p>
                 </div>
               </div>
@@ -101,7 +89,7 @@ export default function UserTransfersView() {
           ))}
           {!filtered.length && (
             <p className="py-10 text-center text-sm text-slate-500">
-              Aucune instruction.
+              {t.transfers.noTransfers}
             </p>
           )}
         </div>

@@ -1,8 +1,8 @@
 -- Monalyz DATABASE SCHEMA SNAPSHOT
 -- GENERATED FILE: run `npx bun run db:snapshot`; do not edit manually.
 -- remote-project-ref: qljqldhvbakornnpalua
--- migration-manifest-sha256: b8f56073b5d549359ffcd24e1d2b3fffb2737c8edfd7089116ceb9551ecb034a
--- migrations: 20260728060744_kaly_secure_external_financial_workflows.sql, 20260728061308_add_missing_foreign_key_indexes.sql, 20260728065832_rename_brand_to_monalyz.sql, 20260728092751_simplify_branch_manager_financial_workflows.sql, 20260728094442_add_outbox_claimed_by_index.sql, 20260728150934_add_profile_preferred_language.sql, 20260728151335_grant_profile_preferences_update.sql, 20260728173319_provision_demo_accounts.sql, 20260728183213_fix_demo_provisioner_uuid_literals.sql
+-- migration-manifest-sha256: 9eab7ca46b2fd8e751ffec182961c124bcac6ed739757e2c068092d825b57593
+-- migrations: 20260728060744_kaly_secure_external_financial_workflows.sql, 20260728061308_add_missing_foreign_key_indexes.sql, 20260728065832_rename_brand_to_monalyz.sql, 20260728092751_simplify_branch_manager_financial_workflows.sql, 20260728094442_add_outbox_claimed_by_index.sql, 20260728150934_add_profile_preferred_language.sql, 20260728151335_grant_profile_preferences_update.sql, 20260728173319_provision_demo_accounts.sql, 20260728183213_fix_demo_provisioner_uuid_literals.sql, 20260729115445_add_official_accounts_and_ledger.sql, 20260729115451_wire_ledger_to_financial_workflows.sql, 20260729115458_add_official_documents_and_demo_fixtures.sql
 -- schema-only: true
 -- production-data-included: false
 -- schemas: public, private
@@ -174,6 +174,235 @@ $$;
 ALTER FUNCTION "private"."ensure_branch_manager"() OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "private"."ensure_demo_banking_artifacts"() RETURNS "trigger"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare
+  demo_admin_id uuid := new.declared_by;
+  common_snapshot jsonb;
+  document_snapshot jsonb;
+begin
+  if new.id <> uuid 'd3000000-0000-4000-8000-000000000003'
+     or not new.is_demo then
+    return new;
+  end if;
+
+  if not exists (
+    select 1
+    from public.financial_ledger_entries
+    where account_id = new.id
+  ) then
+    insert into public.financial_ledger_entries (
+      account_id,
+      owner_id,
+      sequence_no,
+      entry_key,
+      entry_kind,
+      amount_minor,
+      currency,
+      balance_before_minor,
+      balance_after_minor,
+      value_date,
+      internal_reference,
+      booked_by,
+      description,
+      metadata
+    )
+    values (
+      new.id,
+      new.owner_id,
+      1,
+      'demo:account-opening',
+      'account_opening',
+      new.amount_minor,
+      new.currency,
+      0,
+      new.amount_minor,
+      new.opened_at,
+      'DEMO-OPENING-0001',
+      demo_admin_id,
+      'Solde synthétique d’ouverture — aucune valeur réelle.',
+      jsonb_build_object('demo', true, 'synthetic', true)
+    );
+  end if;
+
+  common_snapshot := jsonb_build_object(
+    'schemaVersion', 1,
+    'ownerId', new.owner_id,
+    'account', jsonb_build_object(
+      'id', new.id,
+      'label', new.label,
+      'accountType', new.account_type,
+      'accountNumber', new.account_number,
+      'iban', new.iban,
+      'bic', new.bic,
+      'holderName', new.account_holder_name,
+      'institutionName', new.institution_name,
+      'branchName', new.branch_name,
+      'branchCode', new.branch_code,
+      'currency', new.currency,
+      'balanceMinor', new.amount_minor,
+      'asOf', new.as_of,
+      'openedAt', new.opened_at,
+      'isDemo', true
+    ),
+    'demo', jsonb_build_object(
+      'isDemo', true,
+      'synthetic', true,
+      'routable', false,
+      'watermark', 'DÉMONSTRATION — AUCUNE VALEUR'
+    ),
+    'issuedBy', demo_admin_id
+  );
+
+  for document_snapshot in
+    select jsonb_build_object(
+      'id', fixture.id,
+      'idempotencyKey', fixture.idempotency_key,
+      'documentNumber', fixture.document_number,
+      'documentType', fixture.document_type,
+      'title', fixture.title,
+      'periodStart', fixture.period_start,
+      'periodEnd', fixture.period_end,
+      'snapshot', common_snapshot || jsonb_build_object(
+        'documentType', fixture.document_type,
+        'title', fixture.title,
+        'periodStart', fixture.period_start,
+        'periodEnd', fixture.period_end,
+        'entries',
+        case
+          when fixture.document_type = 'account_statement' then (
+            select coalesce(
+              jsonb_agg(
+                jsonb_build_object(
+                  'id', entry.id,
+                  'entryKind', entry.entry_kind,
+                  'amountMinor', entry.amount_minor,
+                  'balanceAfterMinor', entry.balance_after_minor,
+                  'currency', entry.currency,
+                  'description', entry.description,
+                  'internalReference', entry.internal_reference,
+                  'valueDate', entry.value_date,
+                  'bookedAt', entry.booked_at
+                )
+                order by entry.value_date, entry.sequence_no
+              ),
+              '[]'::jsonb
+            )
+            from public.financial_ledger_entries as entry
+            where entry.account_id = new.id
+          )
+          else null
+        end
+      )
+    )
+    from (
+      values
+        (
+          uuid 'd3000000-0000-4000-8000-000000000004',
+          uuid 'd3000000-0000-4000-8000-000000000007',
+          'DEMO-RIB-0001'::text,
+          'bank_details'::text,
+          'RIB de démonstration'::text,
+          null::date,
+          null::date
+        ),
+        (
+          uuid 'd3000000-0000-4000-8000-000000000005',
+          uuid 'd3000000-0000-4000-8000-000000000008',
+          'DEMO-STATEMENT-0001'::text,
+          'account_statement'::text,
+          'Relevé de compte de démonstration'::text,
+          date '2026-01-01',
+          date '2026-12-31'
+        ),
+        (
+          uuid 'd3000000-0000-4000-8000-000000000006',
+          uuid 'd3000000-0000-4000-8000-000000000009',
+          'DEMO-BALANCE-0001'::text,
+          'balance_certificate'::text,
+          'Attestation de solde de démonstration'::text,
+          null::date,
+          null::date
+        )
+    ) as fixture(
+      id,
+      idempotency_key,
+      document_number,
+      document_type,
+      title,
+      period_start,
+      period_end
+    )
+  loop
+    if exists (
+      select 1
+      from public.official_documents
+      where id = (document_snapshot ->> 'id')::uuid
+        and (
+          owner_id <> new.owner_id
+          or account_id is distinct from new.id
+          or not is_demo
+        )
+    ) then
+      raise exception 'DEMO_OFFICIAL_DOCUMENT_ID_COLLISION'
+        using errcode = '23505';
+    end if;
+
+    insert into public.official_documents (
+      id,
+      owner_id,
+      account_id,
+      document_number,
+      document_type,
+      title,
+      language,
+      period_start,
+      period_end,
+      version,
+      status,
+      snapshot,
+      snapshot_hash,
+      issued_by,
+      is_demo,
+      idempotency_key
+    )
+    values (
+      (document_snapshot ->> 'id')::uuid,
+      new.owner_id,
+      new.id,
+      document_snapshot ->> 'documentNumber',
+      document_snapshot ->> 'documentType',
+      document_snapshot ->> 'title',
+      'fr',
+      (document_snapshot ->> 'periodStart')::date,
+      (document_snapshot ->> 'periodEnd')::date,
+      1,
+      'pending',
+      document_snapshot -> 'snapshot',
+      encode(
+        extensions.digest(
+          convert_to((document_snapshot -> 'snapshot')::text, 'UTF8'),
+          'sha256'
+        ),
+        'hex'
+      ),
+      demo_admin_id,
+      true,
+      (document_snapshot ->> 'idempotencyKey')::uuid
+    )
+    on conflict (id) do nothing;
+  end loop;
+
+  return new;
+end;
+$$;
+
+
+ALTER FUNCTION "private"."ensure_demo_banking_artifacts"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "private"."handle_new_user"() RETURNS "trigger"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
@@ -223,6 +452,198 @@ $$;
 ALTER FUNCTION "private"."is_active_staff"("required_roles" "text"[]) OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "private"."is_valid_iban"("p_iban" "text") RETURNS boolean
+    LANGUAGE "plpgsql" IMMUTABLE STRICT PARALLEL SAFE
+    SET "search_path" TO ''
+    AS $_$
+declare
+  normalized text := private.normalize_iban(p_iban);
+  rearranged text;
+  current_character text;
+  expanded_character text;
+  remainder_value integer := 0;
+begin
+  if pg_catalog.char_length(normalized) < 15
+     or pg_catalog.char_length(normalized) > 34
+     or normalized !~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]+$' then
+    return false;
+  end if;
+
+  rearranged := pg_catalog.substr(normalized, 5)
+    || pg_catalog.substr(normalized, 1, 4);
+
+  for character_index in 1..pg_catalog.char_length(rearranged) loop
+    current_character := pg_catalog.substr(rearranged, character_index, 1);
+    if current_character ~ '^[0-9]$' then
+      expanded_character := current_character;
+    else
+      expanded_character := (pg_catalog.ascii(current_character) - 55)::text;
+    end if;
+
+    for digit_index in 1..pg_catalog.char_length(expanded_character) loop
+      remainder_value := (
+        remainder_value * 10
+        + pg_catalog.substr(expanded_character, digit_index, 1)::integer
+      ) % 97;
+    end loop;
+  end loop;
+
+  return remainder_value = 1;
+end;
+$_$;
+
+
+ALTER FUNCTION "private"."is_valid_iban"("p_iban" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "private"."normalize_iban"("p_iban" "text") RETURNS "text"
+    LANGUAGE "sql" IMMUTABLE STRICT PARALLEL SAFE
+    SET "search_path" TO ''
+    AS $$
+  select pg_catalog.upper(
+    pg_catalog.regexp_replace(p_iban, '[[:space:]]+', '', 'g')
+  );
+$$;
+
+
+ALTER FUNCTION "private"."normalize_iban"("p_iban" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "private"."prepare_demo_financial_position"() RETURNS "trigger"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare
+  demo_admin_id uuid;
+  owner_email text;
+  owner_metadata jsonb;
+begin
+  if new.id <> uuid 'd3000000-0000-4000-8000-000000000003' then
+    return new;
+  end if;
+
+  select
+    lower(coalesce(email, '')),
+    coalesce(raw_app_meta_data, '{}'::jsonb)
+  into owner_email, owner_metadata
+  from auth.users
+  where id = new.owner_id;
+
+  if not found
+     or owner_email <> 'client.demo@monalyz.com'
+     or owner_metadata ->> 'monalyz_demo' <> 'true'
+     or owner_metadata ->> 'demo_role' <> 'client' then
+    raise exception 'INVALID_DEMO_BANK_ACCOUNT_OWNER'
+      using errcode = '23514';
+  end if;
+
+  select user_record.id
+  into demo_admin_id
+  from auth.users as user_record
+  join public.staff_members as staff
+    on staff.user_id = user_record.id
+  where lower(coalesce(user_record.email, '')) = 'admin.demo@monalyz.com'
+    and user_record.raw_app_meta_data ->> 'monalyz_demo' = 'true'
+    and user_record.raw_app_meta_data ->> 'demo_role' = 'admin'
+    and staff.role = 'admin'
+    and staff.active
+  limit 1;
+
+  if demo_admin_id is null then
+    raise exception 'DEMO_BRANCH_MANAGER_REQUIRED'
+      using errcode = '23514';
+  end if;
+
+  new.account_number := 'DEMO-EUR-000001';
+  new.iban := 'FR5299999999990000000000100';
+  new.bic := 'DEMOFRP1XXX';
+  new.account_holder_name := 'Client Démo Monalyz';
+  new.institution_name := 'Monalyz Démonstration — non routable';
+  new.branch_name := 'Agence Démonstration';
+  new.branch_code := 'DEMO-001';
+  new.account_status := 'active';
+  new.opened_at := coalesce(
+    new.opened_at,
+    timestamptz '2026-01-01 00:00:00+00'
+  );
+  new.declared_by := demo_admin_id;
+  new.is_demo := true;
+
+  return new;
+end;
+$$;
+
+
+ALTER FUNCTION "private"."prepare_demo_financial_position"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "private"."prevent_financial_ledger_mutation"() RETURNS "trigger"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+begin
+  if pg_catalog.current_setting(
+    'monalyz.allow_ledger_maintenance',
+    true
+  ) is distinct from 'on' then
+    raise exception 'FINANCIAL_LEDGER_IS_APPEND_ONLY'
+      using errcode = '55000';
+  end if;
+
+  return old;
+end;
+$$;
+
+
+ALTER FUNCTION "private"."prevent_financial_ledger_mutation"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "private"."protect_official_document"() RETURNS "trigger"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+begin
+  if tg_op = 'DELETE' then
+    if pg_catalog.current_setting(
+      'monalyz.allow_official_document_maintenance',
+      true
+    ) is distinct from 'on' then
+      raise exception 'OFFICIAL_DOCUMENT_RETENTION_REQUIRED'
+        using errcode = '55000';
+    end if;
+    return old;
+  end if;
+
+  if new.owner_id <> old.owner_id
+     or new.account_id is distinct from old.account_id
+     or new.transfer_id is distinct from old.transfer_id
+     or new.loan_id is distinct from old.loan_id
+     or new.document_number <> old.document_number
+     or new.document_type <> old.document_type
+     or new.title <> old.title
+     or new.language <> old.language
+     or new.period_start is distinct from old.period_start
+     or new.period_end is distinct from old.period_end
+     or new.version <> old.version
+     or new.snapshot <> old.snapshot
+     or new.snapshot_hash <> old.snapshot_hash
+     or new.issued_by <> old.issued_by
+     or new.requested_at <> old.requested_at
+     or new.is_demo <> old.is_demo
+     or new.idempotency_key <> old.idempotency_key
+     or new.created_at <> old.created_at then
+    raise exception 'OFFICIAL_DOCUMENT_SNAPSHOT_IS_IMMUTABLE'
+      using errcode = '55000';
+  end if;
+
+  return new;
+end;
+$$;
+
+
+ALTER FUNCTION "private"."protect_official_document"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "private"."set_updated_at"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     SET "search_path" TO ''
@@ -238,6 +659,38 @@ $$;
 
 
 ALTER FUNCTION "private"."set_updated_at"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "private"."validate_financial_ledger_entry"() RETURNS "trigger"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare
+  position_row public.financial_positions;
+begin
+  select *
+  into position_row
+  from public.financial_positions
+  where id = new.account_id;
+
+  if not found then
+    raise exception 'LEDGER_POSITION_NOT_FOUND' using errcode = '23503';
+  end if;
+
+  if new.owner_id <> position_row.owner_id then
+    raise exception 'LEDGER_OWNER_MISMATCH' using errcode = '23514';
+  end if;
+
+  if new.currency <> position_row.currency then
+    raise exception 'LEDGER_CURRENCY_MISMATCH' using errcode = '23514';
+  end if;
+
+  return new;
+end;
+$$;
+
+
+ALTER FUNCTION "private"."validate_financial_ledger_entry"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "private"."validate_loan_disbursement_target"() RETURNS "trigger"
@@ -295,11 +748,29 @@ CREATE TABLE IF NOT EXISTS "public"."financial_positions" (
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "version" integer DEFAULT 1 NOT NULL,
     "account_type" "text" DEFAULT 'current'::"text" NOT NULL,
+    "account_number" "text",
+    "iban" "text",
+    "bic" "text",
+    "account_holder_name" "text",
+    "institution_name" "text",
+    "branch_name" "text",
+    "branch_code" "text",
+    "account_status" "text" DEFAULT 'pending'::"text" NOT NULL,
+    "opened_at" timestamp with time zone,
+    "declared_by" "uuid",
+    "is_demo" boolean DEFAULT false NOT NULL,
+    "declaration_idempotency_key" "uuid",
+    CONSTRAINT "financial_positions_account_number_check" CHECK ((("account_number" IS NULL) OR (("account_number" = "upper"(TRIM(BOTH FROM "account_number"))) AND ("account_number" ~ '^[A-Z0-9-]{6,34}$'::"text")))),
+    CONSTRAINT "financial_positions_account_status_check" CHECK (("account_status" = ANY (ARRAY['pending'::"text", 'active'::"text", 'restricted'::"text", 'closed'::"text"]))),
     CONSTRAINT "financial_positions_account_type_check" CHECK (("account_type" = ANY (ARRAY['current'::"text", 'savings'::"text"]))),
+    CONSTRAINT "financial_positions_active_account_check" CHECK ((("account_status" <> 'active'::"text") OR (("account_number" IS NOT NULL) AND ("iban" IS NOT NULL) AND ("bic" IS NOT NULL) AND ("account_holder_name" IS NOT NULL) AND ("institution_name" IS NOT NULL) AND ("branch_name" IS NOT NULL) AND ("branch_code" IS NOT NULL) AND ("opened_at" IS NOT NULL) AND ("declared_by" IS NOT NULL)))),
     CONSTRAINT "financial_positions_amount_minor_check" CHECK ((("amount_minor" >= 0) AND ("amount_minor" <= '1000000000000000'::bigint))),
+    CONSTRAINT "financial_positions_bic_check" CHECK ((("bic" IS NULL) OR (("bic" = "upper"(TRIM(BOTH FROM "bic"))) AND ("bic" ~ '^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$'::"text")))),
     CONSTRAINT "financial_positions_check" CHECK ((("reserved_minor" >= 0) AND ("reserved_minor" <= "amount_minor"))),
     CONSTRAINT "financial_positions_currency_check" CHECK (("currency" ~ '^[A-Z]{3}$'::"text")),
+    CONSTRAINT "financial_positions_iban_check" CHECK ((("iban" IS NULL) OR (("iban" = "private"."normalize_iban"("iban")) AND "private"."is_valid_iban"("iban")))),
     CONSTRAINT "financial_positions_label_check" CHECK ((("char_length"("label") >= 1) AND ("char_length"("label") <= 120))),
+    CONSTRAINT "financial_positions_official_text_lengths_check" CHECK (((("account_holder_name" IS NULL) OR (("char_length"("account_holder_name") >= 1) AND ("char_length"("account_holder_name") <= 160))) AND (("institution_name" IS NULL) OR (("char_length"("institution_name") >= 1) AND ("char_length"("institution_name") <= 200))) AND (("branch_name" IS NULL) OR (("char_length"("branch_name") >= 1) AND ("char_length"("branch_name") <= 160))) AND (("branch_code" IS NULL) OR ((("char_length"("branch_code") >= 1) AND ("char_length"("branch_code") <= 40)) AND ("branch_code" ~ '^[A-Z0-9-]+$'::"text"))))),
     CONSTRAINT "financial_positions_position_kind_check" CHECK (("position_kind" = ANY (ARRAY['declared'::"text", 'internally_reconciled'::"text"]))),
     CONSTRAINT "financial_positions_version_check" CHECK (("version" > 0))
 );
@@ -371,6 +842,153 @@ $$;
 ALTER FUNCTION "public"."adjust_financial_position"("p_position_id" "uuid", "p_delta_minor" bigint, "p_as_of" timestamp with time zone, "p_reason" "text") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."branch_manager_adjust_balance"("p_account_id" "uuid", "p_target_amount_minor" bigint, "p_value_date" timestamp with time zone, "p_reason" "text", "p_idempotency_key" "uuid") RETURNS "public"."financial_positions"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare
+  caller_id uuid := private.ensure_branch_manager();
+  position_row public.financial_positions;
+  existing_entry public.financial_ledger_entries;
+  normalized_reference text :=
+    'ADJ-' || upper(replace(p_idempotency_key::text, '-', ''));
+  normalized_reason text := nullif(trim(coalesce(p_reason, '')), '');
+  delta_minor bigint;
+  next_sequence bigint;
+begin
+  if p_idempotency_key is null then
+    raise exception 'ADJUSTMENT_IDEMPOTENCY_KEY_REQUIRED'
+      using errcode = '22023';
+  end if;
+
+  select *
+  into existing_entry
+  from public.financial_ledger_entries
+  where entry_key = 'adjustment:' || p_idempotency_key::text;
+
+  if found then
+    if existing_entry.account_id <> p_account_id
+       or existing_entry.balance_after_minor <> p_target_amount_minor
+       or existing_entry.description <> normalized_reason then
+      raise exception 'ADJUSTMENT_IDEMPOTENCY_PAYLOAD_MISMATCH'
+        using errcode = '22023';
+    end if;
+
+    select *
+    into position_row
+    from public.financial_positions
+    where id = p_account_id;
+
+    return position_row;
+  end if;
+
+  if p_target_amount_minor < 0
+     or p_target_amount_minor > 1000000000000000
+     or p_value_date is null
+     or normalized_reason is null then
+    raise exception 'INVALID_BALANCE_ADJUSTMENT' using errcode = '22023';
+  end if;
+
+  select *
+  into position_row
+  from public.financial_positions
+  where id = p_account_id
+  for update;
+
+  if not found then
+    raise exception 'POSITION_NOT_FOUND' using errcode = 'P0002';
+  end if;
+
+  if position_row.account_status <> 'active' then
+    raise exception 'ACCOUNT_NOT_ACTIVE' using errcode = '55000';
+  end if;
+
+  if p_target_amount_minor < position_row.reserved_minor then
+    raise exception 'ADJUSTMENT_CONFLICTS_WITH_RESERVATIONS'
+      using errcode = '22003';
+  end if;
+
+  delta_minor := p_target_amount_minor - position_row.amount_minor;
+
+  if delta_minor = 0 then
+    raise exception 'ADJUSTMENT_DELTA_REQUIRED' using errcode = '22023';
+  end if;
+
+  select coalesce(max(sequence_no), 0) + 1
+  into next_sequence
+  from public.financial_ledger_entries
+  where account_id = p_account_id;
+
+  insert into public.financial_ledger_entries (
+    account_id,
+    owner_id,
+    sequence_no,
+    entry_key,
+    entry_kind,
+    amount_minor,
+    currency,
+    balance_before_minor,
+    balance_after_minor,
+    value_date,
+    internal_reference,
+    booked_by,
+    description,
+    metadata
+  )
+  values (
+    position_row.id,
+    position_row.owner_id,
+    next_sequence,
+    'adjustment:' || p_idempotency_key::text,
+    'manual_adjustment',
+    delta_minor,
+    position_row.currency,
+    position_row.amount_minor,
+    p_target_amount_minor,
+    p_value_date,
+    normalized_reference,
+    caller_id,
+    normalized_reason,
+    jsonb_build_object('idempotency_key', p_idempotency_key)
+  );
+
+  update public.financial_positions
+  set
+    amount_minor = p_target_amount_minor,
+    position_kind = 'internally_reconciled',
+    as_of = p_value_date
+  where id = p_account_id
+  returning * into position_row;
+
+  insert into public.audit_events (
+    actor_id,
+    action,
+    entity_type,
+    entity_id,
+    metadata
+  )
+  values (
+    caller_id,
+    'branch_manager_adjust_balance',
+    'financial_position',
+    p_account_id,
+    jsonb_build_object(
+      'delta_minor', delta_minor,
+      'target_amount_minor', p_target_amount_minor,
+      'as_of', p_value_date,
+      'internal_reference', normalized_reference,
+      'reason', normalized_reason
+    )
+  );
+
+  return position_row;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."branch_manager_adjust_balance"("p_account_id" "uuid", "p_target_amount_minor" bigint, "p_value_date" timestamp with time zone, "p_reason" "text", "p_idempotency_key" "uuid") OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."loan_applications" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "owner_id" "uuid" NOT NULL,
@@ -390,12 +1008,14 @@ CREATE TABLE IF NOT EXISTS "public"."loan_applications" (
     "credited_position_id" "uuid",
     "disbursed_by" "uuid",
     "disbursed_at" timestamp with time zone,
+    "internal_disbursement_reference" "text",
     CONSTRAINT "loan_applications_currency_check" CHECK (("currency" ~ '^[A-Z]{3}$'::"text")),
     CONSTRAINT "loan_applications_disbursement_check" CHECK (((("status" = 'external_settlement_confirmed'::"text") AND ("credited_position_id" IS NOT NULL) AND ("disbursed_by" IS NOT NULL) AND ("disbursed_at" IS NOT NULL)) OR (("status" <> 'external_settlement_confirmed'::"text") AND ("credited_position_id" IS NULL) AND ("disbursed_by" IS NULL) AND ("disbursed_at" IS NULL)))),
     CONSTRAINT "loan_applications_document_object_paths_check" CHECK (("jsonb_typeof"("document_object_paths") = 'array'::"text")),
     CONSTRAINT "loan_applications_duration_months_check" CHECK ((("duration_months" >= 1) AND ("duration_months" <= 600))),
     CONSTRAINT "loan_applications_indicative_annual_rate_check" CHECK ((("indicative_annual_rate" IS NULL) OR ("indicative_annual_rate" >= (0)::numeric))),
     CONSTRAINT "loan_applications_indicative_monthly_payment_minor_check" CHECK ((("indicative_monthly_payment_minor" IS NULL) OR ("indicative_monthly_payment_minor" > 0))),
+    CONSTRAINT "loan_applications_internal_disbursement_reference_check" CHECK ((("internal_disbursement_reference" IS NULL) OR (("char_length"("internal_disbursement_reference") >= 3) AND ("char_length"("internal_disbursement_reference") <= 160)))),
     CONSTRAINT "loan_applications_motive_check" CHECK ((("char_length"("motive") >= 1) AND ("char_length"("motive") <= 500))),
     CONSTRAINT "loan_applications_requested_amount_minor_check" CHECK ((("requested_amount_minor" > 0) AND ("requested_amount_minor" <= '1000000000000000'::bigint))),
     CONSTRAINT "loan_applications_status_check" CHECK (("status" = ANY (ARRAY['submitted'::"text", 'under_review'::"text", 'approved_for_external_funding'::"text", 'external_funding_recorded'::"text", 'external_settlement_confirmed'::"text", 'rejected'::"text", 'cancelled'::"text", 'external_failed'::"text"]))),
@@ -517,9 +1137,13 @@ CREATE TABLE IF NOT EXISTS "public"."transfer_intents" (
     "submitted_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "version" integer DEFAULT 1 NOT NULL,
+    "internal_execution_reference" "text",
+    "settled_by" "uuid",
+    "settled_at" timestamp with time zone,
     CONSTRAINT "transfer_intents_amount_minor_check" CHECK ((("amount_minor" > 0) AND ("amount_minor" <= '1000000000000000'::bigint))),
     CONSTRAINT "transfer_intents_beneficiary_details_check" CHECK (("jsonb_typeof"("beneficiary_details") = 'object'::"text")),
     CONSTRAINT "transfer_intents_currency_check" CHECK (("currency" ~ '^[A-Z]{3}$'::"text")),
+    CONSTRAINT "transfer_intents_internal_execution_reference_check" CHECK ((("internal_execution_reference" IS NULL) OR (("char_length"("internal_execution_reference") >= 3) AND ("char_length"("internal_execution_reference") <= 160)))),
     CONSTRAINT "transfer_intents_motive_check" CHECK ((("motive" IS NULL) OR ("char_length"("motive") <= 500))),
     CONSTRAINT "transfer_intents_quote_rate_check" CHECK (("quote_rate" > (0)::numeric)),
     CONSTRAINT "transfer_intents_recipient_account_masked_check" CHECK ((("char_length"("recipient_account_masked") >= 1) AND ("char_length"("recipient_account_masked") <= 160))),
@@ -626,6 +1250,223 @@ $$;
 ALTER FUNCTION "public"."branch_manager_approve_transfer"("p_transfer_id" "uuid", "p_note" "text") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."branch_manager_declare_account"("p_owner_id" "uuid", "p_label" "text", "p_account_type" "text", "p_currency" "text", "p_iban" "text", "p_bic" "text", "p_account_number" "text", "p_account_holder_name" "text", "p_institution_name" "text", "p_branch_name" "text", "p_branch_code" "text", "p_opening_balance_minor" bigint, "p_opened_at" timestamp with time zone, "p_is_demo" boolean, "p_reason" "text", "p_idempotency_key" "uuid") RETURNS "public"."financial_positions"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $_$
+declare
+  caller_id uuid := private.ensure_branch_manager();
+  position_row public.financial_positions;
+  normalized_account_number text :=
+    upper(trim(coalesce(p_account_number, '')));
+  normalized_iban text :=
+    private.normalize_iban(coalesce(p_iban, ''));
+  normalized_bic text := upper(trim(coalesce(p_bic, '')));
+  normalized_branch_code text :=
+    upper(trim(coalesce(p_branch_code, '')));
+  normalized_reason text := nullif(trim(coalesce(p_reason, '')), '');
+begin
+  if p_idempotency_key is null then
+    raise exception 'ACCOUNT_IDEMPOTENCY_KEY_REQUIRED'
+      using errcode = '22023';
+  end if;
+
+  select *
+  into position_row
+  from public.financial_positions
+  where declaration_idempotency_key = p_idempotency_key;
+
+  if found then
+    if position_row.owner_id <> p_owner_id
+       or position_row.label <> trim(coalesce(p_label, ''))
+       or position_row.account_type <> p_account_type
+       or position_row.currency <> upper(trim(coalesce(p_currency, '')))
+       or position_row.amount_minor <> p_opening_balance_minor
+       or position_row.account_number <> normalized_account_number
+       or position_row.iban <> normalized_iban
+       or position_row.bic <> normalized_bic
+       or position_row.account_holder_name
+          <> trim(coalesce(p_account_holder_name, ''))
+       or position_row.institution_name
+          <> trim(coalesce(p_institution_name, ''))
+       or position_row.branch_name <> trim(coalesce(p_branch_name, ''))
+       or position_row.branch_code <> normalized_branch_code
+       or position_row.opened_at is distinct from p_opened_at
+       or position_row.is_demo <> coalesce(p_is_demo, false) then
+      raise exception 'ACCOUNT_IDEMPOTENCY_PAYLOAD_MISMATCH'
+        using errcode = '22023';
+    end if;
+
+    if not exists (
+      select 1
+      from public.financial_ledger_entries
+      where account_id = position_row.id
+        and entry_key =
+          'account-opening:' || p_idempotency_key::text
+        and description = normalized_reason
+    ) then
+      raise exception 'ACCOUNT_IDEMPOTENCY_PAYLOAD_MISMATCH'
+        using errcode = '22023';
+    end if;
+
+    return position_row;
+  end if;
+
+  if not exists (
+    select 1
+    from public.profiles
+    where user_id = p_owner_id
+      and access_status = 'active'
+  ) then
+    raise exception 'ACCOUNT_OWNER_NOT_ACTIVE' using errcode = '22023';
+  end if;
+
+  if not exists (
+    select 1
+    from public.kyc_applications
+    where owner_id = p_owner_id
+      and status = 'approved'
+  ) then
+    raise exception 'APPROVED_KYC_REQUIRED' using errcode = '23514';
+  end if;
+
+  if p_account_type not in ('current', 'savings')
+     or upper(trim(coalesce(p_currency, ''))) !~ '^[A-Z]{3}$'
+     or p_opening_balance_minor < 0
+     or p_opening_balance_minor > 1000000000000000
+     or p_opened_at is null
+     or normalized_reason is null
+     or nullif(trim(coalesce(p_label, '')), '') is null
+     or nullif(trim(coalesce(p_account_holder_name, '')), '') is null
+     or nullif(trim(coalesce(p_institution_name, '')), '') is null
+     or nullif(trim(coalesce(p_branch_name, '')), '') is null then
+    raise exception 'INVALID_ACCOUNT_DECLARATION' using errcode = '22023';
+  end if;
+
+  if normalized_account_number !~ '^[A-Z0-9-]{6,34}$'
+     or not private.is_valid_iban(normalized_iban)
+     or normalized_bic !~ '^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$'
+     or normalized_branch_code !~ '^[A-Z0-9-]{1,40}$' then
+    raise exception 'INVALID_ACCOUNT_IDENTIFIER' using errcode = '22023';
+  end if;
+
+  insert into public.financial_positions (
+    owner_id,
+    label,
+    position_kind,
+    currency,
+    amount_minor,
+    reserved_minor,
+    as_of,
+    external_identifier_masked,
+    account_type,
+    account_number,
+    iban,
+    bic,
+    account_holder_name,
+    institution_name,
+    branch_name,
+    branch_code,
+    account_status,
+    opened_at,
+    declared_by,
+    is_demo,
+    declaration_idempotency_key
+  )
+  values (
+    p_owner_id,
+    trim(p_label),
+    'internally_reconciled',
+    upper(trim(p_currency)),
+    p_opening_balance_minor,
+    0,
+    p_opened_at,
+    '••••' || right(normalized_iban, 4),
+    p_account_type,
+    normalized_account_number,
+    normalized_iban,
+    normalized_bic,
+    trim(p_account_holder_name),
+    trim(p_institution_name),
+    trim(p_branch_name),
+    normalized_branch_code,
+    'active',
+    p_opened_at,
+    caller_id,
+    coalesce(p_is_demo, false),
+    p_idempotency_key
+  )
+  returning * into position_row;
+
+  insert into public.financial_ledger_entries (
+    account_id,
+    owner_id,
+    sequence_no,
+    entry_key,
+    entry_kind,
+    amount_minor,
+    currency,
+    balance_before_minor,
+    balance_after_minor,
+    value_date,
+    internal_reference,
+    booked_by,
+    description,
+    metadata
+  )
+  values (
+    position_row.id,
+    position_row.owner_id,
+    1,
+    'account-opening:' || p_idempotency_key::text,
+    'account_opening',
+    p_opening_balance_minor,
+    position_row.currency,
+    0,
+    p_opening_balance_minor,
+    p_opened_at,
+    'ACCOUNT-' || upper(replace(position_row.id::text, '-', '')),
+    caller_id,
+    normalized_reason,
+    jsonb_build_object(
+      'account_number', normalized_account_number,
+      'iban_last4', right(normalized_iban, 4)
+    )
+  );
+
+  insert into public.audit_events (
+    actor_id,
+    action,
+    entity_type,
+    entity_id,
+    metadata
+  )
+  values (
+    caller_id,
+    'branch_manager_declare_account',
+    'financial_position',
+    position_row.id,
+    jsonb_build_object(
+      'account_number', normalized_account_number,
+      'iban_last4', right(normalized_iban, 4),
+      'currency', position_row.currency,
+      'opening_amount_minor', p_opening_balance_minor,
+      'reason', normalized_reason
+    )
+  );
+
+  return position_row;
+exception
+  when unique_violation then
+    raise exception 'ACCOUNT_IDENTIFIER_ALREADY_EXISTS'
+      using errcode = '23505';
+end;
+$_$;
+
+
+ALTER FUNCTION "public"."branch_manager_declare_account"("p_owner_id" "uuid", "p_label" "text", "p_account_type" "text", "p_currency" "text", "p_iban" "text", "p_bic" "text", "p_account_number" "text", "p_account_holder_name" "text", "p_institution_name" "text", "p_branch_name" "text", "p_branch_code" "text", "p_opening_balance_minor" bigint, "p_opened_at" timestamp with time zone, "p_is_demo" boolean, "p_reason" "text", "p_idempotency_key" "uuid") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."branch_manager_disburse_loan"("p_loan_id" "uuid", "p_destination_position_id" "uuid", "p_note" "text") RETURNS "public"."loan_applications"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
@@ -636,6 +1477,9 @@ declare
   position_row public.financial_positions;
   old_status text;
   normalized_note text := nullif(trim(coalesce(p_note, '')), '');
+  generated_reference text;
+  next_sequence bigint;
+  ledger_entry_id uuid;
 begin
   if normalized_note is null then
     raise exception 'DISBURSEMENT_NOTE_REQUIRED' using errcode = '22023';
@@ -655,7 +1499,8 @@ begin
     'approved_for_external_funding',
     'external_funding_recorded'
   ) then
-    raise exception 'LOAN_NOT_READY_FOR_DISBURSEMENT' using errcode = '55000';
+    raise exception 'LOAN_NOT_READY_FOR_DISBURSEMENT'
+      using errcode = '55000';
   end if;
 
   select *
@@ -666,22 +1511,75 @@ begin
   for update;
 
   if not found then
-    raise exception 'LOAN_DESTINATION_POSITION_NOT_FOUND' using errcode = 'P0002';
+    raise exception 'LOAN_DESTINATION_POSITION_NOT_FOUND'
+      using errcode = 'P0002';
+  end if;
+
+  if position_row.account_status <> 'active' then
+    raise exception 'LOAN_DESTINATION_ACCOUNT_NOT_ACTIVE'
+      using errcode = '55000';
   end if;
 
   if position_row.account_type <> 'current' then
-    raise exception 'LOAN_DESTINATION_MUST_BE_CURRENT_ACCOUNT' using errcode = '22023';
+    raise exception 'LOAN_DESTINATION_MUST_BE_CURRENT_ACCOUNT'
+      using errcode = '22023';
   end if;
 
   if position_row.currency <> loan_row.currency then
-    raise exception 'LOAN_DESTINATION_CURRENCY_MISMATCH' using errcode = '22023';
+    raise exception 'LOAN_DESTINATION_CURRENCY_MISMATCH'
+      using errcode = '22023';
   end if;
 
-  if position_row.amount_minor > 1000000000000000 - loan_row.requested_amount_minor then
-    raise exception 'FINANCIAL_POSITION_LIMIT_EXCEEDED' using errcode = '22003';
+  if position_row.amount_minor
+     > 1000000000000000 - loan_row.requested_amount_minor then
+    raise exception 'FINANCIAL_POSITION_LIMIT_EXCEEDED'
+      using errcode = '22003';
   end if;
 
   old_status := loan_row.status;
+  generated_reference :=
+    'MONALYZ-LOAN-' || upper(replace(loan_row.id::text, '-', ''));
+
+  select coalesce(max(sequence_no), 0) + 1
+  into next_sequence
+  from public.financial_ledger_entries
+  where account_id = position_row.id;
+
+  insert into public.financial_ledger_entries (
+    account_id,
+    owner_id,
+    sequence_no,
+    entry_key,
+    entry_kind,
+    amount_minor,
+    currency,
+    balance_before_minor,
+    balance_after_minor,
+    value_date,
+    internal_reference,
+    source_loan_id,
+    booked_by,
+    description,
+    metadata
+  )
+  values (
+    position_row.id,
+    loan_row.owner_id,
+    next_sequence,
+    'loan:' || loan_row.id::text,
+    'loan_credit',
+    loan_row.requested_amount_minor,
+    loan_row.currency,
+    position_row.amount_minor,
+    position_row.amount_minor + loan_row.requested_amount_minor,
+    now(),
+    generated_reference,
+    loan_row.id,
+    caller_id,
+    normalized_note,
+    jsonb_build_object('loan_reference', loan_row.reference)
+  )
+  returning id into ledger_entry_id;
 
   update public.financial_positions
   set
@@ -695,12 +1593,19 @@ begin
     status = 'external_settlement_confirmed',
     credited_position_id = p_destination_position_id,
     disbursed_by = caller_id,
-    disbursed_at = now()
+    disbursed_at = now(),
+    internal_disbursement_reference = generated_reference
   where id = p_loan_id
   returning * into loan_row;
 
   insert into public.loan_events (
-    loan_id, actor_id, event_type, from_status, to_status, reason, metadata
+    loan_id,
+    actor_id,
+    event_type,
+    from_status,
+    to_status,
+    reason,
+    metadata
   )
   values (
     p_loan_id,
@@ -709,11 +1614,19 @@ begin
     old_status,
     loan_row.status,
     normalized_note,
-    jsonb_build_object('credited_position_id', p_destination_position_id)
+    jsonb_build_object(
+      'credited_position_id', p_destination_position_id,
+      'ledger_entry_id', ledger_entry_id,
+      'internal_disbursement_reference', generated_reference
+    )
   );
 
   insert into public.audit_events (
-    actor_id, action, entity_type, entity_id, metadata
+    actor_id,
+    action,
+    entity_type,
+    entity_id,
+    metadata
   )
   values (
     caller_id,
@@ -724,18 +1637,23 @@ begin
       'from_status', old_status,
       'to_status', loan_row.status,
       'credited_position_id', p_destination_position_id,
+      'ledger_entry_id', ledger_entry_id,
+      'internal_disbursement_reference', generated_reference,
       'amount_minor', loan_row.requested_amount_minor,
       'currency', loan_row.currency
     )
   );
 
   insert into public.notifications (
-    recipient_id, title, message, notification_type
+    recipient_id,
+    title,
+    message,
+    notification_type
   )
   values (
     loan_row.owner_id,
     'Prêt décaissé',
-    'Votre prêt a été décaissé avec succès et votre position courante Monalyz a été créditée.',
+    'Votre prêt a été décaissé avec succès et votre compte courant Monalyz a été crédité.',
     'loan'
   );
 
@@ -754,8 +1672,12 @@ CREATE OR REPLACE FUNCTION "public"."branch_manager_finalize_transfer"("p_transf
 declare
   caller_id uuid := private.ensure_branch_manager();
   transfer_row public.transfer_intents;
+  position_row public.financial_positions;
   old_status text;
   normalized_note text := nullif(trim(coalesce(p_note, '')), '');
+  generated_reference text;
+  next_sequence bigint;
+  ledger_entry_id uuid;
 begin
   if normalized_note is null then
     raise exception 'CONFIRMATION_NOTE_REQUIRED' using errcode = '22023';
@@ -775,10 +1697,81 @@ begin
     'approved_for_external_execution',
     'external_execution_recorded'
   ) then
-    raise exception 'TRANSFER_NOT_READY_FOR_FINALIZATION' using errcode = '55000';
+    raise exception 'TRANSFER_NOT_READY_FOR_FINALIZATION'
+      using errcode = '55000';
+  end if;
+
+  select *
+  into position_row
+  from public.financial_positions
+  where id = transfer_row.source_position_id
+    and owner_id = transfer_row.owner_id
+  for update;
+
+  if not found then
+    raise exception 'TRANSFER_SOURCE_ACCOUNT_NOT_FOUND'
+      using errcode = 'P0002';
+  end if;
+
+  if position_row.account_status <> 'active' then
+    raise exception 'TRANSFER_SOURCE_ACCOUNT_NOT_ACTIVE'
+      using errcode = '55000';
+  end if;
+
+  if position_row.amount_minor < transfer_row.amount_minor
+     or position_row.reserved_minor < transfer_row.amount_minor then
+    raise exception 'TRANSFER_POSITION_RECONCILIATION_CONFLICT'
+      using errcode = '55000';
   end if;
 
   old_status := transfer_row.status;
+  generated_reference :=
+    'MONALYZ-TRF-' || upper(replace(transfer_row.id::text, '-', ''));
+
+  select coalesce(max(sequence_no), 0) + 1
+  into next_sequence
+  from public.financial_ledger_entries
+  where account_id = position_row.id;
+
+  insert into public.financial_ledger_entries (
+    account_id,
+    owner_id,
+    sequence_no,
+    entry_key,
+    entry_kind,
+    amount_minor,
+    currency,
+    balance_before_minor,
+    balance_after_minor,
+    value_date,
+    internal_reference,
+    source_transfer_id,
+    booked_by,
+    description,
+    metadata
+  )
+  values (
+    position_row.id,
+    transfer_row.owner_id,
+    next_sequence,
+    'transfer:' || transfer_row.id::text,
+    'transfer_debit',
+    -transfer_row.amount_minor,
+    transfer_row.currency,
+    position_row.amount_minor,
+    position_row.amount_minor - transfer_row.amount_minor,
+    now(),
+    generated_reference,
+    transfer_row.id,
+    caller_id,
+    normalized_note,
+    jsonb_build_object(
+      'recipient_name', transfer_row.recipient_name,
+      'target_amount_minor', transfer_row.target_amount_minor,
+      'target_currency', transfer_row.target_currency
+    )
+  )
+  returning id into ledger_entry_id;
 
   update public.financial_positions
   set
@@ -786,21 +1779,25 @@ begin
     reserved_minor = reserved_minor - transfer_row.amount_minor,
     position_kind = 'internally_reconciled',
     as_of = now()
-  where id = transfer_row.source_position_id
-    and amount_minor >= transfer_row.amount_minor
-    and reserved_minor >= transfer_row.amount_minor;
-
-  if not found then
-    raise exception 'TRANSFER_POSITION_RECONCILIATION_CONFLICT' using errcode = '55000';
-  end if;
+  where id = position_row.id;
 
   update public.transfer_intents
-  set status = 'external_settlement_confirmed'
+  set
+    status = 'external_settlement_confirmed',
+    internal_execution_reference = generated_reference,
+    settled_by = caller_id,
+    settled_at = now()
   where id = p_transfer_id
   returning * into transfer_row;
 
   insert into public.transfer_events (
-    transfer_id, actor_id, event_type, from_status, to_status, reason
+    transfer_id,
+    actor_id,
+    event_type,
+    from_status,
+    to_status,
+    reason,
+    metadata
   )
   values (
     p_transfer_id,
@@ -808,22 +1805,40 @@ begin
     'branch_manager_confirmed_effective_transfer',
     old_status,
     transfer_row.status,
-    normalized_note
+    normalized_note,
+    jsonb_build_object(
+      'ledger_entry_id', ledger_entry_id,
+      'internal_execution_reference', generated_reference
+    )
   );
 
   insert into public.audit_events (
-    actor_id, action, entity_type, entity_id, metadata
+    actor_id,
+    action,
+    entity_type,
+    entity_id,
+    metadata
   )
   values (
     caller_id,
     'branch_manager_finalize_transfer',
     'transfer_intent',
     p_transfer_id,
-    jsonb_build_object('from_status', old_status, 'to_status', transfer_row.status)
+    jsonb_build_object(
+      'from_status', old_status,
+      'to_status', transfer_row.status,
+      'ledger_entry_id', ledger_entry_id,
+      'internal_execution_reference', generated_reference,
+      'amount_minor', transfer_row.amount_minor,
+      'currency', transfer_row.currency
+    )
   );
 
   insert into public.notifications (
-    recipient_id, title, message, notification_type
+    recipient_id,
+    title,
+    message,
+    notification_type
   )
   values (
     transfer_row.owner_id,
@@ -838,6 +1853,430 @@ $$;
 
 
 ALTER FUNCTION "public"."branch_manager_finalize_transfer"("p_transfer_id" "uuid", "p_note" "text") OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."official_documents" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "owner_id" "uuid" NOT NULL,
+    "account_id" "uuid",
+    "transfer_id" "uuid",
+    "loan_id" "uuid",
+    "document_number" "text" NOT NULL,
+    "document_type" "text" NOT NULL,
+    "title" "text" NOT NULL,
+    "language" "text" DEFAULT 'fr'::"text" NOT NULL,
+    "period_start" "date",
+    "period_end" "date",
+    "version" integer DEFAULT 1 NOT NULL,
+    "status" "text" DEFAULT 'pending'::"text" NOT NULL,
+    "snapshot" "jsonb" NOT NULL,
+    "snapshot_hash" "text" NOT NULL,
+    "content_hash" "text",
+    "storage_path" "text",
+    "issued_by" "uuid" NOT NULL,
+    "requested_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "issued_at" timestamp with time zone,
+    "revoked_by" "uuid",
+    "revoked_at" timestamp with time zone,
+    "revocation_reason" "text",
+    "failure_reason" "text",
+    "is_demo" boolean DEFAULT false NOT NULL,
+    "idempotency_key" "uuid" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "official_documents_check" CHECK (((("document_type" = ANY (ARRAY['bank_details'::"text", 'account_statement'::"text", 'balance_certificate'::"text"])) AND ("account_id" IS NOT NULL) AND ("transfer_id" IS NULL) AND ("loan_id" IS NULL)) OR (("document_type" = 'transfer_confirmation'::"text") AND ("account_id" IS NOT NULL) AND ("transfer_id" IS NOT NULL) AND ("loan_id" IS NULL)) OR (("document_type" = 'loan_disbursement_confirmation'::"text") AND ("account_id" IS NOT NULL) AND ("transfer_id" IS NULL) AND ("loan_id" IS NOT NULL)) OR (("document_type" = 'loan_decision'::"text") AND ("transfer_id" IS NULL) AND ("loan_id" IS NOT NULL)))),
+    CONSTRAINT "official_documents_check1" CHECK (((("document_type" = 'account_statement'::"text") AND ("period_start" IS NOT NULL) AND ("period_end" IS NOT NULL) AND ("period_end" >= "period_start") AND ("period_end" <= ("period_start" + 366))) OR (("document_type" <> 'account_statement'::"text") AND ("period_start" IS NULL) AND ("period_end" IS NULL)))),
+    CONSTRAINT "official_documents_check2" CHECK (((("status" = 'pending'::"text") AND ("storage_path" IS NULL) AND ("content_hash" IS NULL) AND ("issued_at" IS NULL) AND ("failure_reason" IS NULL) AND ("revoked_by" IS NULL) AND ("revoked_at" IS NULL) AND ("revocation_reason" IS NULL)) OR (("status" = 'issued'::"text") AND ("storage_path" IS NOT NULL) AND ("content_hash" IS NOT NULL) AND ("issued_at" IS NOT NULL) AND ("failure_reason" IS NULL) AND ("revoked_by" IS NULL) AND ("revoked_at" IS NULL) AND ("revocation_reason" IS NULL)) OR (("status" = 'failed'::"text") AND ("storage_path" IS NULL) AND ("content_hash" IS NULL) AND ("issued_at" IS NULL) AND ("failure_reason" IS NOT NULL) AND ("revoked_by" IS NULL) AND ("revoked_at" IS NULL) AND ("revocation_reason" IS NULL)) OR (("status" = 'revoked'::"text") AND ("storage_path" IS NOT NULL) AND ("content_hash" IS NOT NULL) AND ("issued_at" IS NOT NULL) AND ("failure_reason" IS NULL) AND ("revoked_by" IS NOT NULL) AND ("revoked_at" IS NOT NULL) AND ("revocation_reason" IS NOT NULL)))),
+    CONSTRAINT "official_documents_content_hash_check" CHECK ((("content_hash" IS NULL) OR ("content_hash" ~ '^[a-f0-9]{64}$'::"text"))),
+    CONSTRAINT "official_documents_document_number_check" CHECK ((("char_length"("document_number") >= 6) AND ("char_length"("document_number") <= 80))),
+    CONSTRAINT "official_documents_document_type_check" CHECK (("document_type" = ANY (ARRAY['bank_details'::"text", 'account_statement'::"text", 'balance_certificate'::"text", 'transfer_confirmation'::"text", 'loan_disbursement_confirmation'::"text", 'loan_decision'::"text"]))),
+    CONSTRAINT "official_documents_failure_reason_check" CHECK ((("failure_reason" IS NULL) OR (("char_length"("failure_reason") >= 3) AND ("char_length"("failure_reason") <= 1000)))),
+    CONSTRAINT "official_documents_language_check" CHECK (("language" = ANY (ARRAY['fr'::"text", 'en'::"text", 'de'::"text", 'es'::"text"]))),
+    CONSTRAINT "official_documents_revocation_reason_check" CHECK ((("revocation_reason" IS NULL) OR (("char_length"("revocation_reason") >= 3) AND ("char_length"("revocation_reason") <= 1000)))),
+    CONSTRAINT "official_documents_snapshot_check" CHECK (("jsonb_typeof"("snapshot") = 'object'::"text")),
+    CONSTRAINT "official_documents_snapshot_hash_check" CHECK (("snapshot_hash" ~ '^[a-f0-9]{64}$'::"text")),
+    CONSTRAINT "official_documents_status_check" CHECK (("status" = ANY (ARRAY['pending'::"text", 'issued'::"text", 'failed'::"text", 'revoked'::"text"]))),
+    CONSTRAINT "official_documents_storage_path_check" CHECK ((("storage_path" IS NULL) OR ((("char_length"("storage_path") >= 10) AND ("char_length"("storage_path") <= 500)) AND ("storage_path" !~ '(^|/)\.\.(/|$)'::"text")))),
+    CONSTRAINT "official_documents_title_check" CHECK ((("char_length"("title") >= 3) AND ("char_length"("title") <= 200))),
+    CONSTRAINT "official_documents_version_check" CHECK (("version" > 0))
+);
+
+
+ALTER TABLE "public"."official_documents" OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."branch_manager_issue_official_document"("p_owner_id" "uuid", "p_account_id" "uuid", "p_transfer_id" "uuid", "p_loan_id" "uuid", "p_document_type" "text", "p_title" "text", "p_language" "text", "p_period_start" "date", "p_period_end" "date", "p_idempotency_key" "uuid") RETURNS "public"."official_documents"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare
+  caller_id uuid := private.ensure_branch_manager();
+  existing_document public.official_documents;
+  document_row public.official_documents;
+  account_row public.financial_positions;
+  transfer_row public.transfer_intents;
+  loan_row public.loan_applications;
+  document_snapshot jsonb;
+  document_id uuid := gen_random_uuid();
+  generated_number text;
+  generated_version integer;
+  document_is_demo boolean := false;
+  normalized_title text := nullif(trim(coalesce(p_title, '')), '');
+  normalized_language text := lower(trim(coalesce(p_language, '')));
+begin
+  if p_idempotency_key is null
+     or normalized_title is null
+     or normalized_language not in ('fr', 'en', 'de', 'es')
+     or p_document_type not in (
+       'bank_details',
+       'account_statement',
+       'balance_certificate',
+       'transfer_confirmation',
+       'loan_disbursement_confirmation',
+       'loan_decision'
+     ) then
+    raise exception 'INVALID_OFFICIAL_DOCUMENT_REQUEST'
+      using errcode = '22023';
+  end if;
+
+  select *
+  into existing_document
+  from public.official_documents
+  where owner_id = p_owner_id
+    and idempotency_key = p_idempotency_key;
+
+  if found then
+    if existing_document.account_id is distinct from p_account_id
+       or existing_document.transfer_id is distinct from p_transfer_id
+       or existing_document.loan_id is distinct from p_loan_id
+       or existing_document.document_type <> p_document_type
+       or existing_document.title <> normalized_title
+       or existing_document.language <> normalized_language
+       or existing_document.period_start is distinct from p_period_start
+       or existing_document.period_end is distinct from p_period_end then
+      raise exception 'DOCUMENT_IDEMPOTENCY_PAYLOAD_MISMATCH'
+        using errcode = '22023';
+    end if;
+
+    return existing_document;
+  end if;
+
+  if not exists (
+    select 1
+    from public.profiles
+    where user_id = p_owner_id
+      and access_status = 'active'
+  ) then
+    raise exception 'DOCUMENT_OWNER_NOT_ACTIVE' using errcode = '22023';
+  end if;
+
+  if p_account_id is not null then
+    select *
+    into account_row
+    from public.financial_positions
+    where id = p_account_id
+      and owner_id = p_owner_id;
+
+    if not found then
+      raise exception 'DOCUMENT_ACCOUNT_NOT_FOUND' using errcode = 'P0002';
+    end if;
+
+    if account_row.account_status <> 'active' then
+      raise exception 'DOCUMENT_ACCOUNT_NOT_ACTIVE' using errcode = '55000';
+    end if;
+
+    document_is_demo := account_row.is_demo;
+  end if;
+
+  if p_transfer_id is not null then
+    select *
+    into transfer_row
+    from public.transfer_intents
+    where id = p_transfer_id
+      and owner_id = p_owner_id;
+
+    if not found then
+      raise exception 'DOCUMENT_TRANSFER_NOT_FOUND' using errcode = 'P0002';
+    end if;
+
+    if transfer_row.status <> 'external_settlement_confirmed'
+       or transfer_row.source_position_id is distinct from p_account_id then
+      raise exception 'DOCUMENT_TRANSFER_NOT_FINAL'
+        using errcode = '55000';
+    end if;
+  end if;
+
+  if p_loan_id is not null then
+    select *
+    into loan_row
+    from public.loan_applications
+    where id = p_loan_id
+      and owner_id = p_owner_id;
+
+    if not found then
+      raise exception 'DOCUMENT_LOAN_NOT_FOUND' using errcode = 'P0002';
+    end if;
+
+    if p_document_type = 'loan_disbursement_confirmation'
+       and (
+         loan_row.status <> 'external_settlement_confirmed'
+         or loan_row.credited_position_id is distinct from p_account_id
+       ) then
+      raise exception 'DOCUMENT_LOAN_NOT_DISBURSED'
+        using errcode = '55000';
+    end if;
+
+    if p_document_type = 'loan_decision'
+       and loan_row.status in ('submitted', 'under_review') then
+      raise exception 'DOCUMENT_LOAN_DECISION_NOT_FINAL'
+        using errcode = '55000';
+    end if;
+  end if;
+
+  if p_document_type in (
+    'bank_details',
+    'account_statement',
+    'balance_certificate'
+  ) and (
+    p_account_id is null
+    or p_transfer_id is not null
+    or p_loan_id is not null
+  ) then
+    raise exception 'DOCUMENT_ACCOUNT_SOURCE_REQUIRED'
+      using errcode = '22023';
+  end if;
+
+  if p_document_type = 'transfer_confirmation'
+     and (
+       p_account_id is null
+       or p_transfer_id is null
+       or p_loan_id is not null
+     ) then
+    raise exception 'DOCUMENT_TRANSFER_SOURCE_REQUIRED'
+      using errcode = '22023';
+  end if;
+
+  if p_document_type = 'loan_disbursement_confirmation'
+     and (
+       p_account_id is null
+       or p_transfer_id is not null
+       or p_loan_id is null
+     ) then
+    raise exception 'DOCUMENT_LOAN_DISBURSEMENT_SOURCE_REQUIRED'
+      using errcode = '22023';
+  end if;
+
+  if p_document_type = 'loan_decision'
+     and (p_transfer_id is not null or p_loan_id is null) then
+    raise exception 'DOCUMENT_LOAN_DECISION_SOURCE_REQUIRED'
+      using errcode = '22023';
+  end if;
+
+  if p_document_type = 'account_statement' then
+    if p_period_start is null
+       or p_period_end is null
+       or p_period_end < p_period_start
+       or p_period_end > p_period_start + 366 then
+      raise exception 'INVALID_STATEMENT_PERIOD' using errcode = '22023';
+    end if;
+  elsif p_period_start is not null or p_period_end is not null then
+    raise exception 'DOCUMENT_PERIOD_NOT_ALLOWED' using errcode = '22023';
+  end if;
+
+  document_snapshot := jsonb_strip_nulls(
+    jsonb_build_object(
+      'schemaVersion', 1,
+      'documentType', p_document_type,
+      'title', normalized_title,
+      'language', normalized_language,
+      'ownerId', p_owner_id,
+      'account',
+      case
+        when p_account_id is null then null
+        else jsonb_build_object(
+          'id', account_row.id,
+          'label', account_row.label,
+          'accountType', account_row.account_type,
+          'accountNumber', account_row.account_number,
+          'iban', account_row.iban,
+          'bic', account_row.bic,
+          'holderName', account_row.account_holder_name,
+          'institutionName', account_row.institution_name,
+          'branchName', account_row.branch_name,
+          'branchCode', account_row.branch_code,
+          'currency', account_row.currency,
+          'balanceMinor', account_row.amount_minor,
+          'availableBalanceMinor',
+            account_row.amount_minor - account_row.reserved_minor,
+          'asOf', account_row.as_of,
+          'openedAt', account_row.opened_at,
+          'isDemo', account_row.is_demo
+        )
+      end,
+      'transfer',
+      case
+        when p_transfer_id is null then null
+        else jsonb_build_object(
+          'id', transfer_row.id,
+          'reference', transfer_row.internal_execution_reference,
+          'recipientName', transfer_row.recipient_name,
+          'recipientAccountMasked', transfer_row.recipient_account_masked,
+          'amountMinor', transfer_row.amount_minor,
+          'currency', transfer_row.currency,
+          'targetAmountMinor', transfer_row.target_amount_minor,
+          'targetCurrency', transfer_row.target_currency,
+          'settledAt', transfer_row.settled_at
+        )
+      end,
+      'loan',
+      case
+        when p_loan_id is null then null
+        else jsonb_build_object(
+          'id', loan_row.id,
+          'reference', loan_row.reference,
+          'disbursementReference',
+            loan_row.internal_disbursement_reference,
+          'requestedAmountMinor', loan_row.requested_amount_minor,
+          'currency', loan_row.currency,
+          'durationMonths', loan_row.duration_months,
+          'annualRate', loan_row.indicative_annual_rate,
+          'status', loan_row.status,
+          'disbursedAt', loan_row.disbursed_at
+        )
+      end,
+      'periodStart', p_period_start,
+      'periodEnd', p_period_end,
+      'entries',
+      case
+        when p_document_type <> 'account_statement' then null
+        else coalesce(
+          (
+            select jsonb_agg(
+              jsonb_build_object(
+                'id', entry.id,
+                'entryKind', entry.entry_kind,
+                'amountMinor', entry.amount_minor,
+                'balanceAfterMinor', entry.balance_after_minor,
+                'currency', entry.currency,
+                'description', entry.description,
+                'internalReference', entry.internal_reference,
+                'valueDate', entry.value_date,
+                'bookedAt', entry.booked_at
+              )
+              order by entry.value_date, entry.sequence_no
+            )
+            from public.financial_ledger_entries as entry
+            where entry.account_id = p_account_id
+              and entry.value_date >= p_period_start::timestamptz
+              and entry.value_date
+                < (p_period_end + 1)::timestamptz
+          ),
+          '[]'::jsonb
+        )
+      end,
+      'demo',
+      case
+        when document_is_demo then jsonb_build_object(
+          'isDemo', true,
+          'watermark', 'DÉMONSTRATION — AUCUNE VALEUR'
+        )
+        else null
+      end,
+      'issuedBy', caller_id,
+      'requestedAt', now()
+    )
+  );
+
+  select coalesce(max(version), 0) + 1
+  into generated_version
+  from public.official_documents
+  where owner_id = p_owner_id
+    and document_type = p_document_type
+    and account_id is not distinct from p_account_id
+    and transfer_id is not distinct from p_transfer_id
+    and loan_id is not distinct from p_loan_id;
+
+  generated_number :=
+    'MON-'
+    || to_char(now(), 'YYYY')
+    || '-'
+    || upper(replace(document_id::text, '-', ''));
+
+  insert into public.official_documents (
+    id,
+    owner_id,
+    account_id,
+    transfer_id,
+    loan_id,
+    document_number,
+    document_type,
+    title,
+    language,
+    period_start,
+    period_end,
+    version,
+    status,
+    snapshot,
+    snapshot_hash,
+    issued_by,
+    is_demo,
+    idempotency_key
+  )
+  values (
+    document_id,
+    p_owner_id,
+    p_account_id,
+    p_transfer_id,
+    p_loan_id,
+    generated_number,
+    p_document_type,
+    normalized_title,
+    normalized_language,
+    p_period_start,
+    p_period_end,
+    generated_version,
+    'pending',
+    document_snapshot,
+    encode(
+      extensions.digest(
+        convert_to(document_snapshot::text, 'UTF8'),
+        'sha256'
+      ),
+      'hex'
+    ),
+    caller_id,
+    document_is_demo,
+    p_idempotency_key
+  )
+  returning * into document_row;
+
+  insert into public.audit_events (
+    actor_id,
+    action,
+    entity_type,
+    entity_id,
+    metadata
+  )
+  values (
+    caller_id,
+    'branch_manager_issue_official_document',
+    'official_document',
+    document_row.id,
+    jsonb_build_object(
+      'document_number', document_row.document_number,
+      'document_type', document_row.document_type,
+      'version', document_row.version,
+      'snapshot_hash', document_row.snapshot_hash,
+      'is_demo', document_row.is_demo
+    )
+  );
+
+  return document_row;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."branch_manager_issue_official_document"("p_owner_id" "uuid", "p_account_id" "uuid", "p_transfer_id" "uuid", "p_loan_id" "uuid", "p_document_type" "text", "p_title" "text", "p_language" "text", "p_period_start" "date", "p_period_end" "date", "p_idempotency_key" "uuid") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."branch_manager_reject_loan"("p_loan_id" "uuid", "p_reason" "text") RETURNS "public"."loan_applications"
@@ -1009,6 +2448,70 @@ $$;
 ALTER FUNCTION "public"."branch_manager_reject_transfer"("p_transfer_id" "uuid", "p_reason" "text") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."branch_manager_revoke_official_document"("p_document_id" "uuid", "p_reason" "text") RETURNS "public"."official_documents"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare
+  caller_id uuid := private.ensure_branch_manager();
+  document_row public.official_documents;
+  normalized_reason text := nullif(trim(coalesce(p_reason, '')), '');
+begin
+  if normalized_reason is null then
+    raise exception 'DOCUMENT_REVOCATION_REASON_REQUIRED'
+      using errcode = '22023';
+  end if;
+
+  select *
+  into document_row
+  from public.official_documents
+  where id = p_document_id
+  for update;
+
+  if not found then
+    raise exception 'OFFICIAL_DOCUMENT_NOT_FOUND' using errcode = 'P0002';
+  end if;
+
+  if document_row.status <> 'issued' then
+    raise exception 'OFFICIAL_DOCUMENT_NOT_REVOCABLE'
+      using errcode = '55000';
+  end if;
+
+  update public.official_documents
+  set
+    status = 'revoked',
+    revoked_by = caller_id,
+    revoked_at = now(),
+    revocation_reason = normalized_reason
+  where id = p_document_id
+  returning * into document_row;
+
+  insert into public.audit_events (
+    actor_id,
+    action,
+    entity_type,
+    entity_id,
+    metadata
+  )
+  values (
+    caller_id,
+    'branch_manager_revoke_official_document',
+    'official_document',
+    document_row.id,
+    jsonb_build_object(
+      'document_number', document_row.document_number,
+      'reason', normalized_reason
+    )
+  );
+
+  return document_row;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."branch_manager_revoke_official_document"("p_document_id" "uuid", "p_reason" "text") OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."transactional_email_outbox" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "event_key" "text" NOT NULL,
@@ -1100,6 +2603,123 @@ $$;
 
 
 ALTER FUNCTION "public"."claim_transactional_emails"("p_limit" integer) OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."complete_official_document"("p_document_id" "uuid", "p_storage_path" "text", "p_content_hash" "text", "p_succeeded" boolean, "p_error" "text") RETURNS "public"."official_documents"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $_$
+declare
+  worker_role text := coalesce((select auth.jwt() ->> 'role'), '');
+  document_row public.official_documents;
+  normalized_path text := nullif(trim(coalesce(p_storage_path, '')), '');
+  normalized_hash text := lower(trim(coalesce(p_content_hash, '')));
+  normalized_error text := nullif(trim(coalesce(p_error, '')), '');
+begin
+  if worker_role <> 'service_role' then
+    raise exception 'OFFICIAL_DOCUMENT_WORKER_PERMISSION_REQUIRED'
+      using errcode = '42501';
+  end if;
+
+  select *
+  into document_row
+  from public.official_documents
+  where id = p_document_id
+  for update;
+
+  if not found then
+    raise exception 'OFFICIAL_DOCUMENT_NOT_FOUND' using errcode = 'P0002';
+  end if;
+
+  if document_row.status = 'issued'
+     and p_succeeded
+     and document_row.storage_path = normalized_path
+     and document_row.content_hash = normalized_hash then
+    return document_row;
+  end if;
+
+  if document_row.status not in ('pending', 'failed') then
+    raise exception 'OFFICIAL_DOCUMENT_NOT_COMPLETABLE'
+      using errcode = '55000';
+  end if;
+
+  if p_succeeded then
+    if normalized_path is null
+       or normalized_hash !~ '^[a-f0-9]{64}$'
+       or normalized_path !~ '\.pdf$'
+       or normalized_path not like document_row.owner_id::text || '/%'
+       or normalized_path ~ '(^|/)\.\.(/|$)' then
+      raise exception 'INVALID_OFFICIAL_DOCUMENT_ARTIFACT'
+        using errcode = '22023';
+    end if;
+
+    update public.official_documents
+    set
+      status = 'issued',
+      storage_path = normalized_path,
+      content_hash = normalized_hash,
+      issued_at = now(),
+      failure_reason = null
+    where id = p_document_id
+    returning * into document_row;
+
+    insert into public.notifications (
+      recipient_id,
+      title,
+      message,
+      notification_type
+    )
+    values (
+      document_row.owner_id,
+      'Document officiel disponible',
+      'Votre document officiel Monalyz est disponible dans votre espace.',
+      'info'
+    );
+  else
+    if normalized_error is null then
+      raise exception 'OFFICIAL_DOCUMENT_ERROR_REQUIRED'
+        using errcode = '22023';
+    end if;
+
+    update public.official_documents
+    set
+      status = 'failed',
+      storage_path = null,
+      content_hash = null,
+      issued_at = null,
+      failure_reason = left(normalized_error, 1000)
+    where id = p_document_id
+    returning * into document_row;
+  end if;
+
+  insert into public.audit_events (
+    actor_id,
+    action,
+    entity_type,
+    entity_id,
+    metadata
+  )
+  values (
+    null,
+    case
+      when p_succeeded then 'complete_official_document'
+      else 'fail_official_document'
+    end,
+    'official_document',
+    document_row.id,
+    jsonb_build_object(
+      'status', document_row.status,
+      'content_hash', document_row.content_hash,
+      'storage_path', document_row.storage_path
+    )
+  );
+
+  return document_row;
+end;
+$_$;
+
+
+ALTER FUNCTION "public"."complete_official_document"("p_document_id" "uuid", "p_storage_path" "text", "p_content_hash" "text", "p_succeeded" boolean, "p_error" "text") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."complete_transactional_email"("p_email_id" "uuid", "p_claim_token" "uuid", "p_succeeded" boolean, "p_provider_message_id" "text" DEFAULT NULL::"text", "p_error" "text" DEFAULT NULL::"text") RETURNS "void"
@@ -2852,6 +4472,44 @@ CREATE TABLE IF NOT EXISTS "public"."external_transfer_executions" (
 ALTER TABLE "public"."external_transfer_executions" OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "public"."financial_ledger_entries" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "account_id" "uuid" NOT NULL,
+    "owner_id" "uuid" NOT NULL,
+    "sequence_no" bigint NOT NULL,
+    "entry_key" "text" NOT NULL,
+    "entry_kind" "text" NOT NULL,
+    "amount_minor" bigint NOT NULL,
+    "currency" "text" NOT NULL,
+    "balance_before_minor" bigint NOT NULL,
+    "balance_after_minor" bigint NOT NULL,
+    "value_date" timestamp with time zone NOT NULL,
+    "booked_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "internal_reference" "text",
+    "source_transfer_id" "uuid",
+    "source_loan_id" "uuid",
+    "booked_by" "uuid",
+    "description" "text" NOT NULL,
+    "metadata" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "financial_ledger_entries_balance_after_minor_check" CHECK (("balance_after_minor" >= 0)),
+    CONSTRAINT "financial_ledger_entries_balance_before_minor_check" CHECK (("balance_before_minor" >= 0)),
+    CONSTRAINT "financial_ledger_entries_check" CHECK (("balance_after_minor" = ("balance_before_minor" + "amount_minor"))),
+    CONSTRAINT "financial_ledger_entries_check1" CHECK ((("amount_minor" <> 0) OR ("entry_kind" = ANY (ARRAY['migration_opening_balance'::"text", 'account_opening'::"text"])))),
+    CONSTRAINT "financial_ledger_entries_check2" CHECK (((("entry_kind" = 'transfer_debit'::"text") AND ("source_transfer_id" IS NOT NULL) AND ("source_loan_id" IS NULL) AND ("amount_minor" < 0)) OR (("entry_kind" = 'loan_credit'::"text") AND ("source_loan_id" IS NOT NULL) AND ("source_transfer_id" IS NULL) AND ("amount_minor" > 0)) OR (("entry_kind" = ANY (ARRAY['migration_opening_balance'::"text", 'account_opening'::"text", 'manual_adjustment'::"text"])) AND ("source_transfer_id" IS NULL) AND ("source_loan_id" IS NULL)))),
+    CONSTRAINT "financial_ledger_entries_currency_check" CHECK (("currency" ~ '^[A-Z]{3}$'::"text")),
+    CONSTRAINT "financial_ledger_entries_description_check" CHECK ((("char_length"("description") >= 3) AND ("char_length"("description") <= 1000))),
+    CONSTRAINT "financial_ledger_entries_entry_key_check" CHECK ((("char_length"("entry_key") >= 3) AND ("char_length"("entry_key") <= 220))),
+    CONSTRAINT "financial_ledger_entries_entry_kind_check" CHECK (("entry_kind" = ANY (ARRAY['migration_opening_balance'::"text", 'account_opening'::"text", 'manual_adjustment'::"text", 'transfer_debit'::"text", 'loan_credit'::"text"]))),
+    CONSTRAINT "financial_ledger_entries_internal_reference_check" CHECK ((("internal_reference" IS NULL) OR (("char_length"("internal_reference") >= 3) AND ("char_length"("internal_reference") <= 160)))),
+    CONSTRAINT "financial_ledger_entries_metadata_check" CHECK (("jsonb_typeof"("metadata") = 'object'::"text")),
+    CONSTRAINT "financial_ledger_entries_sequence_no_check" CHECK (("sequence_no" > 0))
+);
+
+
+ALTER TABLE "public"."financial_ledger_entries" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."kyc_events" (
     "id" bigint NOT NULL,
     "kyc_id" "uuid" NOT NULL,
@@ -3042,6 +4700,21 @@ ALTER TABLE ONLY "public"."external_transfer_executions"
 
 
 
+ALTER TABLE ONLY "public"."financial_ledger_entries"
+    ADD CONSTRAINT "financial_ledger_entries_account_id_sequence_no_key" UNIQUE ("account_id", "sequence_no");
+
+
+
+ALTER TABLE ONLY "public"."financial_ledger_entries"
+    ADD CONSTRAINT "financial_ledger_entries_entry_key_key" UNIQUE ("entry_key");
+
+
+
+ALTER TABLE ONLY "public"."financial_ledger_entries"
+    ADD CONSTRAINT "financial_ledger_entries_pkey" PRIMARY KEY ("id");
+
+
+
 ALTER TABLE ONLY "public"."financial_positions"
     ADD CONSTRAINT "financial_positions_pkey" PRIMARY KEY ("id");
 
@@ -3059,6 +4732,11 @@ ALTER TABLE ONLY "public"."kyc_applications"
 
 ALTER TABLE ONLY "public"."kyc_events"
     ADD CONSTRAINT "kyc_events_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE "public"."loan_applications"
+    ADD CONSTRAINT "loan_applications_internal_disbursement_metadata_check" CHECK (((("status" = 'external_settlement_confirmed'::"text") AND ("internal_disbursement_reference" IS NOT NULL)) OR ("status" <> 'external_settlement_confirmed'::"text"))) NOT VALID;
 
 
 
@@ -3097,6 +4775,21 @@ ALTER TABLE ONLY "public"."notifications"
 
 
 
+ALTER TABLE ONLY "public"."official_documents"
+    ADD CONSTRAINT "official_documents_document_number_key" UNIQUE ("document_number");
+
+
+
+ALTER TABLE ONLY "public"."official_documents"
+    ADD CONSTRAINT "official_documents_owner_id_idempotency_key_key" UNIQUE ("owner_id", "idempotency_key");
+
+
+
+ALTER TABLE ONLY "public"."official_documents"
+    ADD CONSTRAINT "official_documents_pkey" PRIMARY KEY ("id");
+
+
+
 ALTER TABLE ONLY "public"."profiles"
     ADD CONSTRAINT "profiles_pkey" PRIMARY KEY ("user_id");
 
@@ -3129,6 +4822,11 @@ ALTER TABLE ONLY "public"."transfer_intents"
 
 ALTER TABLE ONLY "public"."transfer_intents"
     ADD CONSTRAINT "transfer_intents_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE "public"."transfer_intents"
+    ADD CONSTRAINT "transfer_intents_settlement_metadata_check" CHECK (((("status" = 'external_settlement_confirmed'::"text") AND ("internal_execution_reference" IS NOT NULL) AND ("settled_by" IS NOT NULL) AND ("settled_at" IS NOT NULL)) OR ("status" <> 'external_settlement_confirmed'::"text"))) NOT VALID;
 
 
 
@@ -3174,7 +4872,51 @@ CREATE UNIQUE INDEX "external_transfer_reference_idx" ON "public"."external_tran
 
 
 
+CREATE INDEX "financial_ledger_entries_booked_by_idx" ON "public"."financial_ledger_entries" USING "btree" ("booked_by") WHERE ("booked_by" IS NOT NULL);
+
+
+
+CREATE UNIQUE INDEX "financial_ledger_entries_loan_uidx" ON "public"."financial_ledger_entries" USING "btree" ("source_loan_id") WHERE (("source_loan_id" IS NOT NULL) AND ("entry_kind" = 'loan_credit'::"text"));
+
+
+
+CREATE INDEX "financial_ledger_entries_owner_booked_idx" ON "public"."financial_ledger_entries" USING "btree" ("owner_id", "booked_at" DESC);
+
+
+
+CREATE INDEX "financial_ledger_entries_position_booked_idx" ON "public"."financial_ledger_entries" USING "btree" ("account_id", "booked_at" DESC);
+
+
+
+CREATE UNIQUE INDEX "financial_ledger_entries_position_reference_uidx" ON "public"."financial_ledger_entries" USING "btree" ("account_id", "internal_reference") WHERE ("internal_reference" IS NOT NULL);
+
+
+
+CREATE UNIQUE INDEX "financial_ledger_entries_transfer_uidx" ON "public"."financial_ledger_entries" USING "btree" ("source_transfer_id") WHERE (("source_transfer_id" IS NOT NULL) AND ("entry_kind" = 'transfer_debit'::"text"));
+
+
+
+CREATE UNIQUE INDEX "financial_positions_account_number_uidx" ON "public"."financial_positions" USING "btree" ("account_number") WHERE ("account_number" IS NOT NULL);
+
+
+
+CREATE UNIQUE INDEX "financial_positions_declaration_idempotency_uidx" ON "public"."financial_positions" USING "btree" ("declaration_idempotency_key") WHERE ("declaration_idempotency_key" IS NOT NULL);
+
+
+
+CREATE INDEX "financial_positions_declared_by_idx" ON "public"."financial_positions" USING "btree" ("declared_by") WHERE ("declared_by" IS NOT NULL);
+
+
+
+CREATE UNIQUE INDEX "financial_positions_iban_uidx" ON "public"."financial_positions" USING "btree" ("iban") WHERE ("iban" IS NOT NULL);
+
+
+
 CREATE INDEX "financial_positions_owner_idx" ON "public"."financial_positions" USING "btree" ("owner_id");
+
+
+
+CREATE INDEX "financial_positions_owner_status_idx" ON "public"."financial_positions" USING "btree" ("owner_id", "account_status");
 
 
 
@@ -3210,6 +4952,10 @@ CREATE INDEX "loan_applications_disbursed_by_idx" ON "public"."loan_applications
 
 
 
+CREATE UNIQUE INDEX "loan_applications_internal_disbursement_reference_uidx" ON "public"."loan_applications" USING "btree" ("internal_disbursement_reference") WHERE ("internal_disbursement_reference" IS NOT NULL);
+
+
+
 CREATE INDEX "loan_applications_owner_created_idx" ON "public"."loan_applications" USING "btree" ("owner_id", "submitted_at" DESC);
 
 
@@ -3231,6 +4977,30 @@ CREATE INDEX "loan_review_checks_reviewer_id_idx" ON "public"."loan_review_check
 
 
 CREATE INDEX "notifications_recipient_unread_idx" ON "public"."notifications" USING "btree" ("recipient_id", "created_at" DESC) WHERE ("read_at" IS NULL);
+
+
+
+CREATE INDEX "official_documents_account_created_idx" ON "public"."official_documents" USING "btree" ("account_id", "created_at" DESC) WHERE ("account_id" IS NOT NULL);
+
+
+
+CREATE INDEX "official_documents_issued_by_idx" ON "public"."official_documents" USING "btree" ("issued_by");
+
+
+
+CREATE INDEX "official_documents_loan_idx" ON "public"."official_documents" USING "btree" ("loan_id") WHERE ("loan_id" IS NOT NULL);
+
+
+
+CREATE INDEX "official_documents_owner_created_idx" ON "public"."official_documents" USING "btree" ("owner_id", "created_at" DESC);
+
+
+
+CREATE INDEX "official_documents_pending_idx" ON "public"."official_documents" USING "btree" ("requested_at") WHERE ("status" = 'pending'::"text");
+
+
+
+CREATE INDEX "official_documents_transfer_idx" ON "public"."official_documents" USING "btree" ("transfer_id") WHERE ("transfer_id" IS NOT NULL);
 
 
 
@@ -3262,7 +5032,15 @@ CREATE INDEX "transfer_intents_active_review_idx" ON "public"."transfer_intents"
 
 
 
+CREATE UNIQUE INDEX "transfer_intents_internal_execution_reference_uidx" ON "public"."transfer_intents" USING "btree" ("internal_execution_reference") WHERE ("internal_execution_reference" IS NOT NULL);
+
+
+
 CREATE INDEX "transfer_intents_owner_created_idx" ON "public"."transfer_intents" USING "btree" ("owner_id", "submitted_at" DESC);
+
+
+
+CREATE INDEX "transfer_intents_settled_by_idx" ON "public"."transfer_intents" USING "btree" ("settled_by") WHERE ("settled_by" IS NOT NULL);
 
 
 
@@ -3275,6 +5053,26 @@ CREATE INDEX "transfer_review_checks_reviewer_id_idx" ON "public"."transfer_revi
 
 
 CREATE INDEX "transfer_review_checks_transfer_idx" ON "public"."transfer_review_checks" USING "btree" ("transfer_id");
+
+
+
+CREATE OR REPLACE TRIGGER "financial_ledger_entries_prevent_delete" BEFORE DELETE ON "public"."financial_ledger_entries" FOR EACH ROW EXECUTE FUNCTION "private"."prevent_financial_ledger_mutation"();
+
+
+
+CREATE OR REPLACE TRIGGER "financial_ledger_entries_prevent_update" BEFORE UPDATE ON "public"."financial_ledger_entries" FOR EACH ROW EXECUTE FUNCTION "private"."prevent_financial_ledger_mutation"();
+
+
+
+CREATE OR REPLACE TRIGGER "financial_ledger_entries_validate" BEFORE INSERT ON "public"."financial_ledger_entries" FOR EACH ROW EXECUTE FUNCTION "private"."validate_financial_ledger_entry"();
+
+
+
+CREATE OR REPLACE TRIGGER "financial_positions_ensure_demo_banking_artifacts" AFTER INSERT OR UPDATE ON "public"."financial_positions" FOR EACH ROW EXECUTE FUNCTION "private"."ensure_demo_banking_artifacts"();
+
+
+
+CREATE OR REPLACE TRIGGER "financial_positions_prepare_demo_account" BEFORE INSERT OR UPDATE ON "public"."financial_positions" FOR EACH ROW EXECUTE FUNCTION "private"."prepare_demo_financial_position"();
 
 
 
@@ -3299,6 +5097,18 @@ CREATE OR REPLACE TRIGGER "loan_review_checks_set_updated_at" BEFORE UPDATE ON "
 
 
 CREATE OR REPLACE TRIGGER "loan_validate_disbursement_target" BEFORE INSERT OR UPDATE OF "status", "credited_position_id", "disbursed_by", "disbursed_at" ON "public"."loan_applications" FOR EACH ROW EXECUTE FUNCTION "private"."validate_loan_disbursement_target"();
+
+
+
+CREATE OR REPLACE TRIGGER "official_documents_protect_delete" BEFORE DELETE ON "public"."official_documents" FOR EACH ROW EXECUTE FUNCTION "private"."protect_official_document"();
+
+
+
+CREATE OR REPLACE TRIGGER "official_documents_protect_update" BEFORE UPDATE ON "public"."official_documents" FOR EACH ROW EXECUTE FUNCTION "private"."protect_official_document"();
+
+
+
+CREATE OR REPLACE TRIGGER "official_documents_set_updated_at" BEFORE UPDATE ON "public"."official_documents" FOR EACH ROW EXECUTE FUNCTION "private"."set_updated_at"();
 
 
 
@@ -3358,6 +5168,36 @@ ALTER TABLE ONLY "public"."external_transfer_executions"
 
 ALTER TABLE ONLY "public"."external_transfer_executions"
     ADD CONSTRAINT "external_transfer_executions_transfer_id_fkey" FOREIGN KEY ("transfer_id") REFERENCES "public"."transfer_intents"("id") ON DELETE RESTRICT;
+
+
+
+ALTER TABLE ONLY "public"."financial_ledger_entries"
+    ADD CONSTRAINT "financial_ledger_entries_account_id_fkey" FOREIGN KEY ("account_id") REFERENCES "public"."financial_positions"("id") ON DELETE RESTRICT;
+
+
+
+ALTER TABLE ONLY "public"."financial_ledger_entries"
+    ADD CONSTRAINT "financial_ledger_entries_booked_by_fkey" FOREIGN KEY ("booked_by") REFERENCES "public"."staff_members"("user_id") ON DELETE RESTRICT;
+
+
+
+ALTER TABLE ONLY "public"."financial_ledger_entries"
+    ADD CONSTRAINT "financial_ledger_entries_owner_id_fkey" FOREIGN KEY ("owner_id") REFERENCES "public"."profiles"("user_id") ON DELETE RESTRICT;
+
+
+
+ALTER TABLE ONLY "public"."financial_ledger_entries"
+    ADD CONSTRAINT "financial_ledger_entries_source_loan_id_fkey" FOREIGN KEY ("source_loan_id") REFERENCES "public"."loan_applications"("id") ON DELETE RESTRICT;
+
+
+
+ALTER TABLE ONLY "public"."financial_ledger_entries"
+    ADD CONSTRAINT "financial_ledger_entries_source_transfer_id_fkey" FOREIGN KEY ("source_transfer_id") REFERENCES "public"."transfer_intents"("id") ON DELETE RESTRICT;
+
+
+
+ALTER TABLE ONLY "public"."financial_positions"
+    ADD CONSTRAINT "financial_positions_declared_by_fkey" FOREIGN KEY ("declared_by") REFERENCES "public"."staff_members"("user_id");
 
 
 
@@ -3426,6 +5266,36 @@ ALTER TABLE ONLY "public"."notifications"
 
 
 
+ALTER TABLE ONLY "public"."official_documents"
+    ADD CONSTRAINT "official_documents_account_id_fkey" FOREIGN KEY ("account_id") REFERENCES "public"."financial_positions"("id") ON DELETE RESTRICT;
+
+
+
+ALTER TABLE ONLY "public"."official_documents"
+    ADD CONSTRAINT "official_documents_issued_by_fkey" FOREIGN KEY ("issued_by") REFERENCES "public"."staff_members"("user_id") ON DELETE RESTRICT;
+
+
+
+ALTER TABLE ONLY "public"."official_documents"
+    ADD CONSTRAINT "official_documents_loan_id_fkey" FOREIGN KEY ("loan_id") REFERENCES "public"."loan_applications"("id") ON DELETE RESTRICT;
+
+
+
+ALTER TABLE ONLY "public"."official_documents"
+    ADD CONSTRAINT "official_documents_owner_id_fkey" FOREIGN KEY ("owner_id") REFERENCES "public"."profiles"("user_id") ON DELETE RESTRICT;
+
+
+
+ALTER TABLE ONLY "public"."official_documents"
+    ADD CONSTRAINT "official_documents_revoked_by_fkey" FOREIGN KEY ("revoked_by") REFERENCES "public"."staff_members"("user_id") ON DELETE RESTRICT;
+
+
+
+ALTER TABLE ONLY "public"."official_documents"
+    ADD CONSTRAINT "official_documents_transfer_id_fkey" FOREIGN KEY ("transfer_id") REFERENCES "public"."transfer_intents"("id") ON DELETE RESTRICT;
+
+
+
 ALTER TABLE ONLY "public"."profiles"
     ADD CONSTRAINT "profiles_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
 
@@ -3458,6 +5328,11 @@ ALTER TABLE ONLY "public"."transfer_events"
 
 ALTER TABLE ONLY "public"."transfer_intents"
     ADD CONSTRAINT "transfer_intents_owner_id_fkey" FOREIGN KEY ("owner_id") REFERENCES "public"."profiles"("user_id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."transfer_intents"
+    ADD CONSTRAINT "transfer_intents_settled_by_fkey" FOREIGN KEY ("settled_by") REFERENCES "public"."staff_members"("user_id");
 
 
 
@@ -3498,6 +5373,13 @@ ALTER TABLE "public"."external_transfer_executions" ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "external_transfer_executions_select_related" ON "public"."external_transfer_executions" FOR SELECT TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM "public"."transfer_intents" "t"
   WHERE (("t"."id" = "external_transfer_executions"."transfer_id") AND (("t"."owner_id" = ( SELECT "auth"."uid"() AS "uid")) OR ( SELECT "private"."is_active_staff"(NULL::"text"[]) AS "is_active_staff"))))));
+
+
+
+ALTER TABLE "public"."financial_ledger_entries" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "financial_ledger_entries_select_own_or_admin" ON "public"."financial_ledger_entries" FOR SELECT TO "authenticated" USING ((("owner_id" = ( SELECT "auth"."uid"() AS "uid")) OR ( SELECT "private"."is_active_staff"(ARRAY['admin'::"text"]) AS "is_active_staff")));
 
 
 
@@ -3557,6 +5439,13 @@ CREATE POLICY "notifications_select_own" ON "public"."notifications" FOR SELECT 
 
 
 CREATE POLICY "notifications_update_own" ON "public"."notifications" FOR UPDATE TO "authenticated" USING (("recipient_id" = ( SELECT "auth"."uid"() AS "uid"))) WITH CHECK (("recipient_id" = ( SELECT "auth"."uid"() AS "uid")));
+
+
+
+ALTER TABLE "public"."official_documents" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "official_documents_select_own_or_admin" ON "public"."official_documents" FOR SELECT TO "authenticated" USING ((("owner_id" = ( SELECT "auth"."uid"() AS "uid")) OR ( SELECT "private"."is_active_staff"(ARRAY['admin'::"text"]) AS "is_active_staff")));
 
 
 
@@ -3625,8 +5514,36 @@ REVOKE ALL ON FUNCTION "private"."ensure_branch_manager"() FROM PUBLIC;
 
 
 
+REVOKE ALL ON FUNCTION "private"."ensure_demo_banking_artifacts"() FROM PUBLIC;
+
+
+
 REVOKE ALL ON FUNCTION "private"."is_active_staff"("required_roles" "text"[]) FROM PUBLIC;
 GRANT ALL ON FUNCTION "private"."is_active_staff"("required_roles" "text"[]) TO "authenticated";
+
+
+
+REVOKE ALL ON FUNCTION "private"."is_valid_iban"("p_iban" "text") FROM PUBLIC;
+
+
+
+REVOKE ALL ON FUNCTION "private"."normalize_iban"("p_iban" "text") FROM PUBLIC;
+
+
+
+REVOKE ALL ON FUNCTION "private"."prepare_demo_financial_position"() FROM PUBLIC;
+
+
+
+REVOKE ALL ON FUNCTION "private"."prevent_financial_ledger_mutation"() FROM PUBLIC;
+
+
+
+REVOKE ALL ON FUNCTION "private"."protect_official_document"() FROM PUBLIC;
+
+
+
+REVOKE ALL ON FUNCTION "private"."validate_financial_ledger_entry"() FROM PUBLIC;
 
 
 
@@ -3640,8 +5557,12 @@ GRANT SELECT ON TABLE "public"."financial_positions" TO "authenticated";
 
 
 REVOKE ALL ON FUNCTION "public"."adjust_financial_position"("p_position_id" "uuid", "p_delta_minor" bigint, "p_as_of" timestamp with time zone, "p_reason" "text") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."adjust_financial_position"("p_position_id" "uuid", "p_delta_minor" bigint, "p_as_of" timestamp with time zone, "p_reason" "text") TO "service_role";
-GRANT ALL ON FUNCTION "public"."adjust_financial_position"("p_position_id" "uuid", "p_delta_minor" bigint, "p_as_of" timestamp with time zone, "p_reason" "text") TO "authenticated";
+
+
+
+REVOKE ALL ON FUNCTION "public"."branch_manager_adjust_balance"("p_account_id" "uuid", "p_target_amount_minor" bigint, "p_value_date" timestamp with time zone, "p_reason" "text", "p_idempotency_key" "uuid") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."branch_manager_adjust_balance"("p_account_id" "uuid", "p_target_amount_minor" bigint, "p_value_date" timestamp with time zone, "p_reason" "text", "p_idempotency_key" "uuid") TO "service_role";
+GRANT ALL ON FUNCTION "public"."branch_manager_adjust_balance"("p_account_id" "uuid", "p_target_amount_minor" bigint, "p_value_date" timestamp with time zone, "p_reason" "text", "p_idempotency_key" "uuid") TO "authenticated";
 
 
 
@@ -3667,6 +5588,12 @@ GRANT ALL ON FUNCTION "public"."branch_manager_approve_transfer"("p_transfer_id"
 
 
 
+REVOKE ALL ON FUNCTION "public"."branch_manager_declare_account"("p_owner_id" "uuid", "p_label" "text", "p_account_type" "text", "p_currency" "text", "p_iban" "text", "p_bic" "text", "p_account_number" "text", "p_account_holder_name" "text", "p_institution_name" "text", "p_branch_name" "text", "p_branch_code" "text", "p_opening_balance_minor" bigint, "p_opened_at" timestamp with time zone, "p_is_demo" boolean, "p_reason" "text", "p_idempotency_key" "uuid") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."branch_manager_declare_account"("p_owner_id" "uuid", "p_label" "text", "p_account_type" "text", "p_currency" "text", "p_iban" "text", "p_bic" "text", "p_account_number" "text", "p_account_holder_name" "text", "p_institution_name" "text", "p_branch_name" "text", "p_branch_code" "text", "p_opening_balance_minor" bigint, "p_opened_at" timestamp with time zone, "p_is_demo" boolean, "p_reason" "text", "p_idempotency_key" "uuid") TO "service_role";
+GRANT ALL ON FUNCTION "public"."branch_manager_declare_account"("p_owner_id" "uuid", "p_label" "text", "p_account_type" "text", "p_currency" "text", "p_iban" "text", "p_bic" "text", "p_account_number" "text", "p_account_holder_name" "text", "p_institution_name" "text", "p_branch_name" "text", "p_branch_code" "text", "p_opening_balance_minor" bigint, "p_opened_at" timestamp with time zone, "p_is_demo" boolean, "p_reason" "text", "p_idempotency_key" "uuid") TO "authenticated";
+
+
+
 REVOKE ALL ON FUNCTION "public"."branch_manager_disburse_loan"("p_loan_id" "uuid", "p_destination_position_id" "uuid", "p_note" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."branch_manager_disburse_loan"("p_loan_id" "uuid", "p_destination_position_id" "uuid", "p_note" "text") TO "service_role";
 GRANT ALL ON FUNCTION "public"."branch_manager_disburse_loan"("p_loan_id" "uuid", "p_destination_position_id" "uuid", "p_note" "text") TO "authenticated";
@@ -3676,6 +5603,17 @@ GRANT ALL ON FUNCTION "public"."branch_manager_disburse_loan"("p_loan_id" "uuid"
 REVOKE ALL ON FUNCTION "public"."branch_manager_finalize_transfer"("p_transfer_id" "uuid", "p_note" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."branch_manager_finalize_transfer"("p_transfer_id" "uuid", "p_note" "text") TO "service_role";
 GRANT ALL ON FUNCTION "public"."branch_manager_finalize_transfer"("p_transfer_id" "uuid", "p_note" "text") TO "authenticated";
+
+
+
+GRANT SELECT ON TABLE "public"."official_documents" TO "authenticated";
+GRANT SELECT ON TABLE "public"."official_documents" TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."branch_manager_issue_official_document"("p_owner_id" "uuid", "p_account_id" "uuid", "p_transfer_id" "uuid", "p_loan_id" "uuid", "p_document_type" "text", "p_title" "text", "p_language" "text", "p_period_start" "date", "p_period_end" "date", "p_idempotency_key" "uuid") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."branch_manager_issue_official_document"("p_owner_id" "uuid", "p_account_id" "uuid", "p_transfer_id" "uuid", "p_loan_id" "uuid", "p_document_type" "text", "p_title" "text", "p_language" "text", "p_period_start" "date", "p_period_end" "date", "p_idempotency_key" "uuid") TO "service_role";
+GRANT ALL ON FUNCTION "public"."branch_manager_issue_official_document"("p_owner_id" "uuid", "p_account_id" "uuid", "p_transfer_id" "uuid", "p_loan_id" "uuid", "p_document_type" "text", "p_title" "text", "p_language" "text", "p_period_start" "date", "p_period_end" "date", "p_idempotency_key" "uuid") TO "authenticated";
 
 
 
@@ -3691,12 +5629,23 @@ GRANT ALL ON FUNCTION "public"."branch_manager_reject_transfer"("p_transfer_id" 
 
 
 
+REVOKE ALL ON FUNCTION "public"."branch_manager_revoke_official_document"("p_document_id" "uuid", "p_reason" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."branch_manager_revoke_official_document"("p_document_id" "uuid", "p_reason" "text") TO "service_role";
+GRANT ALL ON FUNCTION "public"."branch_manager_revoke_official_document"("p_document_id" "uuid", "p_reason" "text") TO "authenticated";
+
+
+
 GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."transactional_email_outbox" TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "public"."claim_transactional_emails"("p_limit" integer) FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."claim_transactional_emails"("p_limit" integer) TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."complete_official_document"("p_document_id" "uuid", "p_storage_path" "text", "p_content_hash" "text", "p_succeeded" boolean, "p_error" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."complete_official_document"("p_document_id" "uuid", "p_storage_path" "text", "p_content_hash" "text", "p_succeeded" boolean, "p_error" "text") TO "service_role";
 
 
 
@@ -3723,8 +5672,6 @@ GRANT ALL ON FUNCTION "public"."provision_demo_accounts"("p_admin_user_id" "uuid
 
 
 REVOKE ALL ON FUNCTION "public"."record_financial_position"("p_owner_id" "uuid", "p_label" "text", "p_currency" "text", "p_amount_minor" bigint, "p_as_of" timestamp with time zone, "p_external_identifier_masked" "text", "p_reason" "text") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."record_financial_position"("p_owner_id" "uuid", "p_label" "text", "p_currency" "text", "p_amount_minor" bigint, "p_as_of" timestamp with time zone, "p_external_identifier_masked" "text", "p_reason" "text") TO "service_role";
-GRANT ALL ON FUNCTION "public"."record_financial_position"("p_owner_id" "uuid", "p_label" "text", "p_currency" "text", "p_amount_minor" bigint, "p_as_of" timestamp with time zone, "p_external_identifier_masked" "text", "p_reason" "text") TO "authenticated";
 
 
 
@@ -3816,6 +5763,11 @@ GRANT SELECT ON TABLE "public"."external_loan_fundings" TO "authenticated";
 
 GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."external_transfer_executions" TO "service_role";
 GRANT SELECT ON TABLE "public"."external_transfer_executions" TO "authenticated";
+
+
+
+GRANT SELECT ON TABLE "public"."financial_ledger_entries" TO "authenticated";
+GRANT SELECT ON TABLE "public"."financial_ledger_entries" TO "service_role";
 
 
 

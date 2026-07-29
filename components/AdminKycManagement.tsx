@@ -67,8 +67,9 @@ export default function AdminKycManagement() {
               Contrôle humain des dossiers d&apos;identité
             </h1>
             <p className="text-xs text-slate-500">
-              L&apos;approbation confirme le contrôle KYC dans Monalyz. Elle ne crée ni
-              compte bancaire, ni IBAN, ni relation avec une banque.
+              L&apos;approbation confirme le contrôle KYC dans Monalyz. La déclaration
+              d&apos;un compte et de son IBAN reste une action séparée du chef
+              d&apos;agence, après le traitement interne de la banque.
             </p>
           </div>
         </div>
@@ -292,7 +293,8 @@ export default function AdminKycManagement() {
 
                 {selected.workflowStatus === 'approved' && (
                   <p className="p-3 bg-emerald-50 text-emerald-800 rounded-xl font-bold">
-                    Identité approuvée. Aucun compte bancaire ni IBAN n&apos;a été créé.
+                    Identité approuvée. Le compte et l&apos;IBAN peuvent maintenant
+                    être déclarés depuis le registre bancaire.
                   </p>
                 )}
                 {selected.workflowStatus === 'rejected' && (

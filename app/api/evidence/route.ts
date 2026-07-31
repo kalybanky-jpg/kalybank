@@ -101,13 +101,57 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const path = `${user.id}/${kind}/${crypto.randomUUID()}.${detected.extension}`;
+  if (bucket === 'kyc-evidence') {
+    const allowedKinds = new Set([
+      'id_front',
+      'id_back',
+      'selfie',
+      'proof_of_address',
+    ]);
+    if (!allowedKinds.has(kind)) {
+      return noStoreJson({ error: 'Type de pièce KYC invalide.' }, 400);
+    }
+    if (kind === 'selfie' && detected.mime !== 'image/jpeg') {
+      return noStoreJson({ error: 'Le selfie doit être une photo JPEG.' }, 415);
+    }
+
+    const { data: existingKyc, error: kycError } = await supabase
+      .from('kyc_applications')
+      .select('status,requested_items')
+      .eq('owner_id', user.id)
+      .order('submitted_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (kycError) return noStoreJson({ error: kycError.message }, 400);
+    if (
+      existingKyc &&
+      (!['needs_information', 'rejected'].includes(existingKyc.status) ||
+        !existingKyc.requested_items?.includes(kind))
+    ) {
+      return noStoreJson(
+        { error: 'Cette pièce ne fait pas partie des corrections demandées.' },
+        403,
+      );
+    }
+  }
+
+  const path =
+    bucket === 'kyc-evidence'
+      ? `${user.id}/current/${kind}.${detected.extension}`
+      : `${user.id}/${kind}/${crypto.randomUUID()}.${detected.extension}`;
   const { error: uploadError } = await supabase.storage.from(bucket).upload(path, bytes, {
     contentType: detected.mime,
     cacheControl: '3600',
-    upsert: false,
+    upsert: bucket === 'kyc-evidence',
   });
   if (uploadError) return noStoreJson({ error: uploadError.message }, 400);
+
+  if (bucket === 'kyc-evidence') {
+    const stalePaths = ['pdf', 'png', 'jpg']
+      .filter((extension) => extension !== detected.extension)
+      .map((extension) => `${user.id}/current/${kind}.${extension}`);
+    await supabase.storage.from(bucket).remove(stalePaths);
+  }
 
   return noStoreJson({ path }, 201);
 }

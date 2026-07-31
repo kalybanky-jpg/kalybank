@@ -40,6 +40,16 @@ const PLACEHOLDER_PATTERN =
   /(?:replace[-_ ]?me|your[-_ ]|your-domain|votre[-_ ]|example\.(?:com|net|org)|<[^>]+>)/i;
 const WORDMARK_MARKER =
   "{{ .SiteURL }}/brand/monalyz/monalyz-wordmark-email-360.png";
+const LANGUAGE_MARKER = ".Data.preferred_language";
+
+function localizedSubject(
+  french: string,
+  english: string,
+  german: string,
+  spanish: string,
+): string {
+  return `{{ if eq .Data.preferred_language "en" }}${english}{{ else if eq .Data.preferred_language "de" }}${german}{{ else if eq .Data.preferred_language "es" }}${spanish}{{ else }}${french}{{ end }}`;
+}
 
 function requiredValue(
   environment: AuthEmailEnvironment,
@@ -154,17 +164,20 @@ export function buildSupabaseAuthEmailConfig(
     WORDMARK_MARKER,
     "{{ .TokenHash }}",
     "type=email",
+    LANGUAGE_MARKER,
   ]);
   assertTemplate("recovery", templates.recovery, [
     "{{ .SiteURL }}",
     WORDMARK_MARKER,
     "{{ .TokenHash }}",
     "type=recovery",
+    LANGUAGE_MARKER,
   ]);
   assertTemplate("password_changed_notification", templates.passwordChanged, [
     "{{ .SiteURL }}",
     WORDMARK_MARKER,
     "{{ .Email }}",
+    LANGUAGE_MARKER,
   ]);
 
   const smtp =
@@ -198,13 +211,27 @@ export function buildSupabaseAuthEmailConfig(
       smtp_sender_name: senderName,
       smtp_max_frequency: maxFrequency,
       rate_limit_email_sent: rateLimit,
-      mailer_subjects_confirmation: "Confirmez votre compte Monalyz",
+      mailer_subjects_confirmation: localizedSubject(
+        "Confirmez votre adresse e-mail",
+        "Confirm your email address",
+        "Bestätigen Sie Ihre E-Mail-Adresse",
+        "Confirme su correo electrónico",
+      ),
       mailer_templates_confirmation_content: templates.confirmation,
-      mailer_subjects_recovery: "Réinitialisez votre mot de passe Monalyz",
+      mailer_subjects_recovery: localizedSubject(
+        "Réinitialisez votre mot de passe Monalyz",
+        "Reset your Monalyz password",
+        "Setzen Sie Ihr Monalyz-Passwort zurück",
+        "Restablezca su contraseña de Monalyz",
+      ),
       mailer_templates_recovery_content: templates.recovery,
       mailer_notifications_password_changed_enabled: true,
-      mailer_subjects_password_changed_notification:
+      mailer_subjects_password_changed_notification: localizedSubject(
         "Votre mot de passe Monalyz a été modifié",
+        "Your Monalyz password has been changed",
+        "Ihr Monalyz-Passwort wurde geändert",
+        "Su contraseña de Monalyz ha sido modificada",
+      ),
       mailer_templates_password_changed_notification_content:
         templates.passwordChanged,
     },

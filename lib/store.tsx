@@ -8,12 +8,15 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import { isAuthSessionMissingError } from '@supabase/supabase-js';
 import type {
+  AccountNumberConfiguration,
   AdminActivityLog,
   BankAccount,
   Currency,
   CurrencyRates,
   KYCApplication,
+  KYCReviewChecklist,
   Language,
   LoanApplication,
   OfficialDocument,
@@ -34,7 +37,6 @@ import {
 } from './domain/financial';
 import { createClient } from './supabase/client';
 import { isPublicSupabaseConfigured } from './supabase/config';
-import { deleteEvidence, uploadEvidence } from './evidence';
 import { authFailureRedirect } from './security/navigation';
 import { dispatchTransactionalEmails } from './transactional-email-client';
 import {
@@ -42,6 +44,7 @@ import {
   LANGUAGE_SOURCE_COOKIE,
   type LanguageSource,
   isSupportedLanguage,
+  preferredLanguageMetadata,
   resolveSupportedLanguage,
   shouldPersistLanguageCookie,
 } from './language';
@@ -63,6 +66,8 @@ interface AppState {
   isLoading: boolean;
   lastError: string | null;
   refreshData: () => Promise<void>;
+  accountNumberConfiguration: AccountNumberConfiguration | null;
+  updateAccountNumberPrefix: (prefix: string) => Promise<void>;
 
   accounts: BankAccount[];
   transactions: Transaction[];
@@ -114,6 +119,11 @@ interface AppState {
     > & { evidenceFiles?: File[] },
   ) => Promise<string>;
   approveTransfer: (transferId: string, note?: string) => Promise<void>;
+  reviewTransferCheck: (
+    transferId: string,
+    checkKind: 'dual_review' | 'escalation' | 'compliance' | 'final_authorization',
+    note: string,
+  ) => Promise<void>;
   finalizeTransfer: (transferId: string, note: string) => Promise<void>;
   rejectTransfer: (transferId: string, reason?: string) => Promise<void>;
   approveLoan: (loanId: string, note?: string) => Promise<void>;
@@ -124,8 +134,17 @@ interface AppState {
   ) => Promise<void>;
   rejectLoan: (loanId: string, reason: string) => Promise<void>;
   markNotificationAsRead: (notificationId: string) => Promise<void>;
-  approveKYCApplication: (kycId: string) => Promise<void>;
-  rejectKYCApplication: (kycId: string, reason: string) => Promise<void>;
+  beginKYCReview: (kycId: string) => Promise<void>;
+  updateKYCChecklist: (kycId: string, checklist: KYCReviewChecklist) => Promise<void>;
+  requestKYCInformation: (
+    kycId: string,
+    requestedItems: string[],
+    reasonCode: string,
+    note: string,
+    dueAt?: string,
+  ) => Promise<void>;
+  approveKYCApplication: (kycId: string, note?: string) => Promise<void>;
+  rejectKYCApplication: (kycId: string, reason: string, reasonCode?: string) => Promise<void>;
   updateAccountBalance: (
     accountId: string,
     newAmount: number,
@@ -134,11 +153,10 @@ interface AppState {
   declareBankAccount: (account: {
     ownerId: string;
     label: string;
-    accountType: 'current' | 'savings';
+    accountType: 'current';
     currency: Currency;
     iban: string;
     bic: string;
-    accountNumber: string;
     accountHolderName: string;
     institutionName: string;
     branchName: string;
@@ -273,6 +291,22 @@ interface KycRow {
   status: NonNullable<KYCApplication['workflowStatus']>;
   submitted_at: string;
   review_note: string | null;
+  document_type: KYCApplication['documentType'] | null;
+  document_number: string | null;
+  issuing_country: string | null;
+  document_expires_on: string | null;
+  requested_items: string[];
+  correction_reason_code: string | null;
+  correction_due_at: string | null;
+  kyc_review_checklists?: {
+    document_quality: KYCReviewChecklist['documentQuality'];
+    data_consistency: KYCReviewChecklist['dataConsistency'];
+    selfie_match: KYCReviewChecklist['selfieMatch'];
+    adulthood: KYCReviewChecklist['adulthood'];
+    fatca: KYCReviewChecklist['fatca'];
+    pep: KYCReviewChecklist['pep'];
+    internal_comments: string | null;
+  }[] | null;
 }
 
 function friendlyDate(value: string) {
@@ -378,12 +412,17 @@ export function AppProvider({
   const [language, setLanguageState] = useState<Language>(initialLanguage);
   const languageSourceRef = useRef<LanguageSource>(initialLanguageSource);
   const [role, setRole] = useState<UserRole>('user');
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(() => {
+    if (typeof window === 'undefined') return 'dashboard';
+    return new URLSearchParams(window.location.search).get('tab') ?? 'dashboard';
+  });
   const [currency, setCurrency] = useState<Currency>('EUR');
   const [rates, setRates] = useState<CurrencyRates>(DEFAULT_RATES);
   const [isMaskedBalance, setIsMaskedBalance] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [lastError, setLastError] = useState<string | null>(null);
+  const [accountNumberConfiguration, setAccountNumberConfiguration] =
+    useState<AccountNumberConfiguration | null>(null);
 
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -432,7 +471,7 @@ export function AppProvider({
         data: { user },
         error: userError,
       } = await supabase.auth.getUser();
-      if (userError) {
+      if (userError && !isAuthSessionMissingError(userError)) {
         applyLanguage(previousLanguage, previousSource, false);
         restoreLanguageCookieSnapshot(previousCookie);
         setLastError(userError.message);
@@ -440,11 +479,29 @@ export function AppProvider({
       }
       if (!user) return;
 
+      const previousAuthLanguage = isSupportedLanguage(
+        user.user_metadata?.preferred_language,
+      )
+        ? user.user_metadata.preferred_language
+        : previousLanguage;
+      const { error: authMetadataError } = await supabase.auth.updateUser({
+        data: preferredLanguageMetadata(nextLanguage),
+      });
+      if (authMetadataError) {
+        applyLanguage(previousLanguage, previousSource, false);
+        restoreLanguageCookieSnapshot(previousCookie);
+        setLastError(authMetadataError.message);
+        throw authMetadataError;
+      }
+
       const { error } = await supabase
         .from('profiles')
         .update({ preferred_language: nextLanguage })
         .eq('user_id', user.id);
       if (error) {
+        await supabase.auth.updateUser({
+          data: preferredLanguageMetadata(previousAuthLanguage),
+        });
         applyLanguage(previousLanguage, previousSource, false);
         restoreLanguageCookieSnapshot(previousCookie);
         setLastError(error.message);
@@ -463,6 +520,7 @@ export function AppProvider({
     setNotifications([]);
     setActivityLogs([]);
     setKycApplications([]);
+    setAccountNumberConfiguration(null);
     setRole('user');
   }, []);
 
@@ -530,7 +588,10 @@ export function AppProvider({
           .select('*')
           .order('issued_at', { ascending: false, nullsFirst: false }),
         supabase.from('notifications').select('*').order('created_at', { ascending: false }),
-        supabase.from('kyc_applications').select('*').order('submitted_at', { ascending: false }),
+        supabase
+          .from('kyc_applications')
+          .select('*,kyc_review_checklists(*)')
+          .order('submitted_at', { ascending: false }),
         supabase.from('audit_events').select('*').order('created_at', { ascending: false }).limit(100),
       ]);
 
@@ -548,7 +609,28 @@ export function AppProvider({
       ].find((result) => result.error)?.error;
       if (firstError) throw firstError;
 
-      setRole(roleResult.data === 'admin' ? 'admin' : 'user');
+      const isAdmin = roleResult.data === 'admin';
+      setRole(isAdmin ? 'admin' : 'user');
+      if (isAdmin) {
+        const { data: configurationRows, error: configurationError } =
+          await supabase.rpc('get_account_number_configuration');
+        if (configurationError) throw configurationError;
+        const configuration = Array.isArray(configurationRows)
+          ? configurationRows[0]
+          : configurationRows;
+        setAccountNumberConfiguration(
+          configuration
+            ? {
+                prefix: configuration.prefix,
+                prefixLength: configuration.prefix_length,
+                capacity: configuration.capacity,
+                updatedAt: configuration.updated_at,
+              }
+            : null,
+        );
+      } else {
+        setAccountNumberConfiguration(null);
+      }
 
       const ownProfile = (profileResult.data ?? []).find(
         (profile) => profile.user_id === user.id,
@@ -567,7 +649,10 @@ export function AppProvider({
         ]),
       );
 
-      const positionRows = (positionsResult.data ?? []) as PositionRow[];
+      const positionRows = ((positionsResult.data ?? []) as PositionRow[]).filter(
+        (position) => position.account_type === 'current',
+      );
+      const currentAccountIds = new Set(positionRows.map((position) => position.id));
       setAccounts(
         positionRows.map((position) => ({
           id: position.id,
@@ -592,7 +677,7 @@ export function AppProvider({
             position.currency,
           ),
           currency: position.currency as Currency,
-          type: position.account_type === 'savings' ? 'epargne' : 'courant',
+          type: 'courant',
           positionKind: position.position_kind,
           asOf: position.as_of,
         })),
@@ -682,21 +767,23 @@ export function AppProvider({
       setLoans(mappedLoans);
 
       setTransactions(
-        ((ledgerResult.data ?? []) as LedgerEntryRow[]).map((entry) => ({
-          id: entry.id,
-          accountId: entry.account_id,
-          title: entry.description,
-          date: friendlyDate(entry.value_date ?? entry.booked_at),
-          amount: fromMinorUnits(entry.amount_minor, entry.currency),
-          currency: entry.currency,
-          balanceAfter: fromMinorUnits(entry.balance_after_minor, entry.currency),
-          reference: entry.internal_reference,
-          type: entry.amount_minor < 0 ? ('debit' as const) : ('credit' as const),
-          category:
-            entry.entry_kind === 'transfer_debit'
-              ? ('transfer' as const)
-              : ('other' as const),
-        })),
+        ((ledgerResult.data ?? []) as LedgerEntryRow[])
+          .filter((entry) => currentAccountIds.has(entry.account_id))
+          .map((entry) => ({
+            id: entry.id,
+            accountId: entry.account_id,
+            title: entry.description,
+            date: friendlyDate(entry.value_date ?? entry.booked_at),
+            amount: fromMinorUnits(entry.amount_minor, entry.currency),
+            currency: entry.currency,
+            balanceAfter: fromMinorUnits(entry.balance_after_minor, entry.currency),
+            reference: entry.internal_reference,
+            type: entry.amount_minor < 0 ? ('debit' as const) : ('credit' as const),
+            category:
+              entry.entry_kind === 'transfer_debit'
+                ? ('transfer' as const)
+                : ('other' as const),
+          })),
       );
 
       setOfficialDocuments(
@@ -733,8 +820,9 @@ export function AppProvider({
           read: Boolean(notification.read_at),
           type:
             notification.notification_type === 'kyc'
-              ? 'info'
+              ? 'kyc'
               : notification.notification_type,
+          actionPath: notification.action_path ?? undefined,
         })),
       );
 
@@ -771,11 +859,33 @@ export function AppProvider({
               idFrontUrl: signed.id_front ?? '',
               idBackUrl: signed.id_back ?? '',
               selfieUrl: signed.selfie ?? '',
+              proofOfAddressUrl: signed.proof_of_address ?? '',
             },
+            documentType: kyc.document_type ?? undefined,
+            documentNumber: kyc.document_number ?? undefined,
+            issuingCountry: kyc.issuing_country ?? undefined,
+            documentExpiresOn: kyc.document_expires_on ?? undefined,
             status: mapKycStatus(kyc.status),
             workflowStatus: kyc.status,
             submittedAt: friendlyDate(kyc.submitted_at),
             rejectionReason: kyc.review_note ?? undefined,
+            correctionReasonCode: kyc.correction_reason_code ?? undefined,
+            correctionDueAt: kyc.correction_due_at
+              ? friendlyDate(kyc.correction_due_at)
+              : undefined,
+            requestedItems: kyc.requested_items ?? [],
+            checklist: kyc.kyc_review_checklists?.[0]
+              ? {
+                  documentQuality: kyc.kyc_review_checklists[0].document_quality,
+                  dataConsistency: kyc.kyc_review_checklists[0].data_consistency,
+                  selfieMatch: kyc.kyc_review_checklists[0].selfie_match,
+                  adulthood: kyc.kyc_review_checklists[0].adulthood,
+                  fatca: kyc.kyc_review_checklists[0].fatca,
+                  pep: kyc.kyc_review_checklists[0].pep,
+                  internalComments:
+                    kyc.kyc_review_checklists[0].internal_comments ?? '',
+                }
+              : undefined,
           };
         }),
       );
@@ -910,35 +1020,15 @@ export function AppProvider({
   };
 
   const addLoanApplication: AppState['addLoanApplication'] = async (loan) => {
-    if (!loan.evidenceFiles?.length) {
-      throw new Error('Au moins un justificatif est obligatoire.');
-    }
-
     setLastError(null);
     const supabase = createClient();
     const idempotencyKey = crypto.randomUUID();
-    const uploadedPaths: string[] = [];
     try {
       const {
         data: { user },
         error: userError,
       } = await supabase.auth.getUser();
       if (userError || !user) throw userError ?? new Error('Session expirée.');
-
-      for (const file of loan.evidenceFiles) {
-        if (
-          file.size > 10 * 1024 * 1024 ||
-          !['image/jpeg', 'image/png', 'application/pdf'].includes(file.type)
-        ) {
-          throw new Error('Chaque justificatif doit être un PDF, PNG ou JPEG de 10 Mo maximum.');
-        }
-        const path = await uploadEvidence(
-          'loan-evidence',
-          `${idempotencyKey}-${crypto.randomUUID()}`,
-          file,
-        );
-        uploadedPaths.push(path);
-      }
 
       const { data, error } = await supabase.rpc('submit_loan_application', {
         p_requested_amount_minor: toMinorUnits(loan.requestedAmount, loan.currency),
@@ -950,7 +1040,7 @@ export function AppProvider({
         ),
         p_indicative_annual_rate: 0.035,
         p_motive: loan.motive,
-        p_document_object_paths: uploadedPaths,
+        p_document_object_paths: [],
         p_idempotency_key: idempotencyKey,
       });
       if (error) throw error;
@@ -966,9 +1056,6 @@ export function AppProvider({
       void dispatchTransactionalEmails();
       return reference;
     } catch (caughtError) {
-      if (uploadedPaths.length) {
-        await deleteEvidence('loan-evidence', uploadedPaths);
-      }
       const message =
         caughtError instanceof Error ? caughtError.message : 'Dépôt de la demande impossible.';
       setLastError(message);
@@ -981,6 +1068,21 @@ export function AppProvider({
       createClient().rpc('branch_manager_approve_transfer', {
         p_transfer_id: transferId,
         p_note: note?.trim() || null,
+      }),
+    );
+  };
+
+  const reviewTransferCheck: AppState['reviewTransferCheck'] = async (
+    transferId,
+    checkKind,
+    note,
+  ) => {
+    if (!note.trim()) throw new Error('La note du contrôle est obligatoire.');
+    await executeAndRefresh(() =>
+      createClient().rpc('branch_manager_review_transfer_check', {
+        p_transfer_id: transferId,
+        p_check_kind: checkKind,
+        p_note: note.trim(),
       }),
     );
   };
@@ -1053,12 +1155,58 @@ export function AppProvider({
     );
   };
 
-  const approveKYCApplication: AppState['approveKYCApplication'] = async (kycId) => {
+  const beginKYCReview: AppState['beginKYCReview'] = async (kycId) => {
     await executeAndRefresh(() =>
-      createClient().rpc('review_kyc_application', {
+      createClient().rpc('begin_kyc_review', { p_kyc_id: kycId }),
+    );
+  };
+
+  const updateKYCChecklist: AppState['updateKYCChecklist'] = async (
+    kycId,
+    checklist,
+  ) => {
+    await executeAndRefresh(() =>
+      createClient().rpc('update_kyc_review_checklist', {
         p_kyc_id: kycId,
-        p_status: 'approved',
-        p_note: 'Identité approuvée après contrôle humain.',
+        p_document_quality: checklist.documentQuality,
+        p_data_consistency: checklist.dataConsistency,
+        p_selfie_match: checklist.selfieMatch,
+        p_adulthood: checklist.adulthood,
+        p_fatca: checklist.fatca,
+        p_pep: checklist.pep,
+        p_internal_comments: checklist.internalComments,
+      }),
+    );
+  };
+
+  const requestKYCInformation: AppState['requestKYCInformation'] = async (
+    kycId,
+    requestedItems,
+    reasonCode,
+    note,
+    dueAt,
+  ) => {
+    await executeAndRefresh(() =>
+      createClient().rpc('request_kyc_information', {
+        p_kyc_id: kycId,
+        p_requested_items: requestedItems,
+        p_reason_code: reasonCode,
+        p_note: note,
+        p_due_at: dueAt || null,
+      }),
+    );
+  };
+
+  const approveKYCApplication: AppState['approveKYCApplication'] = async (
+    kycId,
+    note,
+  ) => {
+    await executeAndRefresh(() =>
+      createClient().rpc('decide_kyc_application', {
+        p_kyc_id: kycId,
+        p_decision: 'approved',
+        p_reason_code: null,
+        p_note: note?.trim() || 'Identité approuvée après contrôle humain.',
       }),
     );
   };
@@ -1066,11 +1214,13 @@ export function AppProvider({
   const rejectKYCApplication: AppState['rejectKYCApplication'] = async (
     kycId,
     reason,
+    reasonCode = 'other',
   ) => {
     await executeAndRefresh(() =>
-      createClient().rpc('review_kyc_application', {
+      createClient().rpc('decide_kyc_application', {
         p_kyc_id: kycId,
-        p_status: 'rejected',
+        p_decision: 'rejected',
+        p_reason_code: reasonCode,
         p_note: reason,
       }),
     );
@@ -1102,8 +1252,8 @@ export function AppProvider({
   };
 
   const declareBankAccount: AppState['declareBankAccount'] = async (account) => {
-    if (!account.iban.trim() || !account.bic.trim() || !account.accountNumber.trim()) {
-      throw new Error('L’IBAN, le BIC et le numéro de compte sont obligatoires.');
+    if (!account.iban.trim() || !account.bic.trim()) {
+      throw new Error('L’IBAN et le BIC sont obligatoires.');
     }
     if (!Number.isFinite(account.openingBalance) || account.openingBalance < 0) {
       throw new Error('Le solde d’ouverture doit être positif ou nul.');
@@ -1113,11 +1263,10 @@ export function AppProvider({
       createClient().rpc('branch_manager_declare_account', {
         p_owner_id: account.ownerId,
         p_label: account.label.trim(),
-        p_account_type: account.accountType,
+        p_account_type: 'current',
         p_currency: account.currency,
         p_iban: account.iban.trim(),
         p_bic: account.bic.trim(),
-        p_account_number: account.accountNumber.trim(),
         p_account_holder_name: account.accountHolderName.trim(),
         p_institution_name: account.institutionName.trim(),
         p_branch_name: account.branchName.trim(),
@@ -1132,6 +1281,31 @@ export function AppProvider({
         p_idempotency_key: crypto.randomUUID(),
       }),
     );
+  };
+
+  const updateAccountNumberPrefix: AppState['updateAccountNumberPrefix'] = async (
+    prefix,
+  ) => {
+    const normalizedPrefix = prefix.trim();
+    if (!/^\d{5,9}$/.test(normalizedPrefix)) {
+      throw new Error('Le préfixe doit contenir entre 5 et 9 chiffres.');
+    }
+
+    const { data, error } = await createClient().rpc(
+      'set_account_number_prefix',
+      { p_prefix: normalizedPrefix },
+    );
+    if (error) throw error;
+    const configuration = Array.isArray(data) ? data[0] : data;
+    if (!configuration) {
+      throw new Error('La configuration enregistrée est introuvable.');
+    }
+    setAccountNumberConfiguration({
+      prefix: configuration.prefix,
+      prefixLength: configuration.prefix_length,
+      capacity: configuration.capacity,
+      updatedAt: configuration.updated_at,
+    });
   };
 
   const issueOfficialDocument: AppState['issueOfficialDocument'] = async (
@@ -1164,6 +1338,8 @@ export function AppProvider({
     isLoading,
     lastError,
     refreshData,
+    accountNumberConfiguration,
+    updateAccountNumberPrefix,
     accounts,
     transactions,
     officialDocuments,
@@ -1187,12 +1363,16 @@ export function AppProvider({
     addTransfer,
     addLoanApplication,
     approveTransfer,
+    reviewTransferCheck,
     finalizeTransfer,
     rejectTransfer,
     approveLoan,
     disburseLoan,
     rejectLoan,
     markNotificationAsRead,
+    beginKYCReview,
+    updateKYCChecklist,
+    requestKYCInformation,
     approveKYCApplication,
     rejectKYCApplication,
     updateAccountBalance,

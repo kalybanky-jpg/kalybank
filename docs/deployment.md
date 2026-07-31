@@ -42,11 +42,11 @@ Les variables `NEXT_PUBLIC_*` doivent être présentes au moment du build.
 - le CSP contient un nonce et tous les scripts HTML utilisent ce même nonce ;
 - l’API de justificatifs refuse session absente, origine étrangère, fichier
   trop volumineux et contenu dont la signature ne correspond pas au MIME ;
-- le chef d’agence peut déclarer un compte avec IBAN ; le client propriétaire
-  voit le compte et son grand livre, sans accès aux comptes tiers ;
-- le compte client démo affiche son IBAN synthétique et `is_demo`, sans jamais
-  être présenté comme routable ;
-- un RIB ou relevé émis est téléchargeable en PDF privé par son propriétaire,
+- le chef d’agence peut déclarer un compte avec IBAN après configuration du
+  préfixe ; la base attribue automatiquement son numéro unique de 10 chiffres ;
+- le client propriétaire voit son numéro de compte et son grand livre, jamais
+  son IBAN dans les nouveaux écrans ou documents ;
+- un document de coordonnées ou relevé émis est téléchargeable en PDF privé par son propriétaire,
   tandis qu’un autre client reçoit `404` ;
 - tout PDF démo affiche « DÉMONSTRATION — AUCUNE VALEUR » ;
 - une approbation de virement ne change pas le solde ; seule la confirmation

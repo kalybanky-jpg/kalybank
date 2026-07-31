@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   normalizeLanguageTag,
   parseAcceptLanguage,
+  preferredLanguageMetadata,
   registrationLanguageMetadata,
   resolveInitialLanguage,
   resolveSupportedLanguage,
@@ -83,12 +84,17 @@ test('une hydratation de profil ne remplace jamais le cookie explicite', () => {
 });
 
 test('l’inscription utilise la langue courante au moment de la soumission', () => {
+  assert.deepEqual(preferredLanguageMetadata('de'), {
+    preferred_language: 'de',
+  });
   assert.deepEqual(registrationLanguageMetadata('  Marie  ', 'en'), {
     display_name: 'Marie',
+    full_name: 'Marie',
     preferred_language: 'en',
   });
   assert.deepEqual(registrationLanguageMetadata('Marie', 'es'), {
     display_name: 'Marie',
+    full_name: 'Marie',
     preferred_language: 'es',
   });
 });

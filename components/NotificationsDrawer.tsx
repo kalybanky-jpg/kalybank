@@ -3,7 +3,7 @@
 import React from 'react';
 import { useAppStore } from '@/lib/store';
 import { translations } from '@/lib/i18n';
-import { X, Bell, Check, Info, AlertTriangle, Send, FileText } from 'lucide-react';
+import { X, Bell, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function NotificationsDrawer() {
@@ -63,6 +63,14 @@ export default function NotificationsDrawer() {
                     <span className="text-[10px] text-slate-500 font-mono font-medium">{n.timestamp}</span>
                   </div>
                   <p className="text-xs text-slate-700 leading-snug">{n.message}</p>
+                  {n.actionPath && (
+                    <a
+                      href={n.actionPath}
+                      className="inline-flex items-center gap-1 pt-1 text-[10px] font-bold text-blue-700 hover:underline"
+                    >
+                      Ouvrir le dossier <ArrowRight className="h-3 w-3" />
+                    </a>
+                  )}
                   {!n.read && (
                     <button
                       onClick={() => markNotificationAsRead(n.id)}

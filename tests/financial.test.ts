@@ -35,6 +35,10 @@ test('external financial identifiers are masked in UI projections', () => {
 });
 
 test('workflow progress never represents execution before evidence and confirmation', () => {
+  assert.equal(transferProgress('under_review', 0), 0);
+  assert.equal(transferProgress('under_review', 1), 25);
+  assert.equal(transferProgress('under_review', 2), 50);
+  assert.equal(transferProgress('under_review', 3), 75);
   assert.equal(transferProgress('approved_for_external_execution', 4), 75);
   assert.equal(transferProgress('external_execution_recorded', 4), 90);
   assert.equal(transferProgress('external_settlement_confirmed', 4), 100);

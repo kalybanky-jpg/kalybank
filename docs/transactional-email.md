@@ -3,7 +3,7 @@
 Monalyz propose deux configurations indépendantes :
 
 - les e-mails d’identité de Supabase Auth, transportés par SMTP ;
-- les notifications métier des virements et prêts, envoyées depuis l’outbox
+- les notifications métier des virements, prêts et dossiers KYC, envoyées depuis l’outbox
   par l’API REST Resend ou Brevo.
 
 Un seul fournisseur métier est actif à la fois. Aucun e-mail ne donne un ordre
@@ -12,7 +12,7 @@ bancaire et aucun fournisseur n’est relié à une banque.
 ## Architecture métier
 
 ```text
-RPC virement/prêt
+RPC virement/prêt/KYC
   -> transaction PostgreSQL
      -> nouvel état métier
      -> notification interne
@@ -35,20 +35,21 @@ en-tête HTTP chez Resend, en-tête personnalisé du message chez Brevo.
 
 ## Événements couverts
 
-| Virement | Prêt |
-| --- | --- |
-| Demande soumise | Demande soumise |
-| Validé par le chef d’agence | Validé par le chef d’agence |
-| Effectué et finalisé | Décaissé et position courante créditée |
-| Refusé | Refusé |
-| Exécution échouée | Décaissement échoué |
+| Virement | Prêt | KYC |
+| --- | --- | --- |
+| Demande soumise | Demande soumise | Dossier reçu |
+| Validé par le chef d’agence | Validé par le chef d’agence | Complément demandé |
+| Effectué et finalisé | Décaissé et position courante créditée | Dossier resoumis |
+| Refusé | Refusé | Approuvé et compte interne créé |
+| Exécution échouée | Décaissement échoué | Rejeté et corrigeable |
 
-Les modèles rappellent que les contrôles bancaires et mouvements financiers
-sont effectués hors de Monalyz.
+Les modèles décrivent uniquement ce que le client doit savoir : demande reçue,
+en cours d’examen, validée, effectuée, refusée ou non aboutie. Le vocabulaire
+interne de traitement n’apparaît pas dans les messages.
 
 ## Langue du destinataire
 
-Les dix modèles existent en français, anglais, allemand et espagnol. Les
+Les quinze modèles existent en français, anglais, allemand et espagnol. Les
 sujets, corps, pieds de page, nombres et devises sont localisés avec
 `fr-FR`, `en-US`, `de-DE` ou `es-ES`.
 
@@ -166,7 +167,10 @@ et de mot de passe, applique les modèles versionnés de `supabase/templates`,
 puis relit la configuration distante. Son résumé masque toujours les secrets.
 Les trois modèles incluent le wordmark à partir de
 `{{ .SiteURL }}/brand/monalyz/monalyz-wordmark-email-360.png` et conservent les
-liens sécurisés existants. Pour les nouveaux projets Free créés depuis le
+liens sécurisés existants. Le sujet et le corps utilisent les conditions Go
+Template de Supabase pour sélectionner le français, l’anglais, l’allemand ou
+l’espagnol depuis `user_metadata.preferred_language`; une valeur absente ou
+inconnue utilise le français. Pour les nouveaux projets Free créés depuis le
 3 juin 2026, Supabase exige un SMTP personnalisé pour modifier les modèles
 Auth; les profils Resend et Brevo décrits ici satisfont cette condition.
 

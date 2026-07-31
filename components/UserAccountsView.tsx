@@ -3,7 +3,7 @@
 import React from 'react';
 import { useAppStore } from '@/lib/store';
 import { formatDirectCurrency } from '@/lib/currency';
-import { accountIbanLabel, bankingMessages } from '@/lib/banking-i18n';
+import { accountNumberLabel, bankingMessages } from '@/lib/banking-i18n';
 import { Clock, FileDown, WalletCards } from 'lucide-react';
 
 export default function UserAccountsView() {
@@ -64,9 +64,12 @@ export default function UserAccountsView() {
                 </dd>
               </div>
               <div className="flex justify-between gap-3">
-                <dt className="text-slate-500">{t.accounts.iban}</dt>
+                <dt className="text-slate-500">{t.accounts.accountNumber}</dt>
                 <dd className="font-mono font-bold text-slate-800">
-                  {accountIbanLabel(account.iban, t.accounts.ibanPending)}
+                  {accountNumberLabel(
+                    account.accountNumber,
+                    t.accounts.accountNumberPending,
+                  )}
                 </dd>
               </div>
             </dl>

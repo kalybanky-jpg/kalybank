@@ -19,6 +19,8 @@
 | `loan_review_checks` | Trace des contrôles confirmés par le chef d’agence |
 | `external_loan_fundings` | Données historiques de décaissement hors Monalyz |
 | `kyc_applications` | Déclarations et pièces d’identité |
+| `kyc_drafts` | Brouillon KYC courant, repris entre appareils |
+| `kyc_review_checklists` | Checklist humaine structurée du dossier KYC |
 | `official_documents` | Registre versionné des PDF émis par l’établissement |
 | `notifications`, `audit_events` | Information utilisateur et traçabilité |
 | `transactional_email_outbox` | E-mails métier idempotents et réessayables |
@@ -44,8 +46,8 @@
 - Aucun flux métier ne contacte une API bancaire ni ne déplace automatiquement
   des fonds.
 - Un événement métier ne produit qu’une entrée d’outbox grâce à une clé unique.
-- Une approbation KYC ne crée pas automatiquement de compte : le chef d’agence
-  déclare séparément les données reçues des procédures internes.
+- Une approbation KYC crée atomiquement un compte courant actif à solde nul,
+  identifié par son numéro interne et relié au dossier par `source_kyc_id`.
 
 ## Comptes déclarés dans `financial_positions`
 
@@ -57,16 +59,23 @@ compte : `account_number`, `iban`, `bic`, `account_holder_name`,
 
 - `account_type` vaut `current` ou `savings`.
 - `account_status` vaut `pending`, `active`, `restricted` ou `closed`.
-- Un compte `active` possède tous ses identifiants officiels et son déclarant.
-- L’IBAN est normalisé en majuscules sans espaces, validé modulo 97 et unique.
-- Le numéro de compte est normalisé, validé et unique.
+- Un compte `active` possède son numéro interne, son titulaire, sa date
+  d’ouverture et son déclarant. L’IBAN, le BIC et l’agence sont facultatifs :
+  ils restent gérés dans les outils internes de la banque.
+- L’IBAN reste normalisé, validé modulo 97 et unique dans le registre administratif.
+- Pour chaque nouveau compte, le numéro est généré automatiquement sur 10 chiffres
+  à partir du préfixe global de 5 à 9 chiffres configuré par l’administrateur.
+  L’index unique empêche toute attribution en double.
 - Une clé d’idempotence ne peut déclarer qu’un seul compte.
 - Le propriétaire et le chef d’agence actif peuvent lire le compte ; les
   écritures directes restent révoquées.
 
 Le champ historique `external_identifier_masked` demeure une projection
-masquée de compatibilité. La source canonique d’un IBAN déclaré est `iban`.
+masquée de compatibilité. Lorsqu’un IBAN est déclaré manuellement, sa source
+canonique est `iban`.
 Un IBAN de fixture n’est autorisé que sur un compte marqué `is_demo = true`.
+Les nouveaux snapshots documentaires destinés au client contiennent le numéro de
+compte, mais pas l’IBAN. Les documents déjà émis restent immuables.
 
 ## Grand livre `financial_ledger_entries`
 
@@ -90,10 +99,15 @@ peuvent lire les écritures autorisées par RLS, jamais les créer directement.
 
 ## États des transferts
 
+Pour les nouveaux dossiers, les quatre lignes de `transfer_review_checks` sont
+validées séquentiellement par le chef d’agence. Les trois premières laissent le
+virement en `under_review`; la quatrième déclenche directement le règlement
+atomique et fait passer le virement à `external_settlement_confirmed`.
+
 ```text
 submitted
-  -> approved_for_external_execution
-  -> external_settlement_confirmed
+  -> under_review (1 à 3 contrôles terminés)
+  -> external_settlement_confirmed (autorisation finale)
 ```
 
 États terminaux alternatifs : `rejected`, `cancelled`, `external_failed`.

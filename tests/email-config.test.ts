@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import test from "node:test";
 
 import {
@@ -17,11 +19,11 @@ const commonEnvironment: AuthEmailEnvironment = {
 
 const templates = {
   confirmation:
-    '<img src="{{ .SiteURL }}/brand/monalyz/monalyz-wordmark-email-360.png"><a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email">confirmation</a>',
+    '<span>{{ .Data.preferred_language }}</span><img src="{{ .SiteURL }}/brand/monalyz/monalyz-wordmark-email-360.png"><a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email">confirmation</a>',
   recovery:
-    '<img src="{{ .SiteURL }}/brand/monalyz/monalyz-wordmark-email-360.png"><a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery">recovery</a>',
+    '<span>{{ .Data.preferred_language }}</span><img src="{{ .SiteURL }}/brand/monalyz/monalyz-wordmark-email-360.png"><a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery">recovery</a>',
   passwordChanged:
-    '<img src="{{ .SiteURL }}/brand/monalyz/monalyz-wordmark-email-360.png"><p>Password changed for {{ .Email }}</p>',
+    '<span>{{ .Data.preferred_language }}</span><img src="{{ .SiteURL }}/brand/monalyz/monalyz-wordmark-email-360.png"><p>Password changed for {{ .Email }}</p>',
 };
 
 test("la configuration Resend utilise le profil SMTP officiel", () => {
@@ -93,6 +95,38 @@ test("les deux profils conservent les protections Auth et les modèles Monalyz",
     config.payload.mailer_templates_password_changed_notification_content,
     templates.passwordChanged,
   );
+  for (const subject of [
+    config.payload.mailer_subjects_confirmation,
+    config.payload.mailer_subjects_recovery,
+    config.payload.mailer_subjects_password_changed_notification,
+  ]) {
+    assert.match(subject, /\.Data\.preferred_language/);
+    assert.match(subject, /"en"/);
+    assert.match(subject, /"de"/);
+    assert.match(subject, /"es"/);
+  }
+});
+
+test("les modèles Auth versionnés couvrent les quatre langues en langage simple", async () => {
+  const templatesRoot = path.resolve("supabase", "templates");
+  const files = [
+    "confirmation.html",
+    "recovery.html",
+    "password_changed_notification.html",
+  ];
+
+  for (const file of files) {
+    const content = await readFile(path.join(templatesRoot, file), "utf8");
+    assert.match(content, /\.Data\.preferred_language/);
+    assert.match(content, /"en"/);
+    assert.match(content, /"de"/);
+    assert.match(content, /"es"/);
+    assert.match(content, /support@monalyz\.com/);
+    assert.doesNotMatch(
+      content,
+      /compte applicatif|traitement interne|back-?office|workflow/i,
+    );
+  }
 });
 
 test("le résumé ne divulgue jamais le secret SMTP", () => {

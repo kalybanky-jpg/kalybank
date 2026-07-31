@@ -67,7 +67,9 @@ async function updateSnapshot(): Promise<void> {
       [
         "db",
         "dump",
-        "--local",
+        ...(process.env.MONALYZ_SNAPSHOT_DB_URL?.trim()
+          ? ["--db-url", process.env.MONALYZ_SNAPSHOT_DB_URL.trim()]
+          : ["--local"]),
         "--schema",
         "public,private",
         "--file",

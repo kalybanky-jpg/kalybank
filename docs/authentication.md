@@ -31,10 +31,13 @@ recopie que `fr`, `en`, `de` ou `es`, avec `fr` comme repli. Cette métadonnée
 est modifiable par l’utilisateur et ne participe jamais à une décision
 d’autorisation.
 
-Les e-mails Supabase Auth de confirmation et de récupération restent un flux
-distinct des notifications métier. Leur localisation complète dépend de la
-configuration des modèles Auth ; la préférence enregistrée permet de
-l’ajouter sans modifier le modèle d’autorisation.
+Les e-mails Supabase Auth de confirmation, de récupération et de changement
+de mot de passe restent un flux distinct des notifications métier. Leurs
+sujets et contenus sont rendus en français, anglais, allemand ou espagnol à
+partir de `user_metadata.preferred_language`, avec le français comme langue
+par défaut. Lorsque l’utilisateur change de langue, l’application synchronise
+la préférence du profil et cette métadonnée Auth. Elle sert uniquement à la
+présentation des messages et jamais à une décision d’autorisation.
 
 ## Configuration Supabase hébergée
 

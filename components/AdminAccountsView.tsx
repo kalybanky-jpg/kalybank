@@ -16,11 +16,10 @@ import {
 interface DeclarationForm {
   ownerId: string;
   label: string;
-  accountType: 'current' | 'savings';
+  accountType: 'current';
   currency: Currency;
   iban: string;
   bic: string;
-  accountNumber: string;
   accountHolderName: string;
   institutionName: string;
   branchName: string;
@@ -37,7 +36,6 @@ const initialDeclaration: DeclarationForm = {
   currency: 'EUR' as Currency,
   iban: '',
   bic: '',
-  accountNumber: '',
   accountHolderName: '',
   institutionName: 'Monalyz',
   branchName: '',
@@ -54,6 +52,7 @@ export default function AdminAccountsView() {
     kycApplications,
     declareBankAccount,
     updateAccountBalance,
+    accountNumberConfiguration,
   } = useAppStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [selected, setSelected] = useState<BankAccount | null>(null);
@@ -79,6 +78,7 @@ export default function AdminAccountsView() {
     return (
       account.name.toLowerCase().includes(query) ||
       (account.iban ?? '').toLowerCase().includes(query) ||
+      (account.accountNumber ?? '').includes(query) ||
       (account.accountHolderName ?? '').toLowerCase().includes(query)
     );
   });
@@ -154,7 +154,7 @@ export default function AdminAccountsView() {
             type="search"
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder="Titulaire, libellé ou IBAN"
+            placeholder="Titulaire, numéro de compte ou IBAN"
             className="w-full pl-9 pr-3 py-2 border rounded-xl text-xs"
           />
         </div>
@@ -177,6 +177,9 @@ export default function AdminAccountsView() {
                     <p className="font-bold text-slate-900">{account.name}</p>
                     <p className="text-[10px] text-slate-500">
                       {account.accountHolderName ?? account.ownerId}
+                    </p>
+                    <p className="font-mono text-[10px] font-bold text-slate-600">
+                      N° {account.accountNumber ?? 'non attribué'}
                     </p>
                   </td>
                   <td className="py-4 px-2">
@@ -247,7 +250,7 @@ export default function AdminAccountsView() {
                 </h2>
                 <p className="text-xs text-slate-500 mt-1">
                   Saisissez uniquement les coordonnées attribuées après le traitement
-                  interne de la banque. Monalyz ne fabrique aucun IBAN.
+                  interne de la banque. Le numéro de compte sera généré automatiquement.
                 </p>
               </div>
               <button
@@ -261,6 +264,11 @@ export default function AdminAccountsView() {
             {error && (
               <p role="alert" className="p-3 bg-rose-50 text-rose-700 rounded-xl text-xs">
                 {error}
+              </p>
+            )}
+            {!accountNumberConfiguration && (
+              <p role="alert" className="p-3 bg-amber-50 text-amber-800 rounded-xl text-xs">
+                Configurez d’abord le préfixe des numéros de compte dans Paramètres.
               </p>
             )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -307,19 +315,11 @@ export default function AdminAccountsView() {
               </label>
               <label className="text-xs font-bold">
                 Type
-                <select
-                  value={declaration.accountType}
-                  onChange={(event) =>
-                    setDeclaration((current) => ({
-                      ...current,
-                      accountType: event.target.value as 'current' | 'savings',
-                    }))
-                  }
-                  className="mt-1 w-full p-3 border rounded-xl"
-                >
-                  <option value="current">Compte courant</option>
-                  <option value="savings">Compte épargne</option>
-                </select>
+                <input
+                  value="Compte courant"
+                  readOnly
+                  className="mt-1 w-full p-3 border rounded-xl bg-slate-50 text-slate-600"
+                />
               </label>
               <label className="text-xs font-bold">
                 Titulaire
@@ -333,20 +333,6 @@ export default function AdminAccountsView() {
                     }))
                   }
                   className="mt-1 w-full p-3 border rounded-xl"
-                />
-              </label>
-              <label className="text-xs font-bold">
-                Numéro de compte interne
-                <input
-                  required
-                  value={declaration.accountNumber}
-                  onChange={(event) =>
-                    setDeclaration((current) => ({
-                      ...current,
-                      accountNumber: event.target.value,
-                    }))
-                  }
-                  className="mt-1 w-full p-3 border rounded-xl font-mono"
                 />
               </label>
               <label className="text-xs font-bold sm:col-span-2">
@@ -493,10 +479,14 @@ export default function AdminAccountsView() {
               écriture du grand livre dans une transaction atomique.
             </div>
             <button
-              disabled={isSaving || !approvedClients.length}
+              disabled={
+                isSaving ||
+                !approvedClients.length ||
+                !accountNumberConfiguration
+              }
               className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold disabled:opacity-50"
             >
-              {isSaving ? 'Déclaration…' : 'Déclarer le compte et l’IBAN'}
+              {isSaving ? 'Déclaration…' : 'Déclarer le compte'}
             </button>
           </form>
         </div>

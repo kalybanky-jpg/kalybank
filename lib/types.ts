@@ -24,10 +24,17 @@ export interface BankAccount {
   balance: number;
   availableBalance?: number;
   currency: Currency;
-  type: 'courant' | 'epargne';
+  type: 'courant';
   positionKind?: 'declared' | 'internally_reconciled';
   asOf?: string;
   ownerId?: string;
+}
+
+export interface AccountNumberConfiguration {
+  prefix: string;
+  prefixLength: number;
+  capacity: number;
+  updatedAt: string;
 }
 
 export interface Transaction {
@@ -159,7 +166,20 @@ export interface SystemNotification {
   message: string;
   timestamp: string;
   read: boolean;
-  type: 'info' | 'success' | 'alert' | 'transfer' | 'loan';
+  type: 'info' | 'success' | 'alert' | 'transfer' | 'loan' | 'kyc';
+  actionPath?: string;
+}
+
+export type KYCReviewState = 'pending' | 'compliant' | 'non_compliant';
+
+export interface KYCReviewChecklist {
+  documentQuality: KYCReviewState;
+  dataConsistency: KYCReviewState;
+  selfieMatch: KYCReviewState;
+  adulthood: KYCReviewState;
+  fatca: KYCReviewState;
+  pep: KYCReviewState;
+  internalComments: string;
 }
 
 export interface KYCApplication {
@@ -188,12 +208,21 @@ export interface KYCApplication {
     idFrontUrl: string;
     idBackUrl: string;
     selfieUrl: string;
+    proofOfAddressUrl: string;
   };
+  documentType?: 'national_identity_card' | 'passport' | 'residence_permit';
+  documentNumber?: string;
+  issuingCountry?: string;
+  documentExpiresOn?: string;
   status: 'en_attente' | 'valide' | 'rejete';
-  workflowStatus?: 'submitted' | 'under_review' | 'approved' | 'rejected' | 'needs_information';
+  workflowStatus?: 'submitted' | 'under_review' | 'approved' | 'rejected' | 'needs_information' | 'resubmitted';
   submittedAt: string;
   iban?: string;
   rejectionReason?: string;
+  correctionReasonCode?: string;
+  correctionDueAt?: string;
+  requestedItems: string[];
+  checklist?: KYCReviewChecklist;
 }
 
 export interface AdminActivityLog {

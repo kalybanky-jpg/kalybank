@@ -1,24 +1,26 @@
 'use client';
 
 import React from 'react';
-import { useAppStore } from '@/lib/store';
-import { translations } from '@/lib/i18n';
 import {
-  LayoutDashboard,
+  ArrowDownUp,
+  BadgeCheck,
+  BarChart3,
   CreditCard,
-  Send,
   FileText,
-  FileCode2,
-  FolderGit2,
+  Folder,
+  Headphones,
+  LayoutGrid,
+  LogOut,
+  SendHorizontal,
+  Settings,
   ShieldCheck,
   Users,
-  PieChart,
-  Settings,
-  Headphones,
-  LogOut,
+  WalletCards,
   X,
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { useAppStore } from '@/lib/store';
+import { translations } from '@/lib/i18n';
 import { createClient } from '@/lib/supabase/client';
 import BrandLogo from '@/components/brand/BrandLogo';
 
@@ -34,31 +36,33 @@ export default function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps)
     activeTab,
     setActiveTab,
     setIsContactModalOpen,
-    setIsTransferModalOpen,
-    setIsLoanModalOpen,
-    setIsStatementsModalOpen,
   } = useAppStore();
-
   const t = translations[language] || translations.fr;
 
   const userNavItems = [
-    { id: 'dashboard', label: t.dashboard, icon: LayoutDashboard },
-    { id: 'accounts', label: t.accounts, icon: CreditCard },
-    { id: 'transfers', label: t.transfers, icon: Send },
-    { id: 'loan', label: t.loan, icon: FileText },
-    { id: 'documents', label: t.documents, icon: FolderGit2 },
+    { id: 'dashboard', label: t.dashboard, icon: LayoutGrid },
+    { id: 'transfers', label: t.transfers, icon: SendHorizontal },
+    { id: 'loan', label: t.loan, icon: WalletCards },
+    { id: 'documents', label: t.documents, icon: FileText },
+    { id: 'kyc', label: 'KYC', icon: BadgeCheck },
     { id: 'settings', label: t.settings, icon: Settings },
   ];
 
   const adminNavItems = [
-    { id: 'dashboard', label: t.dashboard, icon: LayoutDashboard },
+    { id: 'dashboard', label: t.dashboard, icon: LayoutGrid },
     { id: 'loanRequests', label: t.loanRequests, icon: FileText },
-    { id: 'transfers', label: t.transfers, icon: Send },
+    { id: 'transfers', label: t.transfers, icon: SendHorizontal },
     { id: 'compliance', label: t.compliance, icon: ShieldCheck },
     { id: 'clients', label: t.clients, icon: Users },
     { id: 'accounts', label: t.accounts, icon: CreditCard },
-    { id: 'documents', label: t.auditLogs, icon: FolderGit2 },
-    { id: 'reports', label: t.reports, icon: PieChart },
+    {
+      id: 'balanceAdjustment',
+      label: t.balanceAdjustment,
+      icon: ArrowDownUp,
+      featured: true,
+    },
+    { id: 'documents', label: t.auditLogs, icon: Folder },
+    { id: 'reports', label: t.reports, icon: BarChart3 },
     { id: 'settings', label: t.settings, icon: Settings },
   ];
 
@@ -66,95 +70,103 @@ export default function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps)
 
   const handleNavClick = (id: string) => {
     setActiveTab(id);
-    if (onCloseMobile) onCloseMobile();
+    onCloseMobile?.();
   };
 
   const content = (
-    <div className="flex flex-col h-full bg-[var(--brand-aubergine)] text-white select-none justify-between p-4 w-64 border-r border-blue-950/40 shadow-2xl">
-      {/* Top Header & Logo */}
+    <div className="monalyz-sidebar flex h-full w-[282px] flex-col px-6 pb-7 pt-7 text-white">
       <div>
-        <div className="flex items-center justify-between mb-8 px-2 pt-2">
+        <div className="mb-8 flex items-center justify-between px-1">
           <button
             type="button"
             aria-label="Monalyz — accueil"
-            className="rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-lilac)] focus-visible:ring-offset-4 focus-visible:ring-offset-[var(--brand-aubergine)]"
-            onClick={() => setActiveTab('dashboard')}
+            onClick={() => handleNavClick('dashboard')}
+            className="rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
           >
             <BrandLogo
               tone="reversed-white"
               decorative
               priority
-              className="h-auto w-[148px]"
+              className="h-auto w-[166px]"
             />
           </button>
-
-          {/* Mobile close button */}
           {onCloseMobile && (
             <button
+              type="button"
               onClick={onCloseMobile}
-              className="lg:hidden p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition"
-              id="close-mobile-sidebar-btn"
+              className="rounded-lg p-1.5 text-white/70 hover:bg-white/10 hover:text-white lg:hidden"
+              aria-label="Fermer le menu"
             >
-              <X className="w-5 h-5" />
+              <X className="h-5 w-5" />
             </button>
           )}
         </div>
 
-        {/* Navigation List */}
-        <nav className="space-y-1.5">
+        <nav className="space-y-1.5" aria-label="Navigation principale">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
             return (
               <button
                 key={item.id}
+                type="button"
                 onClick={() => handleNavClick(item.id)}
                 id={`nav-item-${item.id}`}
-                className={`w-full flex items-center space-x-3.5 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 ${
+                className={`group flex w-full items-center gap-4 rounded-[10px] px-4 py-[13px] text-left text-[14px] font-medium transition-all ${
                   isActive
-                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/30 font-semibold'
-                    : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    ? 'bg-gradient-to-r from-[#5138ff] to-[#3123b8] text-white shadow-[0_10px_26px_rgba(64,45,235,0.32)]'
+                    : 'featured' in item && item.featured
+                      ? 'border border-[#806eff]/55 bg-[#654cff]/15 text-white hover:bg-[#654cff]/25'
+                      : 'text-white/84 hover:bg-white/[0.07] hover:text-white'
                 }`}
               >
-                <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-slate-400'}`} />
-                <span>{item.label}</span>
+                <Icon
+                  strokeWidth={1.8}
+                  className={`h-[22px] w-[22px] shrink-0 ${
+                    isActive ? 'text-white' : 'text-white/86 group-hover:text-white'
+                  }`}
+                />
+                <span className="min-w-0 flex-1">{item.label}</span>
+                {'featured' in item && item.featured === true && !isActive && (
+                  <span className="rounded bg-[#7863ff] px-1.5 py-0.5 text-[8px] font-bold tracking-wide text-white">
+                    ACTION
+                  </span>
+                )}
               </button>
             );
           })}
         </nav>
       </div>
 
-      {/* Bottom Section */}
-      <div className="space-y-4 pt-4 border-t border-white/10">
-        {/* Help Card */}
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 relative overflow-hidden group">
-          <div className="absolute -right-4 -bottom-4 w-20 h-20 bg-blue-500/10 rounded-full blur-xl group-hover:bg-blue-500/20 transition-all" />
-          <div className="w-9 h-9 rounded-xl bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400 mb-3">
-            <Headphones className="w-5 h-5" />
-          </div>
-          <h4 className="font-semibold text-sm text-white mb-1">{t.needHelp}</h4>
-          <p className="text-xs text-slate-400 mb-3 line-clamp-2 leading-relaxed">
-            {t.helpSubtitle}
+      <div className="mt-auto">
+        <div className="mb-6 rounded-2xl border border-white/15 bg-white/[0.025] p-5">
+          <Headphones className="mb-4 h-8 w-8 text-[#7054ff]" strokeWidth={1.8} />
+          <h2 className="text-[15px] font-semibold">{t.needHelp}</h2>
+          <p className="mt-1.5 text-[11px] leading-5 text-white/66">
+            {role === 'admin'
+              ? 'Notre équipe admin est là pour vous accompagner.'
+              : 'Notre équipe est là pour vous accompagner.'}
           </p>
           <button
+            type="button"
             onClick={() => setIsContactModalOpen(true)}
             id="help-contact-us-btn"
-            className="w-full py-2 px-3 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-sm transition"
+            className="mt-4 rounded-md bg-gradient-to-r from-[#6044ff] to-[#4128ef] px-5 py-2.5 text-[11px] font-semibold text-white shadow-lg shadow-indigo-950/30 hover:brightness-110"
           >
             {t.contactUs}
           </button>
         </div>
 
-        {/* Logout Button */}
         <button
+          type="button"
           onClick={async () => {
             await createClient().auth.signOut();
             window.location.replace('/login');
           }}
           id="sidebar-logout-btn"
-          className="w-full flex items-center space-x-3 px-4 py-2.5 rounded-xl text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition text-sm font-medium"
+          className="flex w-full items-center gap-4 rounded-xl px-3 py-3 text-[13px] font-medium text-white/82 transition hover:bg-white/[0.07] hover:text-white"
         >
-          <LogOut className="w-4 h-4" />
+          <LogOut className="h-5 w-5" strokeWidth={1.8} />
           <span>{t.logout}</span>
         </button>
       </div>
@@ -163,26 +175,26 @@ export default function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps)
 
   return (
     <>
-      {/* Desktop Sidebar */}
-      <aside className="hidden lg:block h-screen sticky top-0 z-30 shrink-0">
+      <aside className="sticky top-0 z-30 hidden h-screen shrink-0 lg:block">
         {content}
       </aside>
 
-      {/* Mobile Drawer Backdrop & Drawer */}
       {isOpenOnMobile && (
-        <div className="fixed inset-0 z-50 lg:hidden flex">
-          <motion.div
+        <div className="fixed inset-0 z-50 flex lg:hidden">
+          <motion.button
+            type="button"
+            aria-label="Fermer le menu"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onCloseMobile}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 bg-[#020617]/70 backdrop-blur-sm"
           />
           <motion.div
-            initial={{ x: -280 }}
+            initial={{ x: -282 }}
             animate={{ x: 0 }}
-            exit={{ x: -280 }}
-            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            exit={{ x: -282 }}
+            transition={{ type: 'spring', damping: 26, stiffness: 220 }}
             className="relative z-10 h-full"
           >
             {content}

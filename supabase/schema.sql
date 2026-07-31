@@ -1,8 +1,8 @@
 -- Monalyz DATABASE SCHEMA SNAPSHOT
 -- GENERATED FILE: run `npx bun run db:snapshot`; do not edit manually.
 -- remote-project-ref: qljqldhvbakornnpalua
--- migration-manifest-sha256: 9eab7ca46b2fd8e751ffec182961c124bcac6ed739757e2c068092d825b57593
--- migrations: 20260728060744_kaly_secure_external_financial_workflows.sql, 20260728061308_add_missing_foreign_key_indexes.sql, 20260728065832_rename_brand_to_monalyz.sql, 20260728092751_simplify_branch_manager_financial_workflows.sql, 20260728094442_add_outbox_claimed_by_index.sql, 20260728150934_add_profile_preferred_language.sql, 20260728151335_grant_profile_preferences_update.sql, 20260728173319_provision_demo_accounts.sql, 20260728183213_fix_demo_provisioner_uuid_literals.sql, 20260729115445_add_official_accounts_and_ledger.sql, 20260729115451_wire_ledger_to_financial_workflows.sql, 20260729115458_add_official_documents_and_demo_fixtures.sql
+-- migration-manifest-sha256: a826727e508de70ccf103375bd5fb7898b9ca94bfbf11290dca25ad8de305cb7
+-- migrations: 20260728060744_kaly_secure_external_financial_workflows.sql, 20260728061308_add_missing_foreign_key_indexes.sql, 20260728065832_rename_brand_to_monalyz.sql, 20260728092751_simplify_branch_manager_financial_workflows.sql, 20260728094442_add_outbox_claimed_by_index.sql, 20260728150934_add_profile_preferred_language.sql, 20260728151335_grant_profile_preferences_update.sql, 20260728173319_provision_demo_accounts.sql, 20260728183213_fix_demo_provisioner_uuid_literals.sql, 20260729115445_add_official_accounts_and_ledger.sql, 20260729115451_wire_ledger_to_financial_workflows.sql, 20260729115458_add_official_documents_and_demo_fixtures.sql, 20260730123059_automatic_account_numbers.sql, 20260730162101_kyc_workflow_and_internal_account.sql, 20260730170000_sequential_transfer_checks.sql
 -- schema-only: true
 -- production-data-included: false
 -- schemas: public, private
@@ -35,6 +35,67 @@ ALTER SCHEMA "public" OWNER TO "pg_database_owner";
 
 COMMENT ON SCHEMA "public" IS 'standard public schema';
 
+
+
+CREATE OR REPLACE FUNCTION "private"."allocate_internal_account_number"() RETURNS "text"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare
+  configuration private.account_number_configuration;
+  suffix_width integer;
+  suffix_capacity integer;
+  random_start integer;
+  generated_number text;
+begin
+  select *
+  into configuration
+  from private.account_number_configuration
+  where singleton
+  for update;
+
+  if not found then
+    raise exception 'ACCOUNT_NUMBER_PREFIX_NOT_CONFIGURED'
+      using errcode = '55000';
+  end if;
+
+  suffix_width := 10 - char_length(configuration.prefix);
+  suffix_capacity := power(10::numeric, suffix_width)::integer;
+  random_start := floor(random() * suffix_capacity)::integer;
+
+  select
+    configuration.prefix
+    || lpad(
+      ((random_start + candidate.offset_value) % suffix_capacity)::text,
+      suffix_width,
+      '0'
+    )
+  into generated_number
+  from generate_series(0, suffix_capacity - 1) as candidate(offset_value)
+  where not exists (
+    select 1
+    from public.financial_positions as existing
+    where existing.account_number =
+      configuration.prefix
+      || lpad(
+        ((random_start + candidate.offset_value) % suffix_capacity)::text,
+        suffix_width,
+        '0'
+      )
+  )
+  limit 1;
+
+  if generated_number is null then
+    raise exception 'ACCOUNT_NUMBER_PREFIX_EXHAUSTED'
+      using errcode = '54000';
+  end if;
+
+  return generated_number;
+end;
+$$;
+
+
+ALTER FUNCTION "private"."allocate_internal_account_number"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "private"."enqueue_financial_workflow_email"() RETURNS "trigger"
@@ -127,6 +188,131 @@ $$;
 
 
 ALTER FUNCTION "private"."enqueue_financial_workflow_email"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "private"."enqueue_kyc_message"() RETURNS "trigger"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare
+  language text;
+  email_address text;
+  title_text text;
+  message_text text;
+  template text;
+  action_text text;
+begin
+  if tg_op = 'UPDATE' and new.status = old.status then
+    return new;
+  end if;
+
+  template := case new.status
+    when 'submitted' then 'kyc_submitted'
+    when 'needs_information' then 'kyc_information_requested'
+    when 'resubmitted' then 'kyc_resubmitted'
+    when 'approved' then 'kyc_approved'
+    when 'rejected' then 'kyc_rejected'
+    else null
+  end;
+  if template is null then return new; end if;
+
+  select preferred_language, email
+  into language, email_address
+  from public.profiles
+  where user_id = new.owner_id;
+
+  action_text := '/myaccount?tab=kyc&kyc=' || new.id::text;
+
+  title_text := case language
+    when 'en' then case new.status
+      when 'submitted' then 'Identity file received'
+      when 'needs_information' then 'Action required on your identity file'
+      when 'resubmitted' then 'Identity file resubmitted'
+      when 'approved' then 'Identity approved'
+      else 'Identity file rejected' end
+    when 'de' then case new.status
+      when 'submitted' then 'Identitätsunterlagen erhalten'
+      when 'needs_information' then 'Aktion für Ihre Identitätsprüfung erforderlich'
+      when 'resubmitted' then 'Identitätsunterlagen erneut eingereicht'
+      when 'approved' then 'Identität bestätigt'
+      else 'Identitätsunterlagen abgelehnt' end
+    when 'es' then case new.status
+      when 'submitted' then 'Expediente de identidad recibido'
+      when 'needs_information' then 'Acción necesaria en su expediente'
+      when 'resubmitted' then 'Expediente de identidad reenviado'
+      when 'approved' then 'Identidad aprobada'
+      else 'Expediente de identidad rechazado' end
+    else case new.status
+      when 'submitted' then 'Dossier d’identité reçu'
+      when 'needs_information' then 'Action requise sur votre dossier'
+      when 'resubmitted' then 'Dossier d’identité resoumis'
+      when 'approved' then 'Identité approuvée'
+      else 'Dossier d’identité rejeté' end
+  end;
+
+  message_text := case language
+    when 'en' then case new.status
+      when 'submitted' then 'Your file has been received and is waiting for human review.'
+      when 'needs_information' then 'Open your file to correct only the requested items.'
+      when 'resubmitted' then 'Your corrections have been received.'
+      when 'approved' then 'Your identity is confirmed and your internal account has been created.'
+      else 'Open your file to see the reason and resubmit your corrections.' end
+    when 'de' then case new.status
+      when 'submitted' then 'Ihre Unterlagen wurden empfangen und warten auf die manuelle Prüfung.'
+      when 'needs_information' then 'Öffnen Sie Ihre Unterlagen und korrigieren Sie nur die angeforderten Elemente.'
+      when 'resubmitted' then 'Ihre Korrekturen wurden empfangen.'
+      when 'approved' then 'Ihre Identität wurde bestätigt und Ihr internes Konto erstellt.'
+      else 'Öffnen Sie Ihre Unterlagen, prüfen Sie den Grund und reichen Sie Korrekturen ein.' end
+    when 'es' then case new.status
+      when 'submitted' then 'Su expediente ha sido recibido y espera una revisión humana.'
+      when 'needs_information' then 'Abra su expediente y corrija únicamente los elementos solicitados.'
+      when 'resubmitted' then 'Hemos recibido sus correcciones.'
+      when 'approved' then 'Su identidad está confirmada y se ha creado su cuenta interna.'
+      else 'Abra su expediente, consulte el motivo y vuelva a enviar sus correcciones.' end
+    else case new.status
+      when 'submitted' then 'Votre dossier a été reçu et attend un contrôle humain.'
+      when 'needs_information' then 'Ouvrez votre dossier et corrigez uniquement les éléments demandés.'
+      when 'resubmitted' then 'Vos corrections ont bien été reçues.'
+      when 'approved' then 'Votre identité est confirmée et votre compte interne a été créé.'
+      else 'Ouvrez votre dossier, consultez le motif puis resoumettez vos corrections.' end
+  end;
+
+  insert into public.notifications (
+    recipient_id, title, message, notification_type, action_path
+  )
+  values (new.owner_id, title_text, message_text, 'kyc', action_text);
+
+  if email_address is not null then
+    insert into public.transactional_email_outbox (
+      event_key,
+      recipient_id,
+      recipient_email,
+      template_key,
+      entity_type,
+      entity_id,
+      payload
+    )
+    values (
+      'kyc:' || new.id::text || ':' || new.status || ':' || new.version::text,
+      new.owner_id,
+      email_address,
+      template,
+      'kyc',
+      new.id,
+      jsonb_build_object(
+        'actionPath', action_text,
+        'reason', new.review_note,
+        'dueAt', new.correction_due_at
+      )
+    )
+    on conflict (event_key) do nothing;
+  end if;
+  return new;
+end;
+$$;
+
+
+ALTER FUNCTION "private"."enqueue_kyc_message"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "private"."ensure_active_user"() RETURNS "uuid"
@@ -469,21 +655,33 @@ begin
     return false;
   end if;
 
-  rearranged := pg_catalog.substr(normalized, 5)
+  rearranged :=
+    pg_catalog.substr(normalized, 5)
     || pg_catalog.substr(normalized, 1, 4);
 
   for character_index in 1..pg_catalog.char_length(rearranged) loop
-    current_character := pg_catalog.substr(rearranged, character_index, 1);
+    current_character := pg_catalog.substr(
+      rearranged,
+      character_index,
+      1
+    );
+
     if current_character ~ '^[0-9]$' then
       expanded_character := current_character;
     else
-      expanded_character := (pg_catalog.ascii(current_character) - 55)::text;
+      expanded_character := (
+        pg_catalog.ascii(current_character) - 55
+      )::text;
     end if;
 
     for digit_index in 1..pg_catalog.char_length(expanded_character) loop
       remainder_value := (
         remainder_value * 10
-        + pg_catalog.substr(expanded_character, digit_index, 1)::integer
+        + pg_catalog.substr(
+          expanded_character,
+          digit_index,
+          1
+        )::integer
       ) % 97;
     end loop;
   end loop;
@@ -644,6 +842,27 @@ $$;
 ALTER FUNCTION "private"."protect_official_document"() OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "private"."remove_iban_from_new_official_document"() RETURNS "trigger"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+begin
+  new.snapshot := new.snapshot #- '{account,iban}';
+  new.snapshot_hash := encode(
+    extensions.digest(
+      convert_to(new.snapshot::text, 'UTF8'),
+      'sha256'
+    ),
+    'hex'
+  );
+  return new;
+end;
+$$;
+
+
+ALTER FUNCTION "private"."remove_iban_from_new_official_document"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "private"."set_updated_at"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     SET "search_path" TO ''
@@ -691,6 +910,50 @@ $$;
 
 
 ALTER FUNCTION "private"."validate_financial_ledger_entry"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "private"."validate_kyc_submission"("p_first_name" "text", "p_last_name" "text", "p_date_of_birth" "date", "p_place_of_birth" "text", "p_nationality" "text", "p_address" "jsonb", "p_occupation" "text", "p_income_range" "text", "p_document_type" "text", "p_document_number" "text", "p_issuing_country" "text", "p_document_expires_on" "date", "p_document_object_paths" "jsonb") RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+begin
+  if nullif(trim(coalesce(p_first_name, '')), '') is null
+     or nullif(trim(coalesce(p_last_name, '')), '') is null
+     or p_date_of_birth is null
+     or p_date_of_birth > current_date - interval '18 years'
+     or nullif(trim(coalesce(p_place_of_birth, '')), '') is null
+     or nullif(trim(coalesce(p_nationality, '')), '') is null
+     or jsonb_typeof(p_address) <> 'object'
+     or nullif(trim(coalesce(p_address ->> 'street', '')), '') is null
+     or nullif(trim(coalesce(p_address ->> 'postalCode', '')), '') is null
+     or nullif(trim(coalesce(p_address ->> 'city', '')), '') is null
+     or nullif(trim(coalesce(p_address ->> 'country', '')), '') is null
+     or nullif(trim(coalesce(p_occupation, '')), '') is null
+     or nullif(trim(coalesce(p_income_range, '')), '') is null
+     or p_document_type not in (
+       'national_identity_card',
+       'passport',
+       'residence_permit'
+     )
+     or nullif(trim(coalesce(p_document_number, '')), '') is null
+     or nullif(trim(coalesce(p_issuing_country, '')), '') is null
+     or p_document_expires_on is null
+     or p_document_expires_on < current_date
+     or jsonb_typeof(p_document_object_paths) <> 'object'
+     or not (p_document_object_paths ? 'id_front')
+     or not (p_document_object_paths ? 'selfie')
+     or not (p_document_object_paths ? 'proof_of_address')
+     or (
+       p_document_type <> 'passport'
+       and not (p_document_object_paths ? 'id_back')
+     ) then
+    raise exception 'INVALID_OR_INCOMPLETE_KYC' using errcode = '22023';
+  end if;
+end;
+$$;
+
+
+ALTER FUNCTION "private"."validate_kyc_submission"("p_first_name" "text", "p_last_name" "text", "p_date_of_birth" "date", "p_place_of_birth" "text", "p_nationality" "text", "p_address" "jsonb", "p_occupation" "text", "p_income_range" "text", "p_document_type" "text", "p_document_number" "text", "p_issuing_country" "text", "p_document_expires_on" "date", "p_document_object_paths" "jsonb") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "private"."validate_loan_disbursement_target"() RETURNS "trigger"
@@ -760,10 +1023,11 @@ CREATE TABLE IF NOT EXISTS "public"."financial_positions" (
     "declared_by" "uuid",
     "is_demo" boolean DEFAULT false NOT NULL,
     "declaration_idempotency_key" "uuid",
+    "source_kyc_id" "uuid",
     CONSTRAINT "financial_positions_account_number_check" CHECK ((("account_number" IS NULL) OR (("account_number" = "upper"(TRIM(BOTH FROM "account_number"))) AND ("account_number" ~ '^[A-Z0-9-]{6,34}$'::"text")))),
     CONSTRAINT "financial_positions_account_status_check" CHECK (("account_status" = ANY (ARRAY['pending'::"text", 'active'::"text", 'restricted'::"text", 'closed'::"text"]))),
     CONSTRAINT "financial_positions_account_type_check" CHECK (("account_type" = ANY (ARRAY['current'::"text", 'savings'::"text"]))),
-    CONSTRAINT "financial_positions_active_account_check" CHECK ((("account_status" <> 'active'::"text") OR (("account_number" IS NOT NULL) AND ("iban" IS NOT NULL) AND ("bic" IS NOT NULL) AND ("account_holder_name" IS NOT NULL) AND ("institution_name" IS NOT NULL) AND ("branch_name" IS NOT NULL) AND ("branch_code" IS NOT NULL) AND ("opened_at" IS NOT NULL) AND ("declared_by" IS NOT NULL)))),
+    CONSTRAINT "financial_positions_active_account_check" CHECK ((("account_status" <> 'active'::"text") OR (("account_number" IS NOT NULL) AND ("account_holder_name" IS NOT NULL) AND ("opened_at" IS NOT NULL) AND ("declared_by" IS NOT NULL)))),
     CONSTRAINT "financial_positions_amount_minor_check" CHECK ((("amount_minor" >= 0) AND ("amount_minor" <= '1000000000000000'::bigint))),
     CONSTRAINT "financial_positions_bic_check" CHECK ((("bic" IS NULL) OR (("bic" = "upper"(TRIM(BOTH FROM "bic"))) AND ("bic" ~ '^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$'::"text")))),
     CONSTRAINT "financial_positions_check" CHECK ((("reserved_minor" >= 0) AND ("reserved_minor" <= "amount_minor"))),
@@ -840,6 +1104,124 @@ $$;
 
 
 ALTER FUNCTION "public"."adjust_financial_position"("p_position_id" "uuid", "p_delta_minor" bigint, "p_as_of" timestamp with time zone, "p_reason" "text") OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."kyc_applications" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "owner_id" "uuid" NOT NULL,
+    "idempotency_key" "uuid" NOT NULL,
+    "first_name" "text" NOT NULL,
+    "last_name" "text" NOT NULL,
+    "date_of_birth" "date" NOT NULL,
+    "place_of_birth" "text" NOT NULL,
+    "nationality" "text" NOT NULL,
+    "address" "jsonb" NOT NULL,
+    "occupation" "text" NOT NULL,
+    "income_range" "text" NOT NULL,
+    "fatca" boolean NOT NULL,
+    "pep" boolean NOT NULL,
+    "document_object_paths" "jsonb" NOT NULL,
+    "status" "text" DEFAULT 'submitted'::"text" NOT NULL,
+    "submitted_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "reviewed_at" timestamp with time zone,
+    "reviewed_by" "uuid",
+    "review_note" "text",
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "version" integer DEFAULT 1 NOT NULL,
+    "document_type" "text",
+    "document_number" "text",
+    "issuing_country" "text",
+    "document_expires_on" "date",
+    "requested_items" "text"[] DEFAULT '{}'::"text"[] NOT NULL,
+    "correction_reason_code" "text",
+    "correction_due_at" timestamp with time zone,
+    CONSTRAINT "kyc_applications_address_check" CHECK (("jsonb_typeof"("address") = 'object'::"text")),
+    CONSTRAINT "kyc_applications_correction_reason_code_check" CHECK ((("correction_reason_code" IS NULL) OR ("correction_reason_code" = ANY (ARRAY['unreadable_document'::"text", 'expired_document'::"text", 'inconsistent_information'::"text", 'missing_document'::"text", 'selfie_mismatch'::"text", 'address_not_verified'::"text", 'regulatory_information'::"text", 'other'::"text"])))),
+    CONSTRAINT "kyc_applications_correction_state_check" CHECK ((("status" = ANY (ARRAY['needs_information'::"text", 'rejected'::"text"])) OR (("cardinality"("requested_items") = 0) AND ("correction_reason_code" IS NULL) AND ("correction_due_at" IS NULL)))),
+    CONSTRAINT "kyc_applications_date_of_birth_check" CHECK (("date_of_birth" <= (CURRENT_DATE - '18 years'::interval))),
+    CONSTRAINT "kyc_applications_document_number_check" CHECK ((("document_number" IS NULL) OR (("char_length"("document_number") >= 2) AND ("char_length"("document_number") <= 100)))),
+    CONSTRAINT "kyc_applications_document_object_paths_check" CHECK (("jsonb_typeof"("document_object_paths") = 'object'::"text")),
+    CONSTRAINT "kyc_applications_document_type_check" CHECK ((("document_type" IS NULL) OR ("document_type" = ANY (ARRAY['national_identity_card'::"text", 'passport'::"text", 'residence_permit'::"text"])))),
+    CONSTRAINT "kyc_applications_first_name_check" CHECK ((("char_length"("first_name") >= 1) AND ("char_length"("first_name") <= 100))),
+    CONSTRAINT "kyc_applications_income_range_check" CHECK ((("char_length"("income_range") >= 1) AND ("char_length"("income_range") <= 100))),
+    CONSTRAINT "kyc_applications_issuing_country_check" CHECK ((("issuing_country" IS NULL) OR (("char_length"("issuing_country") >= 2) AND ("char_length"("issuing_country") <= 100)))),
+    CONSTRAINT "kyc_applications_last_name_check" CHECK ((("char_length"("last_name") >= 1) AND ("char_length"("last_name") <= 100))),
+    CONSTRAINT "kyc_applications_nationality_check" CHECK ((("char_length"("nationality") >= 1) AND ("char_length"("nationality") <= 100))),
+    CONSTRAINT "kyc_applications_occupation_check" CHECK ((("char_length"("occupation") >= 1) AND ("char_length"("occupation") <= 100))),
+    CONSTRAINT "kyc_applications_place_of_birth_check" CHECK ((("char_length"("place_of_birth") >= 1) AND ("char_length"("place_of_birth") <= 160))),
+    CONSTRAINT "kyc_applications_requested_items_check" CHECK (("requested_items" <@ ARRAY['identity'::"text", 'birth'::"text", 'address'::"text", 'profile'::"text", 'document_metadata'::"text", 'id_front'::"text", 'id_back'::"text", 'selfie'::"text", 'proof_of_address'::"text"])),
+    CONSTRAINT "kyc_applications_review_note_check" CHECK ((("review_note" IS NULL) OR ("char_length"("review_note") <= 1000))),
+    CONSTRAINT "kyc_applications_status_check" CHECK (("status" = ANY (ARRAY['submitted'::"text", 'under_review'::"text", 'needs_information'::"text", 'resubmitted'::"text", 'approved'::"text", 'rejected'::"text"]))),
+    CONSTRAINT "kyc_applications_version_check" CHECK (("version" > 0))
+);
+
+
+ALTER TABLE "public"."kyc_applications" OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."begin_kyc_review"("p_kyc_id" "uuid") RETURNS "public"."kyc_applications"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare
+  caller_id uuid := (select auth.uid());
+  kyc_row public.kyc_applications;
+  old_status text;
+begin
+  if caller_id is null
+     or not private.is_active_staff(array['reviewer', 'supervisor', 'admin']) then
+    raise exception 'STAFF_PERMISSION_REQUIRED' using errcode = '42501';
+  end if;
+
+  select * into kyc_row
+  from public.kyc_applications
+  where id = p_kyc_id
+  for update;
+
+  if not found then
+    raise exception 'KYC_NOT_FOUND' using errcode = 'P0002';
+  end if;
+  if kyc_row.status not in ('submitted', 'resubmitted') then
+    raise exception 'INVALID_KYC_TRANSITION' using errcode = '55000';
+  end if;
+
+  old_status := kyc_row.status;
+  update public.kyc_applications
+  set
+    status = 'under_review',
+    reviewed_by = caller_id,
+    reviewed_at = null,
+    review_note = null,
+    requested_items = '{}',
+    correction_reason_code = null,
+    correction_due_at = null
+  where id = p_kyc_id
+  returning * into kyc_row;
+
+  insert into public.kyc_review_checklists (kyc_id, updated_by)
+  values (p_kyc_id, caller_id)
+  on conflict (kyc_id) do update
+  set
+    document_quality = 'pending',
+    data_consistency = 'pending',
+    selfie_match = 'pending',
+    adulthood = 'pending',
+    fatca = 'pending',
+    pep = 'pending',
+    internal_comments = null,
+    updated_by = caller_id;
+
+  insert into public.kyc_events (
+    kyc_id, actor_id, event_type, from_status, to_status
+  )
+  values (p_kyc_id, caller_id, 'review_started', old_status, 'under_review');
+
+  return kyc_row;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."begin_kyc_review"("p_kyc_id" "uuid") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."branch_manager_adjust_balance"("p_account_id" "uuid", "p_target_amount_minor" bigint, "p_value_date" timestamp with time zone, "p_reason" "text", "p_idempotency_key" "uuid") RETURNS "public"."financial_positions"
@@ -1250,21 +1632,24 @@ $$;
 ALTER FUNCTION "public"."branch_manager_approve_transfer"("p_transfer_id" "uuid", "p_note" "text") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."branch_manager_declare_account"("p_owner_id" "uuid", "p_label" "text", "p_account_type" "text", "p_currency" "text", "p_iban" "text", "p_bic" "text", "p_account_number" "text", "p_account_holder_name" "text", "p_institution_name" "text", "p_branch_name" "text", "p_branch_code" "text", "p_opening_balance_minor" bigint, "p_opened_at" timestamp with time zone, "p_is_demo" boolean, "p_reason" "text", "p_idempotency_key" "uuid") RETURNS "public"."financial_positions"
+CREATE OR REPLACE FUNCTION "public"."branch_manager_declare_account"("p_owner_id" "uuid", "p_label" "text", "p_account_type" "text", "p_currency" "text", "p_iban" "text", "p_bic" "text", "p_account_holder_name" "text", "p_institution_name" "text", "p_branch_name" "text", "p_branch_code" "text", "p_opening_balance_minor" bigint, "p_opened_at" timestamp with time zone, "p_is_demo" boolean, "p_reason" "text", "p_idempotency_key" "uuid") RETURNS "public"."financial_positions"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
     AS $_$
 declare
   caller_id uuid := private.ensure_branch_manager();
   position_row public.financial_positions;
-  normalized_account_number text :=
-    upper(trim(coalesce(p_account_number, '')));
+  configuration private.account_number_configuration;
+  normalized_account_number text;
   normalized_iban text :=
     private.normalize_iban(coalesce(p_iban, ''));
   normalized_bic text := upper(trim(coalesce(p_bic, '')));
   normalized_branch_code text :=
     upper(trim(coalesce(p_branch_code, '')));
   normalized_reason text := nullif(trim(coalesce(p_reason, '')), '');
+  suffix_width integer;
+  suffix_capacity integer;
+  random_start integer;
 begin
   if p_idempotency_key is null then
     raise exception 'ACCOUNT_IDEMPOTENCY_KEY_REQUIRED'
@@ -1282,7 +1667,6 @@ begin
        or position_row.account_type <> p_account_type
        or position_row.currency <> upper(trim(coalesce(p_currency, '')))
        or position_row.amount_minor <> p_opening_balance_minor
-       or position_row.account_number <> normalized_account_number
        or position_row.iban <> normalized_iban
        or position_row.bic <> normalized_bic
        or position_row.account_holder_name
@@ -1330,7 +1714,7 @@ begin
     raise exception 'APPROVED_KYC_REQUIRED' using errcode = '23514';
   end if;
 
-  if p_account_type not in ('current', 'savings')
+  if p_account_type <> 'current'
      or upper(trim(coalesce(p_currency, ''))) !~ '^[A-Z]{3}$'
      or p_opening_balance_minor < 0
      or p_opening_balance_minor > 1000000000000000
@@ -1343,11 +1727,54 @@ begin
     raise exception 'INVALID_ACCOUNT_DECLARATION' using errcode = '22023';
   end if;
 
-  if normalized_account_number !~ '^[A-Z0-9-]{6,34}$'
-     or not private.is_valid_iban(normalized_iban)
+  if not private.is_valid_iban(normalized_iban)
      or normalized_bic !~ '^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$'
      or normalized_branch_code !~ '^[A-Z0-9-]{1,40}$' then
     raise exception 'INVALID_ACCOUNT_IDENTIFIER' using errcode = '22023';
+  end if;
+
+  select *
+  into configuration
+  from private.account_number_configuration
+  where singleton
+  for update;
+
+  if not found then
+    raise exception 'ACCOUNT_NUMBER_PREFIX_NOT_CONFIGURED'
+      using errcode = '55000';
+  end if;
+
+  suffix_width := 10 - char_length(configuration.prefix);
+  suffix_capacity :=
+    power(10::numeric, suffix_width)::integer;
+  random_start := floor(random() * suffix_capacity)::integer;
+
+  select
+    configuration.prefix
+    || lpad(
+      ((random_start + candidate.offset_value) % suffix_capacity)::text,
+      suffix_width,
+      '0'
+    )
+  into normalized_account_number
+  from generate_series(0, suffix_capacity - 1)
+    as candidate(offset_value)
+  where not exists (
+    select 1
+    from public.financial_positions as existing
+    where existing.account_number =
+      configuration.prefix
+      || lpad(
+        ((random_start + candidate.offset_value) % suffix_capacity)::text,
+        suffix_width,
+        '0'
+      )
+  )
+  limit 1;
+
+  if normalized_account_number is null then
+    raise exception 'ACCOUNT_NUMBER_PREFIX_EXHAUSTED'
+      using errcode = '54000';
   end if;
 
   insert into public.financial_positions (
@@ -1381,7 +1808,7 @@ begin
     p_opening_balance_minor,
     0,
     p_opened_at,
-    '••••' || right(normalized_iban, 4),
+    '••••' || right(normalized_account_number, 4),
     p_account_type,
     normalized_account_number,
     normalized_iban,
@@ -1429,8 +1856,7 @@ begin
     caller_id,
     normalized_reason,
     jsonb_build_object(
-      'account_number', normalized_account_number,
-      'iban_last4', right(normalized_iban, 4)
+      'account_number', normalized_account_number
     )
   );
 
@@ -1448,7 +1874,7 @@ begin
     position_row.id,
     jsonb_build_object(
       'account_number', normalized_account_number,
-      'iban_last4', right(normalized_iban, 4),
+      'account_number_prefix', configuration.prefix,
       'currency', position_row.currency,
       'opening_amount_minor', p_opening_balance_minor,
       'reason', normalized_reason
@@ -1464,7 +1890,7 @@ end;
 $_$;
 
 
-ALTER FUNCTION "public"."branch_manager_declare_account"("p_owner_id" "uuid", "p_label" "text", "p_account_type" "text", "p_currency" "text", "p_iban" "text", "p_bic" "text", "p_account_number" "text", "p_account_holder_name" "text", "p_institution_name" "text", "p_branch_name" "text", "p_branch_code" "text", "p_opening_balance_minor" bigint, "p_opened_at" timestamp with time zone, "p_is_demo" boolean, "p_reason" "text", "p_idempotency_key" "uuid") OWNER TO "postgres";
+ALTER FUNCTION "public"."branch_manager_declare_account"("p_owner_id" "uuid", "p_label" "text", "p_account_type" "text", "p_currency" "text", "p_iban" "text", "p_bic" "text", "p_account_holder_name" "text", "p_institution_name" "text", "p_branch_name" "text", "p_branch_code" "text", "p_opening_balance_minor" bigint, "p_opened_at" timestamp with time zone, "p_is_demo" boolean, "p_reason" "text", "p_idempotency_key" "uuid") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."branch_manager_disburse_loan"("p_loan_id" "uuid", "p_destination_position_id" "uuid", "p_note" "text") RETURNS "public"."loan_applications"
@@ -1683,8 +2109,7 @@ begin
     raise exception 'CONFIRMATION_NOTE_REQUIRED' using errcode = '22023';
   end if;
 
-  select *
-  into transfer_row
+  select * into transfer_row
   from public.transfer_intents
   where id = p_transfer_id
   for update;
@@ -1693,158 +2118,96 @@ begin
     raise exception 'TRANSFER_NOT_FOUND' using errcode = 'P0002';
   end if;
 
-  if transfer_row.status not in (
-    'approved_for_external_execution',
-    'external_execution_recorded'
-  ) then
-    raise exception 'TRANSFER_NOT_READY_FOR_FINALIZATION'
-      using errcode = '55000';
+  if transfer_row.status = 'under_review'
+     and exists (
+       select 1 from public.transfer_review_checks
+       where transfer_id = p_transfer_id and status <> 'completed'
+     ) then
+    raise exception 'TRANSFER_REVIEW_CHECKS_INCOMPLETE' using errcode = '23514';
   end if;
 
-  select *
-  into position_row
+  if transfer_row.status not in (
+    'under_review', 'approved_for_external_execution', 'external_execution_recorded'
+  ) then
+    raise exception 'TRANSFER_NOT_READY_FOR_FINALIZATION' using errcode = '55000';
+  end if;
+
+  select * into position_row
   from public.financial_positions
   where id = transfer_row.source_position_id
     and owner_id = transfer_row.owner_id
   for update;
 
   if not found then
-    raise exception 'TRANSFER_SOURCE_ACCOUNT_NOT_FOUND'
-      using errcode = 'P0002';
+    raise exception 'TRANSFER_SOURCE_ACCOUNT_NOT_FOUND' using errcode = 'P0002';
   end if;
-
   if position_row.account_status <> 'active' then
-    raise exception 'TRANSFER_SOURCE_ACCOUNT_NOT_ACTIVE'
-      using errcode = '55000';
+    raise exception 'TRANSFER_SOURCE_ACCOUNT_NOT_ACTIVE' using errcode = '55000';
   end if;
-
   if position_row.amount_minor < transfer_row.amount_minor
      or position_row.reserved_minor < transfer_row.amount_minor then
-    raise exception 'TRANSFER_POSITION_RECONCILIATION_CONFLICT'
-      using errcode = '55000';
+    raise exception 'TRANSFER_POSITION_RECONCILIATION_CONFLICT' using errcode = '55000';
   end if;
 
   old_status := transfer_row.status;
-  generated_reference :=
-    'MONALYZ-TRF-' || upper(replace(transfer_row.id::text, '-', ''));
+  generated_reference := 'MONALYZ-TRF-' || upper(replace(transfer_row.id::text, '-', ''));
 
-  select coalesce(max(sequence_no), 0) + 1
-  into next_sequence
-  from public.financial_ledger_entries
-  where account_id = position_row.id;
+  select coalesce(max(sequence_no), 0) + 1 into next_sequence
+  from public.financial_ledger_entries where account_id = position_row.id;
 
   insert into public.financial_ledger_entries (
-    account_id,
-    owner_id,
-    sequence_no,
-    entry_key,
-    entry_kind,
-    amount_minor,
-    currency,
-    balance_before_minor,
-    balance_after_minor,
-    value_date,
-    internal_reference,
-    source_transfer_id,
-    booked_by,
-    description,
-    metadata
-  )
-  values (
-    position_row.id,
-    transfer_row.owner_id,
-    next_sequence,
-    'transfer:' || transfer_row.id::text,
-    'transfer_debit',
-    -transfer_row.amount_minor,
-    transfer_row.currency,
-    position_row.amount_minor,
-    position_row.amount_minor - transfer_row.amount_minor,
-    now(),
-    generated_reference,
-    transfer_row.id,
-    caller_id,
-    normalized_note,
+    account_id, owner_id, sequence_no, entry_key, entry_kind, amount_minor,
+    currency, balance_before_minor, balance_after_minor, value_date,
+    internal_reference, source_transfer_id, booked_by, description, metadata
+  ) values (
+    position_row.id, transfer_row.owner_id, next_sequence,
+    'transfer:' || transfer_row.id::text, 'transfer_debit', -transfer_row.amount_minor,
+    transfer_row.currency, position_row.amount_minor,
+    position_row.amount_minor - transfer_row.amount_minor, now(),
+    generated_reference, transfer_row.id, caller_id, normalized_note,
     jsonb_build_object(
       'recipient_name', transfer_row.recipient_name,
       'target_amount_minor', transfer_row.target_amount_minor,
       'target_currency', transfer_row.target_currency
     )
-  )
-  returning id into ledger_entry_id;
+  ) returning id into ledger_entry_id;
 
   update public.financial_positions
-  set
-    amount_minor = amount_minor - transfer_row.amount_minor,
-    reserved_minor = reserved_minor - transfer_row.amount_minor,
-    position_kind = 'internally_reconciled',
-    as_of = now()
+  set amount_minor = amount_minor - transfer_row.amount_minor,
+      reserved_minor = reserved_minor - transfer_row.amount_minor,
+      position_kind = 'internally_reconciled', as_of = now()
   where id = position_row.id;
 
   update public.transfer_intents
-  set
-    status = 'external_settlement_confirmed',
-    internal_execution_reference = generated_reference,
-    settled_by = caller_id,
-    settled_at = now()
+  set status = 'external_settlement_confirmed',
+      internal_execution_reference = generated_reference,
+      settled_by = caller_id, settled_at = now()
   where id = p_transfer_id
   returning * into transfer_row;
 
   insert into public.transfer_events (
-    transfer_id,
-    actor_id,
-    event_type,
-    from_status,
-    to_status,
-    reason,
-    metadata
-  )
-  values (
-    p_transfer_id,
-    caller_id,
-    'branch_manager_confirmed_effective_transfer',
-    old_status,
-    transfer_row.status,
-    normalized_note,
-    jsonb_build_object(
-      'ledger_entry_id', ledger_entry_id,
-      'internal_execution_reference', generated_reference
-    )
+    transfer_id, actor_id, event_type, from_status, to_status, reason, metadata
+  ) values (
+    p_transfer_id, caller_id, 'branch_manager_confirmed_effective_transfer',
+    old_status, transfer_row.status, normalized_note,
+    jsonb_build_object('ledger_entry_id', ledger_entry_id,
+      'internal_execution_reference', generated_reference)
   );
 
   insert into public.audit_events (
-    actor_id,
-    action,
-    entity_type,
-    entity_id,
-    metadata
-  )
-  values (
-    caller_id,
-    'branch_manager_finalize_transfer',
-    'transfer_intent',
-    p_transfer_id,
-    jsonb_build_object(
-      'from_status', old_status,
-      'to_status', transfer_row.status,
+    actor_id, action, entity_type, entity_id, metadata
+  ) values (
+    caller_id, 'branch_manager_finalize_transfer', 'transfer_intent', p_transfer_id,
+    jsonb_build_object('from_status', old_status, 'to_status', transfer_row.status,
       'ledger_entry_id', ledger_entry_id,
       'internal_execution_reference', generated_reference,
-      'amount_minor', transfer_row.amount_minor,
-      'currency', transfer_row.currency
-    )
+      'amount_minor', transfer_row.amount_minor, 'currency', transfer_row.currency)
   );
 
-  insert into public.notifications (
-    recipient_id,
-    title,
-    message,
-    notification_type
-  )
+  insert into public.notifications (recipient_id, title, message, notification_type)
   values (
-    transfer_row.owner_id,
-    'Virement effectué',
-    'Votre virement a été confirmé comme effectué avec succès.',
-    'transfer'
+    transfer_row.owner_id, 'Virement effectué',
+    'Votre virement a été confirmé comme effectué avec succès.', 'transfer'
   );
 
   return transfer_row;
@@ -2448,6 +2811,87 @@ $$;
 ALTER FUNCTION "public"."branch_manager_reject_transfer"("p_transfer_id" "uuid", "p_reason" "text") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."branch_manager_review_transfer_check"("p_transfer_id" "uuid", "p_check_kind" "text", "p_note" "text") RETURNS "public"."transfer_intents"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare
+  transfer_row public.transfer_intents;
+  check_row public.transfer_review_checks;
+  caller_id uuid := private.ensure_branch_manager();
+  normalized_note text := nullif(trim(coalesce(p_note, '')), '');
+  expected_kind text;
+  old_status text;
+begin
+  if normalized_note is null then
+    raise exception 'REVIEW_NOTE_REQUIRED' using errcode = '22023';
+  end if;
+  if p_check_kind not in ('dual_review', 'escalation', 'compliance', 'final_authorization') then
+    raise exception 'INVALID_REVIEW_CHECK' using errcode = '22023';
+  end if;
+
+  select * into transfer_row
+  from public.transfer_intents where id = p_transfer_id for update;
+  if not found then
+    raise exception 'TRANSFER_NOT_FOUND' using errcode = 'P0002';
+  end if;
+  if transfer_row.status in ('external_settlement_confirmed', 'rejected', 'cancelled', 'external_failed') then
+    return transfer_row;
+  end if;
+  if transfer_row.status not in ('submitted', 'under_review') then
+    raise exception 'TRANSFER_NOT_REVIEWABLE' using errcode = '55000';
+  end if;
+
+  select * into check_row
+  from public.transfer_review_checks
+  where transfer_id = p_transfer_id and check_kind = p_check_kind
+  for update;
+  if not found then
+    raise exception 'TRANSFER_REVIEW_CHECK_NOT_FOUND' using errcode = 'P0002';
+  end if;
+  if check_row.status = 'completed' then
+    return transfer_row;
+  end if;
+
+  expected_kind := case
+    when not exists (select 1 from public.transfer_review_checks where transfer_id = p_transfer_id and check_kind = 'dual_review' and status = 'completed') then 'dual_review'
+    when not exists (select 1 from public.transfer_review_checks where transfer_id = p_transfer_id and check_kind = 'escalation' and status = 'completed') then 'escalation'
+    when not exists (select 1 from public.transfer_review_checks where transfer_id = p_transfer_id and check_kind = 'compliance' and status = 'completed') then 'compliance'
+    else 'final_authorization'
+  end;
+  if p_check_kind <> expected_kind then
+    raise exception 'TRANSFER_REVIEW_CHECK_OUT_OF_ORDER' using errcode = '55000';
+  end if;
+
+  old_status := transfer_row.status;
+
+  update public.transfer_review_checks
+  set status = 'completed', reviewer_id = caller_id, reviewed_at = now(),
+      note = normalized_note
+  where id = check_row.id;
+
+  update public.transfer_intents set status = 'under_review'
+  where id = p_transfer_id returning * into transfer_row;
+
+  insert into public.transfer_events (
+    transfer_id, actor_id, event_type, from_status, to_status, reason, metadata
+  ) values (
+    p_transfer_id, caller_id, 'review_check_updated', old_status,
+    transfer_row.status, normalized_note,
+    jsonb_build_object('check_kind', p_check_kind, 'check_status', 'completed')
+  );
+
+  if p_check_kind = 'final_authorization' then
+    return public.branch_manager_finalize_transfer(p_transfer_id, normalized_note);
+  end if;
+  return transfer_row;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."branch_manager_review_transfer_check"("p_transfer_id" "uuid", "p_check_kind" "text", "p_note" "text") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."branch_manager_revoke_official_document"("p_document_id" "uuid", "p_reason" "text") RETURNS "public"."official_documents"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
@@ -2533,14 +2977,14 @@ CREATE TABLE IF NOT EXISTS "public"."transactional_email_outbox" (
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     CONSTRAINT "transactional_email_outbox_attempts_check" CHECK ((("attempts" >= 0) AND ("attempts" <= 5))),
     CONSTRAINT "transactional_email_outbox_check" CHECK (((("status" = 'sent'::"text") AND ("sent_at" IS NOT NULL)) OR (("status" <> 'sent'::"text") AND ("sent_at" IS NULL)))),
-    CONSTRAINT "transactional_email_outbox_entity_type_check" CHECK (("entity_type" = ANY (ARRAY['transfer'::"text", 'loan'::"text"]))),
+    CONSTRAINT "transactional_email_outbox_entity_type_check" CHECK (("entity_type" = ANY (ARRAY['transfer'::"text", 'loan'::"text", 'kyc'::"text"]))),
     CONSTRAINT "transactional_email_outbox_event_key_check" CHECK ((("char_length"("event_key") >= 3) AND ("char_length"("event_key") <= 220))),
     CONSTRAINT "transactional_email_outbox_last_error_check" CHECK ((("last_error" IS NULL) OR ("char_length"("last_error") <= 1000))),
     CONSTRAINT "transactional_email_outbox_payload_check" CHECK (("jsonb_typeof"("payload") = 'object'::"text")),
     CONSTRAINT "transactional_email_outbox_provider_message_id_check" CHECK ((("provider_message_id" IS NULL) OR ("char_length"("provider_message_id") <= 500))),
     CONSTRAINT "transactional_email_outbox_recipient_email_check" CHECK ((("char_length"("recipient_email") >= 3) AND ("char_length"("recipient_email") <= 254))),
     CONSTRAINT "transactional_email_outbox_status_check" CHECK (("status" = ANY (ARRAY['pending'::"text", 'sending'::"text", 'sent'::"text", 'failed'::"text"]))),
-    CONSTRAINT "transactional_email_outbox_template_key_check" CHECK (("template_key" = ANY (ARRAY['transfer_submitted'::"text", 'transfer_approved'::"text", 'transfer_completed'::"text", 'transfer_rejected'::"text", 'transfer_failed'::"text", 'loan_submitted'::"text", 'loan_approved'::"text", 'loan_disbursed'::"text", 'loan_rejected'::"text", 'loan_failed'::"text"])))
+    CONSTRAINT "transactional_email_outbox_template_key_check" CHECK (("template_key" = ANY (ARRAY['transfer_submitted'::"text", 'transfer_approved'::"text", 'transfer_completed'::"text", 'transfer_rejected'::"text", 'transfer_failed'::"text", 'loan_submitted'::"text", 'loan_approved'::"text", 'loan_disbursed'::"text", 'loan_rejected'::"text", 'loan_failed'::"text", 'kyc_submitted'::"text", 'kyc_information_requested'::"text", 'kyc_resubmitted'::"text", 'kyc_approved'::"text", 'kyc_rejected'::"text"])))
 );
 
 
@@ -2788,6 +3232,232 @@ $$;
 
 
 ALTER FUNCTION "public"."current_app_role"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."decide_kyc_application"("p_kyc_id" "uuid", "p_decision" "text", "p_reason_code" "text", "p_note" "text") RETURNS "public"."kyc_applications"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare
+  caller_id uuid := (select auth.uid());
+  kyc_row public.kyc_applications;
+  checklist_row public.kyc_review_checklists;
+  profile_row public.profiles;
+  account_row public.financial_positions;
+  internal_number text;
+begin
+  if caller_id is null
+     or not private.is_active_staff(array['reviewer', 'supervisor', 'admin']) then
+    raise exception 'STAFF_PERMISSION_REQUIRED' using errcode = '42501';
+  end if;
+  if p_decision not in ('approved', 'rejected') then
+    raise exception 'INVALID_KYC_DECISION' using errcode = '22023';
+  end if;
+
+  select * into kyc_row
+  from public.kyc_applications
+  where id = p_kyc_id
+  for update;
+  if not found or kyc_row.status <> 'under_review' then
+    raise exception 'KYC_NOT_UNDER_REVIEW' using errcode = '55000';
+  end if;
+
+  select * into checklist_row
+  from public.kyc_review_checklists
+  where kyc_id = p_kyc_id;
+  if not found
+     or 'pending' in (
+       checklist_row.document_quality,
+       checklist_row.data_consistency,
+       checklist_row.selfie_match,
+       checklist_row.adulthood,
+       checklist_row.fatca,
+       checklist_row.pep
+     ) then
+    raise exception 'KYC_CHECKLIST_INCOMPLETE' using errcode = '22023';
+  end if;
+
+  if p_decision = 'approved' and 'non_compliant' in (
+    checklist_row.document_quality,
+    checklist_row.data_consistency,
+    checklist_row.selfie_match,
+    checklist_row.adulthood,
+    checklist_row.fatca,
+    checklist_row.pep
+  ) then
+    raise exception 'KYC_CHECKLIST_NOT_COMPLIANT' using errcode = '23514';
+  end if;
+  if p_decision = 'rejected'
+     and nullif(trim(coalesce(p_note, '')), '') is null then
+    raise exception 'KYC_REJECTION_REASON_REQUIRED' using errcode = '22023';
+  end if;
+
+  if p_decision = 'approved' then
+    select * into profile_row
+    from public.profiles
+    where user_id = kyc_row.owner_id;
+
+    select * into account_row
+    from public.financial_positions
+    where source_kyc_id = p_kyc_id;
+
+    if not found then
+      internal_number := private.allocate_internal_account_number();
+      insert into public.financial_positions (
+        owner_id,
+        label,
+        position_kind,
+        currency,
+        amount_minor,
+        reserved_minor,
+        as_of,
+        external_identifier_masked,
+        account_type,
+        account_number,
+        account_holder_name,
+        account_status,
+        opened_at,
+        declared_by,
+        is_demo,
+        declaration_idempotency_key,
+        source_kyc_id
+      )
+      values (
+        kyc_row.owner_id,
+        'Compte courant',
+        'internally_reconciled',
+        profile_row.preferred_currency,
+        0,
+        0,
+        now(),
+        '••••' || right(internal_number, 4),
+        'current',
+        internal_number,
+        trim(kyc_row.first_name || ' ' || kyc_row.last_name),
+        'active',
+        now(),
+        caller_id,
+        false,
+        p_kyc_id,
+        p_kyc_id
+      )
+      returning * into account_row;
+
+      insert into public.financial_ledger_entries (
+        account_id,
+        owner_id,
+        sequence_no,
+        entry_key,
+        entry_kind,
+        amount_minor,
+        currency,
+        balance_before_minor,
+        balance_after_minor,
+        value_date,
+        internal_reference,
+        booked_by,
+        description,
+        metadata
+      )
+      values (
+        account_row.id,
+        account_row.owner_id,
+        1,
+        'kyc-account-opening:' || p_kyc_id::text,
+        'account_opening',
+        0,
+        account_row.currency,
+        0,
+        0,
+        now(),
+        'KYC-ACCOUNT-' || upper(replace(p_kyc_id::text, '-', '')),
+        caller_id,
+        'Ouverture automatique après approbation KYC',
+        jsonb_build_object('kyc_id', p_kyc_id)
+      );
+    end if;
+  end if;
+
+  update public.kyc_applications
+  set
+    status = p_decision,
+    reviewed_by = caller_id,
+    reviewed_at = now(),
+    review_note = nullif(trim(coalesce(p_note, '')), ''),
+    requested_items = case
+      when p_decision = 'rejected'
+        then array[
+          'identity', 'birth', 'address', 'profile', 'document_metadata',
+          'id_front', 'id_back', 'selfie', 'proof_of_address'
+        ]::text[]
+      else '{}'
+    end,
+    correction_reason_code = case
+      when p_decision = 'rejected' then coalesce(p_reason_code, 'other')
+      else null
+    end,
+    correction_due_at = null
+  where id = p_kyc_id
+  returning * into kyc_row;
+
+  insert into public.kyc_events (
+    kyc_id, actor_id, event_type, from_status, to_status, reason
+  )
+  values (
+    p_kyc_id,
+    caller_id,
+    'decided',
+    'under_review',
+    p_decision,
+    nullif(trim(coalesce(p_note, '')), '')
+  );
+
+  insert into public.audit_events (
+    actor_id, action, entity_type, entity_id, metadata
+  )
+  values (
+    caller_id,
+    'decide_kyc',
+    'kyc_application',
+    p_kyc_id,
+    jsonb_build_object(
+      'decision', p_decision,
+      'account_id', account_row.id,
+      'account_number', account_row.account_number
+    )
+  );
+
+  return kyc_row;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."decide_kyc_application"("p_kyc_id" "uuid", "p_decision" "text", "p_reason_code" "text", "p_note" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."get_account_number_configuration"() RETURNS TABLE("prefix" "text", "prefix_length" integer, "capacity" integer, "updated_at" timestamp with time zone)
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+begin
+  perform private.ensure_branch_manager();
+
+  return query
+  select
+    configuration.prefix,
+    char_length(configuration.prefix)::integer,
+    power(
+      10::numeric,
+      10 - char_length(configuration.prefix)
+    )::integer,
+    configuration.updated_at
+  from private.account_number_configuration as configuration
+  where configuration.singleton;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."get_account_number_configuration"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."mark_notification_read"("p_notification_id" "uuid") RETURNS "void"
@@ -3390,44 +4060,203 @@ $$;
 ALTER FUNCTION "public"."record_financial_position"("p_owner_id" "uuid", "p_label" "text", "p_currency" "text", "p_amount_minor" bigint, "p_as_of" timestamp with time zone, "p_external_identifier_masked" "text", "p_reason" "text") OWNER TO "postgres";
 
 
-CREATE TABLE IF NOT EXISTS "public"."kyc_applications" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "owner_id" "uuid" NOT NULL,
-    "idempotency_key" "uuid" NOT NULL,
-    "first_name" "text" NOT NULL,
-    "last_name" "text" NOT NULL,
-    "date_of_birth" "date" NOT NULL,
-    "place_of_birth" "text" NOT NULL,
-    "nationality" "text" NOT NULL,
-    "address" "jsonb" NOT NULL,
-    "occupation" "text" NOT NULL,
-    "income_range" "text" NOT NULL,
-    "fatca" boolean NOT NULL,
-    "pep" boolean NOT NULL,
-    "document_object_paths" "jsonb" NOT NULL,
-    "status" "text" DEFAULT 'submitted'::"text" NOT NULL,
-    "submitted_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "reviewed_at" timestamp with time zone,
-    "reviewed_by" "uuid",
-    "review_note" "text",
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "version" integer DEFAULT 1 NOT NULL,
-    CONSTRAINT "kyc_applications_address_check" CHECK (("jsonb_typeof"("address") = 'object'::"text")),
-    CONSTRAINT "kyc_applications_date_of_birth_check" CHECK (("date_of_birth" <= (CURRENT_DATE - '18 years'::interval))),
-    CONSTRAINT "kyc_applications_document_object_paths_check" CHECK (("jsonb_typeof"("document_object_paths") = 'object'::"text")),
-    CONSTRAINT "kyc_applications_first_name_check" CHECK ((("char_length"("first_name") >= 1) AND ("char_length"("first_name") <= 100))),
-    CONSTRAINT "kyc_applications_income_range_check" CHECK ((("char_length"("income_range") >= 1) AND ("char_length"("income_range") <= 100))),
-    CONSTRAINT "kyc_applications_last_name_check" CHECK ((("char_length"("last_name") >= 1) AND ("char_length"("last_name") <= 100))),
-    CONSTRAINT "kyc_applications_nationality_check" CHECK ((("char_length"("nationality") >= 1) AND ("char_length"("nationality") <= 100))),
-    CONSTRAINT "kyc_applications_occupation_check" CHECK ((("char_length"("occupation") >= 1) AND ("char_length"("occupation") <= 100))),
-    CONSTRAINT "kyc_applications_place_of_birth_check" CHECK ((("char_length"("place_of_birth") >= 1) AND ("char_length"("place_of_birth") <= 160))),
-    CONSTRAINT "kyc_applications_review_note_check" CHECK ((("review_note" IS NULL) OR ("char_length"("review_note") <= 1000))),
-    CONSTRAINT "kyc_applications_status_check" CHECK (("status" = ANY (ARRAY['submitted'::"text", 'under_review'::"text", 'approved'::"text", 'rejected'::"text", 'needs_information'::"text"]))),
-    CONSTRAINT "kyc_applications_version_check" CHECK (("version" > 0))
-);
+CREATE OR REPLACE FUNCTION "public"."request_kyc_information"("p_kyc_id" "uuid", "p_requested_items" "text"[], "p_reason_code" "text", "p_note" "text", "p_due_at" timestamp with time zone) RETURNS "public"."kyc_applications"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare
+  caller_id uuid := (select auth.uid());
+  kyc_row public.kyc_applications;
+begin
+  if caller_id is null
+     or not private.is_active_staff(array['reviewer', 'supervisor', 'admin']) then
+    raise exception 'STAFF_PERMISSION_REQUIRED' using errcode = '42501';
+  end if;
+  if cardinality(coalesce(p_requested_items, '{}')) = 0
+     or not (
+       p_requested_items <@ array[
+         'identity', 'birth', 'address', 'profile', 'document_metadata',
+         'id_front', 'id_back', 'selfie', 'proof_of_address'
+       ]::text[]
+     )
+     or p_reason_code not in (
+       'unreadable_document', 'expired_document',
+       'inconsistent_information', 'missing_document', 'selfie_mismatch',
+       'address_not_verified', 'regulatory_information', 'other'
+     )
+     or nullif(trim(coalesce(p_note, '')), '') is null
+     or (p_due_at is not null and p_due_at <= now()) then
+    raise exception 'INVALID_KYC_INFORMATION_REQUEST' using errcode = '22023';
+  end if;
+
+  update public.kyc_applications
+  set
+    status = 'needs_information',
+    requested_items = p_requested_items,
+    correction_reason_code = p_reason_code,
+    correction_due_at = p_due_at,
+    review_note = trim(p_note),
+    reviewed_by = caller_id,
+    reviewed_at = null
+  where id = p_kyc_id and status = 'under_review'
+  returning * into kyc_row;
+
+  if not found then
+    raise exception 'INVALID_KYC_TRANSITION' using errcode = '55000';
+  end if;
+
+  insert into public.kyc_events (
+    kyc_id, actor_id, event_type, from_status, to_status, reason
+  )
+  values (
+    p_kyc_id,
+    caller_id,
+    'information_requested',
+    'under_review',
+    'needs_information',
+    trim(p_note)
+  );
+  return kyc_row;
+end;
+$$;
 
 
-ALTER TABLE "public"."kyc_applications" OWNER TO "postgres";
+ALTER FUNCTION "public"."request_kyc_information"("p_kyc_id" "uuid", "p_requested_items" "text"[], "p_reason_code" "text", "p_note" "text", "p_due_at" timestamp with time zone) OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."resubmit_kyc_application"("p_kyc_id" "uuid", "p_changes" "jsonb", "p_document_object_paths" "jsonb") RETURNS "public"."kyc_applications"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare
+  caller_id uuid := private.ensure_active_user();
+  kyc_row public.kyc_applications;
+  item text;
+  merged_paths jsonb;
+  old_status text;
+begin
+  select * into kyc_row
+  from public.kyc_applications
+  where id = p_kyc_id and owner_id = caller_id
+  for update;
+
+  if not found then
+    raise exception 'KYC_NOT_FOUND' using errcode = 'P0002';
+  end if;
+  if kyc_row.status not in ('needs_information', 'rejected') then
+    raise exception 'INVALID_KYC_TRANSITION' using errcode = '55000';
+  end if;
+  old_status := kyc_row.status;
+  if jsonb_typeof(coalesce(p_changes, '{}'::jsonb)) <> 'object'
+     or jsonb_typeof(coalesce(p_document_object_paths, '{}'::jsonb)) <> 'object' then
+    raise exception 'INVALID_KYC_CORRECTION' using errcode = '22023';
+  end if;
+
+  for item in select jsonb_object_keys(coalesce(p_changes, '{}'::jsonb))
+  loop
+    if not (item = any(kyc_row.requested_items)) then
+      raise exception 'UNREQUESTED_KYC_FIELD' using errcode = '42501';
+    end if;
+  end loop;
+  for item in select jsonb_object_keys(coalesce(p_document_object_paths, '{}'::jsonb))
+  loop
+    if not (item = any(kyc_row.requested_items)) then
+      raise exception 'UNREQUESTED_KYC_DOCUMENT' using errcode = '42501';
+    end if;
+  end loop;
+
+  merged_paths := kyc_row.document_object_paths
+    || coalesce(p_document_object_paths, '{}'::jsonb);
+
+  update public.kyc_applications
+  set
+    first_name = case when 'identity' = any(requested_items)
+      then trim(coalesce(p_changes #>> '{identity,firstName}', first_name))
+      else first_name end,
+    last_name = case when 'identity' = any(requested_items)
+      then trim(coalesce(p_changes #>> '{identity,lastName}', last_name))
+      else last_name end,
+    place_of_birth = case when 'identity' = any(requested_items)
+      then trim(coalesce(p_changes #>> '{identity,placeOfBirth}', place_of_birth))
+      else place_of_birth end,
+    nationality = case when 'identity' = any(requested_items)
+      then trim(coalesce(p_changes #>> '{identity,nationality}', nationality))
+      else nationality end,
+    date_of_birth = case when 'birth' = any(requested_items)
+      then coalesce((p_changes ->> 'birth')::date, date_of_birth)
+      else date_of_birth end,
+    address = case when 'address' = any(requested_items)
+      then coalesce(p_changes -> 'address', address)
+      else address end,
+    occupation = case when 'profile' = any(requested_items)
+      then trim(coalesce(p_changes #>> '{profile,occupation}', occupation))
+      else occupation end,
+    income_range = case when 'profile' = any(requested_items)
+      then trim(coalesce(p_changes #>> '{profile,incomeRange}', income_range))
+      else income_range end,
+    fatca = case when 'profile' = any(requested_items)
+      then coalesce((p_changes #>> '{profile,fatca}')::boolean, fatca)
+      else fatca end,
+    pep = case when 'profile' = any(requested_items)
+      then coalesce((p_changes #>> '{profile,pep}')::boolean, pep)
+      else pep end,
+    document_type = case when 'document_metadata' = any(requested_items)
+      then coalesce(p_changes #>> '{document_metadata,documentType}', document_type)
+      else document_type end,
+    document_number = case when 'document_metadata' = any(requested_items)
+      then trim(coalesce(p_changes #>> '{document_metadata,documentNumber}', document_number))
+      else document_number end,
+    issuing_country = case when 'document_metadata' = any(requested_items)
+      then trim(coalesce(p_changes #>> '{document_metadata,issuingCountry}', issuing_country))
+      else issuing_country end,
+    document_expires_on = case when 'document_metadata' = any(requested_items)
+      then coalesce(
+        (p_changes #>> '{document_metadata,documentExpiresOn}')::date,
+        document_expires_on
+      )
+      else document_expires_on end,
+    document_object_paths = merged_paths,
+    status = 'resubmitted',
+    submitted_at = now(),
+    reviewed_at = null,
+    requested_items = '{}',
+    correction_reason_code = null,
+    correction_due_at = null
+  where id = p_kyc_id
+  returning * into kyc_row;
+
+  perform private.validate_kyc_submission(
+    kyc_row.first_name,
+    kyc_row.last_name,
+    kyc_row.date_of_birth,
+    kyc_row.place_of_birth,
+    kyc_row.nationality,
+    kyc_row.address,
+    kyc_row.occupation,
+    kyc_row.income_range,
+    kyc_row.document_type,
+    kyc_row.document_number,
+    kyc_row.issuing_country,
+    kyc_row.document_expires_on,
+    kyc_row.document_object_paths
+  );
+
+  insert into public.kyc_events (
+    kyc_id, actor_id, event_type, from_status, to_status
+  )
+  values (
+    p_kyc_id,
+    caller_id,
+    'resubmitted',
+    old_status,
+    'resubmitted'
+  );
+  return kyc_row;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."resubmit_kyc_application"("p_kyc_id" "uuid", "p_changes" "jsonb", "p_document_object_paths" "jsonb") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."review_kyc_application"("p_kyc_id" "uuid", "p_status" "text", "p_note" "text") RETURNS "public"."kyc_applications"
@@ -3699,6 +4528,141 @@ $$;
 ALTER FUNCTION "public"."review_transfer_check"("p_transfer_id" "uuid", "p_check_kind" "text", "p_status" "text", "p_note" "text") OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "public"."kyc_drafts" (
+    "owner_id" "uuid" NOT NULL,
+    "current_step" integer DEFAULT 0 NOT NULL,
+    "payload" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
+    "document_object_paths" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
+    "preferred_language" "text" DEFAULT 'fr'::"text" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "kyc_drafts_current_step_check" CHECK ((("current_step" >= 0) AND ("current_step" <= 8))),
+    CONSTRAINT "kyc_drafts_document_object_paths_check" CHECK (("jsonb_typeof"("document_object_paths") = 'object'::"text")),
+    CONSTRAINT "kyc_drafts_payload_check" CHECK (("jsonb_typeof"("payload") = 'object'::"text")),
+    CONSTRAINT "kyc_drafts_preferred_language_check" CHECK (("preferred_language" = ANY (ARRAY['fr'::"text", 'en'::"text", 'de'::"text", 'es'::"text"])))
+);
+
+
+ALTER TABLE "public"."kyc_drafts" OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."save_kyc_draft"("p_current_step" integer, "p_payload" "jsonb", "p_document_object_paths" "jsonb", "p_preferred_language" "text") RETURNS "public"."kyc_drafts"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare
+  caller_id uuid := private.ensure_active_user();
+  draft_row public.kyc_drafts;
+begin
+  if p_current_step not between 0 and 8
+     or jsonb_typeof(coalesce(p_payload, '{}'::jsonb)) <> 'object'
+     or jsonb_typeof(coalesce(p_document_object_paths, '{}'::jsonb)) <> 'object'
+     or p_preferred_language not in ('fr', 'en', 'de', 'es') then
+    raise exception 'INVALID_KYC_DRAFT' using errcode = '22023';
+  end if;
+
+  insert into public.kyc_drafts (
+    owner_id,
+    current_step,
+    payload,
+    document_object_paths,
+    preferred_language
+  )
+  values (
+    caller_id,
+    p_current_step,
+    coalesce(p_payload, '{}'::jsonb),
+    coalesce(p_document_object_paths, '{}'::jsonb),
+    p_preferred_language
+  )
+  on conflict (owner_id) do update
+  set
+    current_step = excluded.current_step,
+    payload = excluded.payload,
+    document_object_paths = excluded.document_object_paths,
+    preferred_language = excluded.preferred_language
+  returning * into draft_row;
+
+  return draft_row;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."save_kyc_draft"("p_current_step" integer, "p_payload" "jsonb", "p_document_object_paths" "jsonb", "p_preferred_language" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."set_account_number_prefix"("p_prefix" "text") RETURNS TABLE("prefix" "text", "prefix_length" integer, "capacity" integer, "updated_at" timestamp with time zone)
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $_$
+declare
+  caller_id uuid := private.ensure_branch_manager();
+  normalized_prefix text := trim(coalesce(p_prefix, ''));
+  configuration private.account_number_configuration;
+begin
+  if normalized_prefix !~ '^[0-9]{5,9}$' then
+    raise exception 'INVALID_ACCOUNT_NUMBER_PREFIX'
+      using errcode = '22023';
+  end if;
+
+  insert into private.account_number_configuration (
+    singleton,
+    prefix,
+    created_by,
+    updated_by
+  )
+  values (
+    true,
+    normalized_prefix,
+    caller_id,
+    caller_id
+  )
+  on conflict (singleton) do update
+  set
+    prefix = excluded.prefix,
+    updated_at = now(),
+    updated_by = caller_id
+  returning * into configuration;
+
+  insert into public.audit_events (
+    actor_id,
+    action,
+    entity_type,
+    entity_id,
+    metadata
+  )
+  values (
+    caller_id,
+    'set_account_number_prefix',
+    'account_number_configuration',
+    caller_id,
+    jsonb_build_object(
+      'prefix', configuration.prefix,
+      'prefix_length', char_length(configuration.prefix),
+      'capacity',
+        power(
+          10::numeric,
+          10 - char_length(configuration.prefix)
+        )::integer
+    )
+  );
+
+  return query
+  select
+    configuration.prefix,
+    char_length(configuration.prefix)::integer,
+    power(
+      10::numeric,
+      10 - char_length(configuration.prefix)
+    )::integer,
+    configuration.updated_at;
+end;
+$_$;
+
+
+ALTER FUNCTION "public"."set_account_number_prefix"("p_prefix" "text") OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."profiles" (
     "user_id" "uuid" NOT NULL,
     "email" "text" NOT NULL,
@@ -3770,7 +4734,7 @@ $$;
 ALTER FUNCTION "public"."set_user_access_status"("p_user_id" "uuid", "p_status" "text", "p_reason" "text") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."submit_kyc_application"("p_first_name" "text", "p_last_name" "text", "p_date_of_birth" "date", "p_place_of_birth" "text", "p_nationality" "text", "p_address" "jsonb", "p_occupation" "text", "p_income_range" "text", "p_fatca" boolean, "p_pep" boolean, "p_document_object_paths" "jsonb", "p_idempotency_key" "uuid") RETURNS "public"."kyc_applications"
+CREATE OR REPLACE FUNCTION "public"."submit_kyc_application"("p_first_name" "text", "p_last_name" "text", "p_date_of_birth" "date", "p_place_of_birth" "text", "p_nationality" "text", "p_address" "jsonb", "p_occupation" "text", "p_income_range" "text", "p_fatca" boolean, "p_pep" boolean, "p_document_type" "text", "p_document_number" "text", "p_issuing_country" "text", "p_document_expires_on" "date", "p_document_object_paths" "jsonb", "p_idempotency_key" "uuid") RETURNS "public"."kyc_applications"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
@@ -3778,6 +4742,30 @@ declare
   caller_id uuid := private.ensure_active_user();
   kyc_row public.kyc_applications;
 begin
+  perform private.validate_kyc_submission(
+    p_first_name,
+    p_last_name,
+    p_date_of_birth,
+    p_place_of_birth,
+    p_nationality,
+    p_address,
+    p_occupation,
+    p_income_range,
+    p_document_type,
+    p_document_number,
+    p_issuing_country,
+    p_document_expires_on,
+    p_document_object_paths
+  );
+
+  if exists (
+    select 1
+    from public.kyc_applications
+    where owner_id = caller_id
+  ) then
+    raise exception 'KYC_APPLICATION_ALREADY_EXISTS' using errcode = '23505';
+  end if;
+
   insert into public.kyc_applications (
     owner_id,
     idempotency_key,
@@ -3791,7 +4779,12 @@ begin
     income_range,
     fatca,
     pep,
-    document_object_paths
+    document_type,
+    document_number,
+    issuing_country,
+    document_expires_on,
+    document_object_paths,
+    status
   )
   values (
     caller_id,
@@ -3806,7 +4799,12 @@ begin
     trim(p_income_range),
     p_fatca,
     p_pep,
-    p_document_object_paths
+    p_document_type,
+    trim(p_document_number),
+    trim(p_issuing_country),
+    p_document_expires_on,
+    p_document_object_paths,
+    'submitted'
   )
   on conflict (owner_id, idempotency_key) do nothing
   returning * into kyc_row;
@@ -3819,23 +4817,18 @@ begin
     return kyc_row;
   end if;
 
-  insert into public.kyc_events (kyc_id, actor_id, event_type, to_status)
+  insert into public.kyc_events (
+    kyc_id, actor_id, event_type, to_status
+  )
   values (kyc_row.id, caller_id, 'submitted', 'submitted');
 
-  insert into public.notifications (recipient_id, title, message, notification_type)
-  values (
-    caller_id,
-    'Dossier d’identité enregistré',
-    'Votre dossier a été transmis pour contrôle humain. Son approbation ne crée ni compte bancaire ni IBAN.',
-    'kyc'
-  );
-
+  delete from public.kyc_drafts where owner_id = caller_id;
   return kyc_row;
 end;
 $$;
 
 
-ALTER FUNCTION "public"."submit_kyc_application"("p_first_name" "text", "p_last_name" "text", "p_date_of_birth" "date", "p_place_of_birth" "text", "p_nationality" "text", "p_address" "jsonb", "p_occupation" "text", "p_income_range" "text", "p_fatca" boolean, "p_pep" boolean, "p_document_object_paths" "jsonb", "p_idempotency_key" "uuid") OWNER TO "postgres";
+ALTER FUNCTION "public"."submit_kyc_application"("p_first_name" "text", "p_last_name" "text", "p_date_of_birth" "date", "p_place_of_birth" "text", "p_nationality" "text", "p_address" "jsonb", "p_occupation" "text", "p_income_range" "text", "p_fatca" boolean, "p_pep" boolean, "p_document_type" "text", "p_document_number" "text", "p_issuing_country" "text", "p_document_expires_on" "date", "p_document_object_paths" "jsonb", "p_idempotency_key" "uuid") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."submit_loan_application"("p_requested_amount_minor" bigint, "p_currency" "text", "p_duration_months" integer, "p_indicative_monthly_payment_minor" bigint, "p_indicative_annual_rate" numeric, "p_motive" "text", "p_document_object_paths" "jsonb", "p_idempotency_key" "uuid") RETURNS "public"."loan_applications"
@@ -3849,9 +4842,8 @@ declare
   generated_reference text;
 begin
   if p_document_object_paths is null
-     or jsonb_typeof(p_document_object_paths) <> 'array'
-     or jsonb_array_length(p_document_object_paths) = 0 then
-    raise exception 'LOAN_EVIDENCE_REQUIRED' using errcode = '22023';
+     or jsonb_typeof(p_document_object_paths) <> 'array' then
+    raise exception 'INVALID_LOAN_DOCUMENTS' using errcode = '22023';
   end if;
 
   generated_reference :=
@@ -3890,11 +4882,9 @@ begin
   returning * into loan_row;
 
   if loan_row.id is null then
-    select *
-    into loan_row
+    select * into loan_row
     from public.loan_applications
-    where owner_id = caller_id
-      and idempotency_key = p_idempotency_key;
+    where owner_id = caller_id and idempotency_key = p_idempotency_key;
     return loan_row;
   end if;
 
@@ -3907,9 +4897,7 @@ begin
   insert into public.loan_events (
     loan_id, actor_id, event_type, to_status
   )
-  values (
-    loan_row.id, caller_id, 'submitted', 'submitted'
-  );
+  values (loan_row.id, caller_id, 'submitted', 'submitted');
 
   insert into public.notifications (
     recipient_id, title, message, notification_type
@@ -3920,7 +4908,6 @@ begin
     'Votre demande a été enregistrée pour étude. La simulation n’est ni une offre de crédit ni une promesse de versement.',
     'loan'
   );
-
   return loan_row;
 end;
 $$;
@@ -4400,6 +5387,84 @@ $$;
 ALTER FUNCTION "public"."transition_transfer"("p_transfer_id" "uuid", "p_action" "text", "p_reason" "text", "p_external_reference" "text", "p_evidence_object_path" "text", "p_executed_at" timestamp with time zone) OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "public"."kyc_review_checklists" (
+    "kyc_id" "uuid" NOT NULL,
+    "document_quality" "text" DEFAULT 'pending'::"text" NOT NULL,
+    "data_consistency" "text" DEFAULT 'pending'::"text" NOT NULL,
+    "selfie_match" "text" DEFAULT 'pending'::"text" NOT NULL,
+    "adulthood" "text" DEFAULT 'pending'::"text" NOT NULL,
+    "fatca" "text" DEFAULT 'pending'::"text" NOT NULL,
+    "pep" "text" DEFAULT 'pending'::"text" NOT NULL,
+    "internal_comments" "text",
+    "updated_by" "uuid",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "kyc_review_checklists_comments_check" CHECK ((("internal_comments" IS NULL) OR ("char_length"("internal_comments") <= 2000))),
+    CONSTRAINT "kyc_review_checklists_states_check" CHECK ((("document_quality" = ANY (ARRAY['pending'::"text", 'compliant'::"text", 'non_compliant'::"text"])) AND ("data_consistency" = ANY (ARRAY['pending'::"text", 'compliant'::"text", 'non_compliant'::"text"])) AND ("selfie_match" = ANY (ARRAY['pending'::"text", 'compliant'::"text", 'non_compliant'::"text"])) AND ("adulthood" = ANY (ARRAY['pending'::"text", 'compliant'::"text", 'non_compliant'::"text"])) AND ("fatca" = ANY (ARRAY['pending'::"text", 'compliant'::"text", 'non_compliant'::"text"])) AND ("pep" = ANY (ARRAY['pending'::"text", 'compliant'::"text", 'non_compliant'::"text"]))))
+);
+
+
+ALTER TABLE "public"."kyc_review_checklists" OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."update_kyc_review_checklist"("p_kyc_id" "uuid", "p_document_quality" "text", "p_data_consistency" "text", "p_selfie_match" "text", "p_adulthood" "text", "p_fatca" "text", "p_pep" "text", "p_internal_comments" "text") RETURNS "public"."kyc_review_checklists"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare
+  caller_id uuid := (select auth.uid());
+  checklist_row public.kyc_review_checklists;
+begin
+  if caller_id is null
+     or not private.is_active_staff(array['reviewer', 'supervisor', 'admin']) then
+    raise exception 'STAFF_PERMISSION_REQUIRED' using errcode = '42501';
+  end if;
+  if not exists (
+    select 1 from public.kyc_applications
+    where id = p_kyc_id and status = 'under_review'
+  ) then
+    raise exception 'KYC_NOT_UNDER_REVIEW' using errcode = '55000';
+  end if;
+
+  update public.kyc_review_checklists
+  set
+    document_quality = p_document_quality,
+    data_consistency = p_data_consistency,
+    selfie_match = p_selfie_match,
+    adulthood = p_adulthood,
+    fatca = p_fatca,
+    pep = p_pep,
+    internal_comments = nullif(trim(coalesce(p_internal_comments, '')), ''),
+    updated_by = caller_id
+  where kyc_id = p_kyc_id
+  returning * into checklist_row;
+
+  if not found then
+    raise exception 'KYC_CHECKLIST_NOT_FOUND' using errcode = 'P0002';
+  end if;
+  return checklist_row;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."update_kyc_review_checklist"("p_kyc_id" "uuid", "p_document_quality" "text", "p_data_consistency" "text", "p_selfie_match" "text", "p_adulthood" "text", "p_fatca" "text", "p_pep" "text", "p_internal_comments" "text") OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "private"."account_number_configuration" (
+    "singleton" boolean DEFAULT true NOT NULL,
+    "prefix" "text" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "created_by" "uuid" NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_by" "uuid" NOT NULL,
+    CONSTRAINT "account_number_configuration_prefix_check" CHECK (("prefix" ~ '^[0-9]{5,9}$'::"text")),
+    CONSTRAINT "account_number_configuration_singleton_check" CHECK ("singleton")
+);
+
+
+ALTER TABLE "private"."account_number_configuration" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."audit_events" (
     "id" bigint NOT NULL,
     "actor_id" "uuid",
@@ -4604,6 +5669,8 @@ CREATE TABLE IF NOT EXISTS "public"."notifications" (
     "notification_type" "text" NOT NULL,
     "read_at" timestamp with time zone,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "action_path" "text",
+    CONSTRAINT "notifications_action_path_check" CHECK ((("action_path" IS NULL) OR ((("char_length"("action_path") >= 1) AND ("char_length"("action_path") <= 500)) AND ("action_path" ~~ '/%'::"text") AND ("action_path" !~~ '//%'::"text")))),
     CONSTRAINT "notifications_message_check" CHECK ((("char_length"("message") >= 1) AND ("char_length"("message") <= 1000))),
     CONSTRAINT "notifications_notification_type_check" CHECK (("notification_type" = ANY (ARRAY['info'::"text", 'success'::"text", 'alert'::"text", 'transfer'::"text", 'loan'::"text", 'kyc'::"text"]))),
     CONSTRAINT "notifications_title_check" CHECK ((("char_length"("title") >= 1) AND ("char_length"("title") <= 160)))
@@ -4685,6 +5752,11 @@ ALTER TABLE "public"."transfer_review_checks" ALTER COLUMN "id" ADD GENERATED AL
 
 
 
+ALTER TABLE ONLY "private"."account_number_configuration"
+    ADD CONSTRAINT "account_number_configuration_pkey" PRIMARY KEY ("singleton");
+
+
+
 ALTER TABLE ONLY "public"."audit_events"
     ADD CONSTRAINT "audit_events_pkey" PRIMARY KEY ("id");
 
@@ -4730,8 +5802,18 @@ ALTER TABLE ONLY "public"."kyc_applications"
 
 
 
+ALTER TABLE ONLY "public"."kyc_drafts"
+    ADD CONSTRAINT "kyc_drafts_pkey" PRIMARY KEY ("owner_id");
+
+
+
 ALTER TABLE ONLY "public"."kyc_events"
     ADD CONSTRAINT "kyc_events_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."kyc_review_checklists"
+    ADD CONSTRAINT "kyc_review_checklists_pkey" PRIMARY KEY ("kyc_id");
 
 
 
@@ -4920,6 +6002,10 @@ CREATE INDEX "financial_positions_owner_status_idx" ON "public"."financial_posit
 
 
 
+CREATE UNIQUE INDEX "financial_positions_source_kyc_uidx" ON "public"."financial_positions" USING "btree" ("source_kyc_id") WHERE ("source_kyc_id" IS NOT NULL);
+
+
+
 CREATE INDEX "kyc_applications_owner_created_idx" ON "public"."kyc_applications" USING "btree" ("owner_id", "submitted_at" DESC);
 
 
@@ -5084,6 +6170,18 @@ CREATE OR REPLACE TRIGGER "kyc_applications_set_updated_at" BEFORE UPDATE ON "pu
 
 
 
+CREATE OR REPLACE TRIGGER "kyc_drafts_set_updated_at" BEFORE UPDATE ON "public"."kyc_drafts" FOR EACH ROW EXECUTE FUNCTION "private"."set_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "kyc_enqueue_message" AFTER INSERT OR UPDATE OF "status" ON "public"."kyc_applications" FOR EACH ROW EXECUTE FUNCTION "private"."enqueue_kyc_message"();
+
+
+
+CREATE OR REPLACE TRIGGER "kyc_review_checklists_set_updated_at" BEFORE UPDATE ON "public"."kyc_review_checklists" FOR EACH ROW EXECUTE FUNCTION "private"."set_updated_at"();
+
+
+
 CREATE OR REPLACE TRIGGER "loan_applications_set_updated_at" BEFORE UPDATE ON "public"."loan_applications" FOR EACH ROW EXECUTE FUNCTION "private"."set_updated_at"();
 
 
@@ -5105,6 +6203,10 @@ CREATE OR REPLACE TRIGGER "official_documents_protect_delete" BEFORE DELETE ON "
 
 
 CREATE OR REPLACE TRIGGER "official_documents_protect_update" BEFORE UPDATE ON "public"."official_documents" FOR EACH ROW EXECUTE FUNCTION "private"."protect_official_document"();
+
+
+
+CREATE OR REPLACE TRIGGER "official_documents_remove_iban_before_insert" BEFORE INSERT ON "public"."official_documents" FOR EACH ROW EXECUTE FUNCTION "private"."remove_iban_from_new_official_document"();
 
 
 
@@ -5133,6 +6235,16 @@ CREATE OR REPLACE TRIGGER "transfer_intents_set_updated_at" BEFORE UPDATE ON "pu
 
 
 CREATE OR REPLACE TRIGGER "transfer_review_checks_set_updated_at" BEFORE UPDATE ON "public"."transfer_review_checks" FOR EACH ROW EXECUTE FUNCTION "private"."set_updated_at"();
+
+
+
+ALTER TABLE ONLY "private"."account_number_configuration"
+    ADD CONSTRAINT "account_number_configuration_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "auth"."users"("id");
+
+
+
+ALTER TABLE ONLY "private"."account_number_configuration"
+    ADD CONSTRAINT "account_number_configuration_updated_by_fkey" FOREIGN KEY ("updated_by") REFERENCES "auth"."users"("id");
 
 
 
@@ -5206,6 +6318,11 @@ ALTER TABLE ONLY "public"."financial_positions"
 
 
 
+ALTER TABLE ONLY "public"."financial_positions"
+    ADD CONSTRAINT "financial_positions_source_kyc_id_fkey" FOREIGN KEY ("source_kyc_id") REFERENCES "public"."kyc_applications"("id");
+
+
+
 ALTER TABLE ONLY "public"."kyc_applications"
     ADD CONSTRAINT "kyc_applications_owner_id_fkey" FOREIGN KEY ("owner_id") REFERENCES "public"."profiles"("user_id") ON DELETE CASCADE;
 
@@ -5216,6 +6333,11 @@ ALTER TABLE ONLY "public"."kyc_applications"
 
 
 
+ALTER TABLE ONLY "public"."kyc_drafts"
+    ADD CONSTRAINT "kyc_drafts_owner_id_fkey" FOREIGN KEY ("owner_id") REFERENCES "public"."profiles"("user_id") ON DELETE CASCADE;
+
+
+
 ALTER TABLE ONLY "public"."kyc_events"
     ADD CONSTRAINT "kyc_events_actor_id_fkey" FOREIGN KEY ("actor_id") REFERENCES "auth"."users"("id");
 
@@ -5223,6 +6345,16 @@ ALTER TABLE ONLY "public"."kyc_events"
 
 ALTER TABLE ONLY "public"."kyc_events"
     ADD CONSTRAINT "kyc_events_kyc_id_fkey" FOREIGN KEY ("kyc_id") REFERENCES "public"."kyc_applications"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."kyc_review_checklists"
+    ADD CONSTRAINT "kyc_review_checklists_kyc_id_fkey" FOREIGN KEY ("kyc_id") REFERENCES "public"."kyc_applications"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."kyc_review_checklists"
+    ADD CONSTRAINT "kyc_review_checklists_updated_by_fkey" FOREIGN KEY ("updated_by") REFERENCES "public"."staff_members"("user_id");
 
 
 
@@ -5397,12 +6529,26 @@ CREATE POLICY "kyc_applications_select_own_or_staff" ON "public"."kyc_applicatio
 
 
 
+ALTER TABLE "public"."kyc_drafts" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "kyc_drafts_select_own" ON "public"."kyc_drafts" FOR SELECT TO "authenticated" USING (("owner_id" = ( SELECT "auth"."uid"() AS "uid")));
+
+
+
 ALTER TABLE "public"."kyc_events" ENABLE ROW LEVEL SECURITY;
 
 
 CREATE POLICY "kyc_events_select_related" ON "public"."kyc_events" FOR SELECT TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM "public"."kyc_applications" "k"
   WHERE (("k"."id" = "kyc_events"."kyc_id") AND (("k"."owner_id" = ( SELECT "auth"."uid"() AS "uid")) OR ( SELECT "private"."is_active_staff"(NULL::"text"[]) AS "is_active_staff"))))));
+
+
+
+ALTER TABLE "public"."kyc_review_checklists" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "kyc_review_checklists_staff_select" ON "public"."kyc_review_checklists" FOR SELECT TO "authenticated" USING (( SELECT "private"."is_active_staff"(NULL::"text"[]) AS "is_active_staff"));
 
 
 
@@ -5502,7 +6648,15 @@ GRANT USAGE ON SCHEMA "public" TO "service_role";
 
 
 
+REVOKE ALL ON FUNCTION "private"."allocate_internal_account_number"() FROM PUBLIC;
+
+
+
 REVOKE ALL ON FUNCTION "private"."enqueue_financial_workflow_email"() FROM PUBLIC;
+
+
+
+REVOKE ALL ON FUNCTION "private"."enqueue_kyc_message"() FROM PUBLIC;
 
 
 
@@ -5543,7 +6697,15 @@ REVOKE ALL ON FUNCTION "private"."protect_official_document"() FROM PUBLIC;
 
 
 
+REVOKE ALL ON FUNCTION "private"."remove_iban_from_new_official_document"() FROM PUBLIC;
+
+
+
 REVOKE ALL ON FUNCTION "private"."validate_financial_ledger_entry"() FROM PUBLIC;
+
+
+
+REVOKE ALL ON FUNCTION "private"."validate_kyc_submission"("p_first_name" "text", "p_last_name" "text", "p_date_of_birth" "date", "p_place_of_birth" "text", "p_nationality" "text", "p_address" "jsonb", "p_occupation" "text", "p_income_range" "text", "p_document_type" "text", "p_document_number" "text", "p_issuing_country" "text", "p_document_expires_on" "date", "p_document_object_paths" "jsonb") FROM PUBLIC;
 
 
 
@@ -5551,7 +6713,7 @@ REVOKE ALL ON FUNCTION "private"."validate_loan_disbursement_target"() FROM PUBL
 
 
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."financial_positions" TO "service_role";
+GRANT REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."financial_positions" TO "service_role";
 GRANT SELECT ON TABLE "public"."financial_positions" TO "authenticated";
 
 
@@ -5560,49 +6722,56 @@ REVOKE ALL ON FUNCTION "public"."adjust_financial_position"("p_position_id" "uui
 
 
 
+GRANT REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."kyc_applications" TO "service_role";
+GRANT SELECT ON TABLE "public"."kyc_applications" TO "authenticated";
+
+
+
+REVOKE ALL ON FUNCTION "public"."begin_kyc_review"("p_kyc_id" "uuid") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."begin_kyc_review"("p_kyc_id" "uuid") TO "authenticated";
+
+
+
 REVOKE ALL ON FUNCTION "public"."branch_manager_adjust_balance"("p_account_id" "uuid", "p_target_amount_minor" bigint, "p_value_date" timestamp with time zone, "p_reason" "text", "p_idempotency_key" "uuid") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."branch_manager_adjust_balance"("p_account_id" "uuid", "p_target_amount_minor" bigint, "p_value_date" timestamp with time zone, "p_reason" "text", "p_idempotency_key" "uuid") TO "service_role";
 GRANT ALL ON FUNCTION "public"."branch_manager_adjust_balance"("p_account_id" "uuid", "p_target_amount_minor" bigint, "p_value_date" timestamp with time zone, "p_reason" "text", "p_idempotency_key" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."branch_manager_adjust_balance"("p_account_id" "uuid", "p_target_amount_minor" bigint, "p_value_date" timestamp with time zone, "p_reason" "text", "p_idempotency_key" "uuid") TO "service_role";
 
 
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."loan_applications" TO "service_role";
+GRANT REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."loan_applications" TO "service_role";
 GRANT SELECT ON TABLE "public"."loan_applications" TO "authenticated";
 
 
 
 REVOKE ALL ON FUNCTION "public"."branch_manager_approve_loan"("p_loan_id" "uuid", "p_note" "text") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."branch_manager_approve_loan"("p_loan_id" "uuid", "p_note" "text") TO "service_role";
 GRANT ALL ON FUNCTION "public"."branch_manager_approve_loan"("p_loan_id" "uuid", "p_note" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."branch_manager_approve_loan"("p_loan_id" "uuid", "p_note" "text") TO "service_role";
 
 
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."transfer_intents" TO "service_role";
+GRANT REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."transfer_intents" TO "service_role";
 GRANT SELECT ON TABLE "public"."transfer_intents" TO "authenticated";
 
 
 
 REVOKE ALL ON FUNCTION "public"."branch_manager_approve_transfer"("p_transfer_id" "uuid", "p_note" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."branch_manager_approve_transfer"("p_transfer_id" "uuid", "p_note" "text") TO "service_role";
-GRANT ALL ON FUNCTION "public"."branch_manager_approve_transfer"("p_transfer_id" "uuid", "p_note" "text") TO "authenticated";
 
 
 
-REVOKE ALL ON FUNCTION "public"."branch_manager_declare_account"("p_owner_id" "uuid", "p_label" "text", "p_account_type" "text", "p_currency" "text", "p_iban" "text", "p_bic" "text", "p_account_number" "text", "p_account_holder_name" "text", "p_institution_name" "text", "p_branch_name" "text", "p_branch_code" "text", "p_opening_balance_minor" bigint, "p_opened_at" timestamp with time zone, "p_is_demo" boolean, "p_reason" "text", "p_idempotency_key" "uuid") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."branch_manager_declare_account"("p_owner_id" "uuid", "p_label" "text", "p_account_type" "text", "p_currency" "text", "p_iban" "text", "p_bic" "text", "p_account_number" "text", "p_account_holder_name" "text", "p_institution_name" "text", "p_branch_name" "text", "p_branch_code" "text", "p_opening_balance_minor" bigint, "p_opened_at" timestamp with time zone, "p_is_demo" boolean, "p_reason" "text", "p_idempotency_key" "uuid") TO "service_role";
-GRANT ALL ON FUNCTION "public"."branch_manager_declare_account"("p_owner_id" "uuid", "p_label" "text", "p_account_type" "text", "p_currency" "text", "p_iban" "text", "p_bic" "text", "p_account_number" "text", "p_account_holder_name" "text", "p_institution_name" "text", "p_branch_name" "text", "p_branch_code" "text", "p_opening_balance_minor" bigint, "p_opened_at" timestamp with time zone, "p_is_demo" boolean, "p_reason" "text", "p_idempotency_key" "uuid") TO "authenticated";
+REVOKE ALL ON FUNCTION "public"."branch_manager_declare_account"("p_owner_id" "uuid", "p_label" "text", "p_account_type" "text", "p_currency" "text", "p_iban" "text", "p_bic" "text", "p_account_holder_name" "text", "p_institution_name" "text", "p_branch_name" "text", "p_branch_code" "text", "p_opening_balance_minor" bigint, "p_opened_at" timestamp with time zone, "p_is_demo" boolean, "p_reason" "text", "p_idempotency_key" "uuid") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."branch_manager_declare_account"("p_owner_id" "uuid", "p_label" "text", "p_account_type" "text", "p_currency" "text", "p_iban" "text", "p_bic" "text", "p_account_holder_name" "text", "p_institution_name" "text", "p_branch_name" "text", "p_branch_code" "text", "p_opening_balance_minor" bigint, "p_opened_at" timestamp with time zone, "p_is_demo" boolean, "p_reason" "text", "p_idempotency_key" "uuid") TO "authenticated";
 
 
 
 REVOKE ALL ON FUNCTION "public"."branch_manager_disburse_loan"("p_loan_id" "uuid", "p_destination_position_id" "uuid", "p_note" "text") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."branch_manager_disburse_loan"("p_loan_id" "uuid", "p_destination_position_id" "uuid", "p_note" "text") TO "service_role";
 GRANT ALL ON FUNCTION "public"."branch_manager_disburse_loan"("p_loan_id" "uuid", "p_destination_position_id" "uuid", "p_note" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."branch_manager_disburse_loan"("p_loan_id" "uuid", "p_destination_position_id" "uuid", "p_note" "text") TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "public"."branch_manager_finalize_transfer"("p_transfer_id" "uuid", "p_note" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."branch_manager_finalize_transfer"("p_transfer_id" "uuid", "p_note" "text") TO "service_role";
-GRANT ALL ON FUNCTION "public"."branch_manager_finalize_transfer"("p_transfer_id" "uuid", "p_note" "text") TO "authenticated";
 
 
 
@@ -5612,26 +6781,32 @@ GRANT SELECT ON TABLE "public"."official_documents" TO "service_role";
 
 
 REVOKE ALL ON FUNCTION "public"."branch_manager_issue_official_document"("p_owner_id" "uuid", "p_account_id" "uuid", "p_transfer_id" "uuid", "p_loan_id" "uuid", "p_document_type" "text", "p_title" "text", "p_language" "text", "p_period_start" "date", "p_period_end" "date", "p_idempotency_key" "uuid") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."branch_manager_issue_official_document"("p_owner_id" "uuid", "p_account_id" "uuid", "p_transfer_id" "uuid", "p_loan_id" "uuid", "p_document_type" "text", "p_title" "text", "p_language" "text", "p_period_start" "date", "p_period_end" "date", "p_idempotency_key" "uuid") TO "service_role";
 GRANT ALL ON FUNCTION "public"."branch_manager_issue_official_document"("p_owner_id" "uuid", "p_account_id" "uuid", "p_transfer_id" "uuid", "p_loan_id" "uuid", "p_document_type" "text", "p_title" "text", "p_language" "text", "p_period_start" "date", "p_period_end" "date", "p_idempotency_key" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."branch_manager_issue_official_document"("p_owner_id" "uuid", "p_account_id" "uuid", "p_transfer_id" "uuid", "p_loan_id" "uuid", "p_document_type" "text", "p_title" "text", "p_language" "text", "p_period_start" "date", "p_period_end" "date", "p_idempotency_key" "uuid") TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "public"."branch_manager_reject_loan"("p_loan_id" "uuid", "p_reason" "text") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."branch_manager_reject_loan"("p_loan_id" "uuid", "p_reason" "text") TO "service_role";
 GRANT ALL ON FUNCTION "public"."branch_manager_reject_loan"("p_loan_id" "uuid", "p_reason" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."branch_manager_reject_loan"("p_loan_id" "uuid", "p_reason" "text") TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "public"."branch_manager_reject_transfer"("p_transfer_id" "uuid", "p_reason" "text") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."branch_manager_reject_transfer"("p_transfer_id" "uuid", "p_reason" "text") TO "service_role";
 GRANT ALL ON FUNCTION "public"."branch_manager_reject_transfer"("p_transfer_id" "uuid", "p_reason" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."branch_manager_reject_transfer"("p_transfer_id" "uuid", "p_reason" "text") TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."branch_manager_review_transfer_check"("p_transfer_id" "uuid", "p_check_kind" "text", "p_note" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."branch_manager_review_transfer_check"("p_transfer_id" "uuid", "p_check_kind" "text", "p_note" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."branch_manager_review_transfer_check"("p_transfer_id" "uuid", "p_check_kind" "text", "p_note" "text") TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "public"."branch_manager_revoke_official_document"("p_document_id" "uuid", "p_reason" "text") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."branch_manager_revoke_official_document"("p_document_id" "uuid", "p_reason" "text") TO "service_role";
 GRANT ALL ON FUNCTION "public"."branch_manager_revoke_official_document"("p_document_id" "uuid", "p_reason" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."branch_manager_revoke_official_document"("p_document_id" "uuid", "p_reason" "text") TO "service_role";
 
 
 
@@ -5655,13 +6830,21 @@ GRANT ALL ON FUNCTION "public"."complete_transactional_email"("p_email_id" "uuid
 
 
 REVOKE ALL ON FUNCTION "public"."current_app_role"() FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."current_app_role"() TO "service_role";
 GRANT ALL ON FUNCTION "public"."current_app_role"() TO "authenticated";
 
 
 
+REVOKE ALL ON FUNCTION "public"."decide_kyc_application"("p_kyc_id" "uuid", "p_decision" "text", "p_reason_code" "text", "p_note" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."decide_kyc_application"("p_kyc_id" "uuid", "p_decision" "text", "p_reason_code" "text", "p_note" "text") TO "authenticated";
+
+
+
+REVOKE ALL ON FUNCTION "public"."get_account_number_configuration"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."get_account_number_configuration"() TO "authenticated";
+
+
+
 REVOKE ALL ON FUNCTION "public"."mark_notification_read"("p_notification_id" "uuid") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."mark_notification_read"("p_notification_id" "uuid") TO "service_role";
 GRANT ALL ON FUNCTION "public"."mark_notification_read"("p_notification_id" "uuid") TO "authenticated";
 
 
@@ -5675,14 +6858,17 @@ REVOKE ALL ON FUNCTION "public"."record_financial_position"("p_owner_id" "uuid",
 
 
 
-GRANT ALL ON TABLE "public"."kyc_applications" TO "service_role";
-GRANT SELECT ON TABLE "public"."kyc_applications" TO "authenticated";
+REVOKE ALL ON FUNCTION "public"."request_kyc_information"("p_kyc_id" "uuid", "p_requested_items" "text"[], "p_reason_code" "text", "p_note" "text", "p_due_at" timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."request_kyc_information"("p_kyc_id" "uuid", "p_requested_items" "text"[], "p_reason_code" "text", "p_note" "text", "p_due_at" timestamp with time zone) TO "authenticated";
+
+
+
+REVOKE ALL ON FUNCTION "public"."resubmit_kyc_application"("p_kyc_id" "uuid", "p_changes" "jsonb", "p_document_object_paths" "jsonb") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."resubmit_kyc_application"("p_kyc_id" "uuid", "p_changes" "jsonb", "p_document_object_paths" "jsonb") TO "authenticated";
 
 
 
 REVOKE ALL ON FUNCTION "public"."review_kyc_application"("p_kyc_id" "uuid", "p_status" "text", "p_note" "text") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."review_kyc_application"("p_kyc_id" "uuid", "p_status" "text", "p_note" "text") TO "service_role";
-GRANT ALL ON FUNCTION "public"."review_kyc_application"("p_kyc_id" "uuid", "p_status" "text", "p_note" "text") TO "authenticated";
 
 
 
@@ -5694,7 +6880,22 @@ REVOKE ALL ON FUNCTION "public"."review_transfer_check"("p_transfer_id" "uuid", 
 
 
 
-GRANT ALL ON TABLE "public"."profiles" TO "service_role";
+GRANT ALL ON TABLE "public"."kyc_drafts" TO "service_role";
+GRANT SELECT ON TABLE "public"."kyc_drafts" TO "authenticated";
+
+
+
+REVOKE ALL ON FUNCTION "public"."save_kyc_draft"("p_current_step" integer, "p_payload" "jsonb", "p_document_object_paths" "jsonb", "p_preferred_language" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."save_kyc_draft"("p_current_step" integer, "p_payload" "jsonb", "p_document_object_paths" "jsonb", "p_preferred_language" "text") TO "authenticated";
+
+
+
+REVOKE ALL ON FUNCTION "public"."set_account_number_prefix"("p_prefix" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."set_account_number_prefix"("p_prefix" "text") TO "authenticated";
+
+
+
+GRANT REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."profiles" TO "service_role";
 GRANT SELECT ON TABLE "public"."profiles" TO "authenticated";
 
 
@@ -5716,25 +6917,21 @@ GRANT UPDATE("preferred_language") ON TABLE "public"."profiles" TO "authenticate
 
 
 REVOKE ALL ON FUNCTION "public"."set_user_access_status"("p_user_id" "uuid", "p_status" "text", "p_reason" "text") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."set_user_access_status"("p_user_id" "uuid", "p_status" "text", "p_reason" "text") TO "service_role";
 GRANT ALL ON FUNCTION "public"."set_user_access_status"("p_user_id" "uuid", "p_status" "text", "p_reason" "text") TO "authenticated";
 
 
 
-REVOKE ALL ON FUNCTION "public"."submit_kyc_application"("p_first_name" "text", "p_last_name" "text", "p_date_of_birth" "date", "p_place_of_birth" "text", "p_nationality" "text", "p_address" "jsonb", "p_occupation" "text", "p_income_range" "text", "p_fatca" boolean, "p_pep" boolean, "p_document_object_paths" "jsonb", "p_idempotency_key" "uuid") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."submit_kyc_application"("p_first_name" "text", "p_last_name" "text", "p_date_of_birth" "date", "p_place_of_birth" "text", "p_nationality" "text", "p_address" "jsonb", "p_occupation" "text", "p_income_range" "text", "p_fatca" boolean, "p_pep" boolean, "p_document_object_paths" "jsonb", "p_idempotency_key" "uuid") TO "service_role";
-GRANT ALL ON FUNCTION "public"."submit_kyc_application"("p_first_name" "text", "p_last_name" "text", "p_date_of_birth" "date", "p_place_of_birth" "text", "p_nationality" "text", "p_address" "jsonb", "p_occupation" "text", "p_income_range" "text", "p_fatca" boolean, "p_pep" boolean, "p_document_object_paths" "jsonb", "p_idempotency_key" "uuid") TO "authenticated";
+REVOKE ALL ON FUNCTION "public"."submit_kyc_application"("p_first_name" "text", "p_last_name" "text", "p_date_of_birth" "date", "p_place_of_birth" "text", "p_nationality" "text", "p_address" "jsonb", "p_occupation" "text", "p_income_range" "text", "p_fatca" boolean, "p_pep" boolean, "p_document_type" "text", "p_document_number" "text", "p_issuing_country" "text", "p_document_expires_on" "date", "p_document_object_paths" "jsonb", "p_idempotency_key" "uuid") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."submit_kyc_application"("p_first_name" "text", "p_last_name" "text", "p_date_of_birth" "date", "p_place_of_birth" "text", "p_nationality" "text", "p_address" "jsonb", "p_occupation" "text", "p_income_range" "text", "p_fatca" boolean, "p_pep" boolean, "p_document_type" "text", "p_document_number" "text", "p_issuing_country" "text", "p_document_expires_on" "date", "p_document_object_paths" "jsonb", "p_idempotency_key" "uuid") TO "authenticated";
 
 
 
 REVOKE ALL ON FUNCTION "public"."submit_loan_application"("p_requested_amount_minor" bigint, "p_currency" "text", "p_duration_months" integer, "p_indicative_monthly_payment_minor" bigint, "p_indicative_annual_rate" numeric, "p_motive" "text", "p_document_object_paths" "jsonb", "p_idempotency_key" "uuid") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."submit_loan_application"("p_requested_amount_minor" bigint, "p_currency" "text", "p_duration_months" integer, "p_indicative_monthly_payment_minor" bigint, "p_indicative_annual_rate" numeric, "p_motive" "text", "p_document_object_paths" "jsonb", "p_idempotency_key" "uuid") TO "service_role";
 GRANT ALL ON FUNCTION "public"."submit_loan_application"("p_requested_amount_minor" bigint, "p_currency" "text", "p_duration_months" integer, "p_indicative_monthly_payment_minor" bigint, "p_indicative_annual_rate" numeric, "p_motive" "text", "p_document_object_paths" "jsonb", "p_idempotency_key" "uuid") TO "authenticated";
 
 
 
 REVOKE ALL ON FUNCTION "public"."submit_transfer_intent"("p_source_position_id" "uuid", "p_recipient_name" "text", "p_recipient_account_masked" "text", "p_beneficiary_details" "jsonb", "p_transfer_type" "text", "p_amount_minor" bigint, "p_currency" "text", "p_target_amount_minor" bigint, "p_target_currency" "text", "p_quote_rate" numeric, "p_quote_as_of" timestamp with time zone, "p_motive" "text", "p_idempotency_key" "uuid") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."submit_transfer_intent"("p_source_position_id" "uuid", "p_recipient_name" "text", "p_recipient_account_masked" "text", "p_beneficiary_details" "jsonb", "p_transfer_type" "text", "p_amount_minor" bigint, "p_currency" "text", "p_target_amount_minor" bigint, "p_target_currency" "text", "p_quote_rate" numeric, "p_quote_as_of" timestamp with time zone, "p_motive" "text", "p_idempotency_key" "uuid") TO "service_role";
 GRANT ALL ON FUNCTION "public"."submit_transfer_intent"("p_source_position_id" "uuid", "p_recipient_name" "text", "p_recipient_account_masked" "text", "p_beneficiary_details" "jsonb", "p_transfer_type" "text", "p_amount_minor" bigint, "p_currency" "text", "p_target_amount_minor" bigint, "p_target_currency" "text", "p_quote_rate" numeric, "p_quote_as_of" timestamp with time zone, "p_motive" "text", "p_idempotency_key" "uuid") TO "authenticated";
 
 
@@ -5747,21 +6944,35 @@ REVOKE ALL ON FUNCTION "public"."transition_transfer"("p_transfer_id" "uuid", "p
 
 
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."audit_events" TO "service_role";
+GRANT ALL ON TABLE "public"."kyc_review_checklists" TO "service_role";
+GRANT SELECT ON TABLE "public"."kyc_review_checklists" TO "authenticated";
+
+
+
+REVOKE ALL ON FUNCTION "public"."update_kyc_review_checklist"("p_kyc_id" "uuid", "p_document_quality" "text", "p_data_consistency" "text", "p_selfie_match" "text", "p_adulthood" "text", "p_fatca" "text", "p_pep" "text", "p_internal_comments" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."update_kyc_review_checklist"("p_kyc_id" "uuid", "p_document_quality" "text", "p_data_consistency" "text", "p_selfie_match" "text", "p_adulthood" "text", "p_fatca" "text", "p_pep" "text", "p_internal_comments" "text") TO "authenticated";
+
+
+
+GRANT SELECT,INSERT,UPDATE ON TABLE "private"."account_number_configuration" TO "service_role";
+
+
+
+GRANT REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."audit_events" TO "service_role";
 GRANT SELECT ON TABLE "public"."audit_events" TO "authenticated";
 
 
 
-GRANT ALL ON SEQUENCE "public"."audit_events_id_seq" TO "service_role";
+GRANT UPDATE ON SEQUENCE "public"."audit_events_id_seq" TO "service_role";
 
 
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."external_loan_fundings" TO "service_role";
+GRANT REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."external_loan_fundings" TO "service_role";
 GRANT SELECT ON TABLE "public"."external_loan_fundings" TO "authenticated";
 
 
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."external_transfer_executions" TO "service_role";
+GRANT REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."external_transfer_executions" TO "service_role";
 GRANT SELECT ON TABLE "public"."external_transfer_executions" TO "authenticated";
 
 
@@ -5771,34 +6982,34 @@ GRANT SELECT ON TABLE "public"."financial_ledger_entries" TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."kyc_events" TO "service_role";
+GRANT REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."kyc_events" TO "service_role";
 GRANT SELECT ON TABLE "public"."kyc_events" TO "authenticated";
 
 
 
-GRANT ALL ON SEQUENCE "public"."kyc_events_id_seq" TO "service_role";
+GRANT UPDATE ON SEQUENCE "public"."kyc_events_id_seq" TO "service_role";
 
 
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."loan_events" TO "service_role";
+GRANT REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."loan_events" TO "service_role";
 GRANT SELECT ON TABLE "public"."loan_events" TO "authenticated";
 
 
 
-GRANT ALL ON SEQUENCE "public"."loan_events_id_seq" TO "service_role";
+GRANT UPDATE ON SEQUENCE "public"."loan_events_id_seq" TO "service_role";
 
 
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."loan_review_checks" TO "service_role";
+GRANT REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."loan_review_checks" TO "service_role";
 GRANT SELECT ON TABLE "public"."loan_review_checks" TO "authenticated";
 
 
 
-GRANT ALL ON SEQUENCE "public"."loan_review_checks_id_seq" TO "service_role";
+GRANT UPDATE ON SEQUENCE "public"."loan_review_checks_id_seq" TO "service_role";
 
 
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."notifications" TO "service_role";
+GRANT REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."notifications" TO "service_role";
 GRANT SELECT ON TABLE "public"."notifications" TO "authenticated";
 
 
@@ -5807,31 +7018,31 @@ GRANT UPDATE("read_at") ON TABLE "public"."notifications" TO "authenticated";
 
 
 
-GRANT ALL ON TABLE "public"."staff_members" TO "service_role";
+GRANT REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."staff_members" TO "service_role";
 GRANT SELECT ON TABLE "public"."staff_members" TO "authenticated";
 
 
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."transfer_events" TO "service_role";
+GRANT REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."transfer_events" TO "service_role";
 GRANT SELECT ON TABLE "public"."transfer_events" TO "authenticated";
 
 
 
-GRANT ALL ON SEQUENCE "public"."transfer_events_id_seq" TO "service_role";
+GRANT UPDATE ON SEQUENCE "public"."transfer_events_id_seq" TO "service_role";
 
 
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."transfer_review_checks" TO "service_role";
+GRANT REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."transfer_review_checks" TO "service_role";
 GRANT SELECT ON TABLE "public"."transfer_review_checks" TO "authenticated";
 
 
 
-GRANT ALL ON SEQUENCE "public"."transfer_review_checks_id_seq" TO "service_role";
+GRANT UPDATE ON SEQUENCE "public"."transfer_review_checks_id_seq" TO "service_role";
 
 
 
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON SEQUENCES TO "postgres";
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON SEQUENCES TO "service_role";
+ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT UPDATE ON SEQUENCES TO "service_role";
 
 
 
@@ -5839,7 +7050,6 @@ ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON SEQ
 
 
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON FUNCTIONS TO "postgres";
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON FUNCTIONS TO "service_role";
 
 
 
@@ -5847,4 +7057,4 @@ ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON FUN
 
 
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "postgres";
-ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "service_role";
+ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLES TO "service_role";

@@ -112,18 +112,24 @@ opaque renvoyé lors de la réclamation.
 | --- | --- |
 | `current_app_role` | Retourner le rôle courant |
 | `submit_transfer_intent` | Créer et réserver une intention |
-| `branch_manager_approve_transfer` | Confirmer les contrôles hors application et valider |
-| `branch_manager_finalize_transfer` | Confirmer le virement effectif et débiter la position |
+| `branch_manager_review_transfer_check` | Valider un contrôle séquentiel ; le quatrième débite et clôture atomiquement |
 | `branch_manager_reject_transfer` | Refuser et libérer la réservation |
 | `submit_loan_application` | Créer une demande de prêt |
 | `branch_manager_approve_loan` | Confirmer les contrôles hors application et valider |
 | `branch_manager_disburse_loan` | Confirmer le décaissement et créditer une position courante |
 | `branch_manager_reject_loan` | Refuser la demande |
 | `submit_kyc_application` | Soumettre le dossier KYC |
-| `review_kyc_application` | Décider le dossier KYC |
+| `save_kyc_draft` | Enregistrer le brouillon KYC courant |
+| `begin_kyc_review` | Passer explicitement le dossier en vérification |
+| `update_kyc_review_checklist` | Enregistrer la checklist administrative |
+| `request_kyc_information` | Demander un complément ciblé |
+| `resubmit_kyc_application` | Corriger et resoumettre le même dossier |
+| `decide_kyc_application` | Approuver avec création atomique du compte interne, ou rejeter |
 | `mark_notification_read` | Marquer une notification |
 | `set_user_access_status` | Geler ou rétablir un accès |
-| `branch_manager_declare_account` | Déclarer un compte/IBAN et son écriture d’ouverture |
+| `get_account_number_configuration` | Lire le préfixe global et sa capacité (admin) |
+| `set_account_number_prefix` | Configurer le préfixe global de 5 à 9 chiffres (admin) |
+| `branch_manager_declare_account` | Déclarer un compte avec numéro automatique et écriture d’ouverture |
 | `branch_manager_adjust_balance` | Porter un compte vers un solde cible avec une écriture motivée |
 | `branch_manager_issue_official_document` | Figer le snapshot d’un document à rendre |
 | `branch_manager_revoke_official_document` | Révoquer un document émis sans supprimer son historique |
@@ -147,7 +153,6 @@ branch_manager_declare_account(
   p_currency text,
   p_iban text,
   p_bic text,
-  p_account_number text,
   p_account_holder_name text,
   p_institution_name text,
   p_branch_name text,

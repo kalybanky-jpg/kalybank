@@ -21,6 +21,7 @@ export const translations: Record<Language, Record<string, string>> = {
     // Nav Menu Items
     dashboard: 'Tableau de bord',
     accounts: 'Comptes',
+    balanceAdjustment: 'Débit / crédit',
     transfers: 'Virements',
     loan: 'Prêts',
     loanRequests: 'Demandes de prêt',
@@ -199,6 +200,7 @@ export const translations: Record<Language, Record<string, string>> = {
     // Nav Menu Items
     dashboard: 'Dashboard',
     accounts: 'Accounts',
+    balanceAdjustment: 'Debit / credit',
     transfers: 'Transfers',
     loan: 'Loans',
     loanRequests: 'Loan applications',
@@ -374,6 +376,7 @@ export const translations: Record<Language, Record<string, string>> = {
     searchPlaceholder: 'Suche nach Akte, Kunde, Überweisung...',
     dashboard: 'Dashboard',
     accounts: 'Konten',
+    balanceAdjustment: 'Soll / Haben',
     transfers: 'Überweisungen',
     loan: 'Kredit',
     loanRequests: 'Kreditanträge',
@@ -516,6 +519,7 @@ export const translations: Record<Language, Record<string, string>> = {
     searchPlaceholder: 'Buscar expediente, cliente, transferencia...',
     dashboard: 'Panel principal',
     accounts: 'Cuentas',
+    balanceAdjustment: 'Débito / crédito',
     transfers: 'Transferencias',
     loan: 'Préstamo',
     loanRequests: 'Solicitudes de préstamo',

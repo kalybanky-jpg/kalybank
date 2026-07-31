@@ -58,7 +58,7 @@ export function transferProgress(status: string, completedChecks: number) {
   if (['rejected', 'cancelled', 'external_failed'].includes(status)) return 0;
   if (status === 'external_execution_recorded') return 90;
   if (status === 'approved_for_external_execution') return 75;
-  return Math.min(70, Math.max(5, completedChecks * 17));
+  return Math.min(75, Math.max(0, completedChecks * 25));
 }
 
 export function loanProgress(status: string, completedChecks: number) {

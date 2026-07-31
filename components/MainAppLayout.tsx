@@ -46,7 +46,7 @@ export default function MainAppLayout({ forcedRole }: MainAppLayoutProps) {
   }
 
   return (
-    <div className="min-h-screen bg-[#f4f6fa] flex text-slate-800 font-sans antialiased selection:bg-blue-600 selection:text-white">
+    <div className="min-h-screen bg-[#f7f8fc] flex text-slate-800 font-sans antialiased selection:bg-[#4b2df1] selection:text-white">
       {/* Sidebar */}
       <Sidebar
         isOpenOnMobile={isMobileSidebarOpen}
@@ -59,7 +59,7 @@ export default function MainAppLayout({ forcedRole }: MainAppLayoutProps) {
         <Header onToggleMobileMenu={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)} />
 
         {/* Dynamic View Content */}
-        <main className="flex-1 pb-16">
+        <main className="flex-1">
           {currentRole === 'admin' ? <AdminDashboard /> : <UserDashboard />}
         </main>
       </div>

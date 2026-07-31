@@ -11,12 +11,12 @@
 | Tests unitaires | `npx bun run test` | Domaine, redirections et e-mails |
 | E-mails métier | `npx bun x tsx --test tests/transactional-email.test.ts` | Config, modèles, payloads et idempotence |
 | Langues | `npx bun x tsx --test tests/language.test.ts` | BCP 47, priorité et repli |
-| Registre bancaire | `npx bun x tsx --test tests/financial.test.ts tests/banking-i18n.test.ts` | Comptes, IBAN, soldes et traductions UI |
+| Registre bancaire | `npx bun x tsx --test tests/financial.test.ts tests/banking-i18n.test.ts` | Numéros de compte, soldes et traductions UI |
 | PDF officiels | `npx bun x tsx --test tests/official-document-pdf.test.ts` | Rendu, empreinte et filigrane démo |
 | Provisionnement démo | `npx bun x tsx --test tests/demo-provisioning.test.ts` | Cibles, secrets, refus de reprise et idempotence |
 | Schéma | `npx bun x supabase db lint --local --level warning --fail-on error` | Erreurs SQL |
 | Conseillers | `npx bun x supabase db advisors --local --type all --level warn --fail-on error` | Sécurité et performance |
-| pgTAP | `npx bun run test:db` | 137 invariants financiers, documentaires, linguistiques et démo |
+| pgTAP | `npx bun run test:db` | 145 invariants financiers, documentaires, linguistiques et démo |
 | Snapshot | `npx bun run db:snapshot` puis `npx bun run test` | Copie SQL et manifeste |
 | Dépendances | `npx bun audit` | Vulnérabilités connues |
 | Production | `npx bun run build` | Compilation et pré-rendu |

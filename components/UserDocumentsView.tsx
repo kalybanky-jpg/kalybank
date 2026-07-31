@@ -28,7 +28,7 @@ const messages: Record<
 > = {
   fr: {
     eyebrow: 'Documents bancaires',
-    title: 'Relevés, RIB et attestations',
+    title: 'Relevés, coordonnées et attestations',
     subtitle:
       'Téléchargez les documents officiels émis par Monalyz depuis les données validées par le personnel de la banque.',
     available: 'Documents disponibles',
@@ -40,7 +40,7 @@ const messages: Record<
     provenance:
       'Chaque document comporte une référence, une version, une empreinte et la date de son émission. Il n’est pas certifié par un tiers externe.',
     types: {
-      bank_details: 'RIB / coordonnées bancaires',
+      bank_details: 'Coordonnées du compte',
       account_statement: 'Relevé de compte',
       balance_certificate: 'Attestation de solde',
       transfer_confirmation: 'Confirmation de virement',

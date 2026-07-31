@@ -43,7 +43,7 @@ export default function LanguageSelector({
       >
         {LANGUAGE_OPTIONS.map((option) => (
           <option key={option.code} value={option.code}>
-            {compact ? option.code.toUpperCase() : option.label}
+            {option.label}
           </option>
         ))}
       </select>

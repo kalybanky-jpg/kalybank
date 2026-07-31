@@ -8,7 +8,6 @@ import {
   X,
   FileText,
   Building2,
-  UploadCloud,
   CheckCircle2,
   Calculator,
   ArrowLeft,
@@ -32,19 +31,10 @@ export default function LoanApplicationModal() {
   const [motive, setMotive] = useState('Prêt personnel');
   const [requestedAmount, setRequestedAmount] = useState(8000);
   const [durationMonths, setDurationMonths] = useState(36);
-  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [isSuccess, setIsSuccess] = useState(false);
   const [submittedReference, setSubmittedReference] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-
-  const clearError = (field: string) => {
-    setErrors((prev) => {
-      const copy = { ...prev };
-      delete copy[field];
-      return copy;
-    });
-  };
 
   // Simple monthly payment estimation (3.5% interest rate baseline)
   const annualRate = 0.035;
@@ -52,26 +42,6 @@ export default function LoanApplicationModal() {
   const estimatedMonthlyPayment =
     (requestedAmount * monthlyRate * Math.pow(1 + monthlyRate, durationMonths)) /
     (Math.pow(1 + monthlyRate, durationMonths) - 1);
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const selectedFiles = Array.from(e.target.files);
-      const invalid = selectedFiles.find(
-        (file) =>
-          file.size > 10 * 1024 * 1024 ||
-          !['image/jpeg', 'image/png', 'application/pdf'].includes(file.type),
-      );
-      if (invalid) {
-        setErrors((current) => ({
-          ...current,
-          uploadedFiles: 'PDF, PNG ou JPEG uniquement, 10 Mo maximum par fichier.',
-        }));
-        return;
-      }
-      setUploadedFiles((prev) => [...prev, ...selectedFiles]);
-      clearError('uploadedFiles');
-    }
-  };
 
   const handleNextStep = () => {
     const newErrors: Record<string, string> = {};
@@ -81,7 +51,7 @@ export default function LoanApplicationModal() {
     }
 
     setErrors({});
-    setStep((prev) => Math.min(prev + 1, 3));
+    setStep((prev) => Math.min(prev + 1, 2));
   };
 
   const handlePrevStep = () => {
@@ -91,20 +61,8 @@ export default function LoanApplicationModal() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (step < 3) {
+    if (step < 2) {
       handleNextStep();
-      return;
-    }
-
-    const newErrors: Record<string, string> = {};
-    if (uploadedFiles.length === 0) {
-      newErrors.uploadedFiles = language === 'fr'
-        ? 'Veuillez télécharger au moins un document justificatif (pièce d\'identité, justificatif de domicile ou de revenu) pour valider votre demande.'
-        : 'Please upload at least one supporting document (ID, proof of address, or income statement) to submit your application.';
-    }
-
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
       return;
     }
 
@@ -123,7 +81,6 @@ export default function LoanApplicationModal() {
         motive,
         disbursementAccount: 'Compte courant non encore crédité',
         nextDueDate: 'Non applicable avant contractualisation externe',
-        evidenceFiles: uploadedFiles,
       });
       setSubmittedReference(reference);
       setIsSuccess(true);
@@ -131,7 +88,6 @@ export default function LoanApplicationModal() {
         setIsSuccess(false);
         setSubmittedReference('');
         setIsLoanModalOpen(false);
-        setUploadedFiles([]);
         setStep(1);
       }, 2500);
     } catch (caughtError) {
@@ -150,10 +106,10 @@ export default function LoanApplicationModal() {
 
   // Visual translations for step labels
   const stepsLabels = {
-    fr: ['Informations', 'Simulation', 'Justificatifs'],
-    en: ['Profile', 'Simulation', 'Documents'],
-    es: ['Información', 'Simulación', 'Documentos'],
-    de: ['Informationen', 'Simulation', 'Unterlagen'],
+    fr: ['Informations', 'Simulation'],
+    en: ['Profile', 'Simulation'],
+    es: ['Información', 'Simulación'],
+    de: ['Informationen', 'Simulation'],
   };
 
   const stepNames = stepsLabels[language] || stepsLabels.fr;
@@ -365,51 +321,6 @@ export default function LoanApplicationModal() {
                   </motion.div>
                 )}
 
-                {step === 3 && (
-                  <motion.div
-                    key="step3"
-                    initial={{ opacity: 0, x: 10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -10 }}
-                    transition={{ duration: 0.15 }}
-                    className="space-y-4"
-                  >
-                    {/* Upload Justificatif Dropzone */}
-                    <div>
-                      <label className="block font-bold text-slate-700 mb-1">{t.uploadDocs} *</label>
-                      <div className={`border-2 border-dashed rounded-2xl p-4 text-center cursor-pointer transition ${
-                        errors.uploadedFiles
-                          ? 'border-rose-500 hover:border-rose-600 bg-rose-50/10'
-                          : 'border-slate-300 hover:border-emerald-500 bg-slate-50'
-                      }`}>
-                        <input
-                          type="file"
-                          multiple
-                          onChange={handleFileUpload}
-                          className="hidden"
-                          id="loan-doc-upload-input"
-                        />
-                        <label htmlFor="loan-doc-upload-input" className="cursor-pointer space-y-1 block">
-                          <UploadCloud className="w-7 h-7 text-emerald-600 mx-auto" />
-                          <p className="text-xs font-bold text-slate-800">{t.dropzoneText}</p>
-                          <p className="text-[10px] text-slate-500 font-medium">PDF, PNG, JPG (max 10MB)</p>
-                        </label>
-                      </div>
-                      {errors.uploadedFiles && (
-                        <p className="text-rose-600 text-xs mt-1.5 font-bold">⚠️ {errors.uploadedFiles}</p>
-                      )}
-                      {uploadedFiles.length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          {uploadedFiles.map((file, idx) => (
-                            <span key={idx} className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-md font-bold">
-                              ✓ {file.name}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </motion.div>
-                )}
               </AnimatePresence>
 
               {/* Action Buttons */}
@@ -433,7 +344,7 @@ export default function LoanApplicationModal() {
                   </button>
                 )}
 
-                {step < 3 ? (
+                {step < 2 ? (
                   <button
                     type="button"
                     onClick={handleNextStep}

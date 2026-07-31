@@ -108,7 +108,7 @@ export default async function RootLayout({children}: {children: React.ReactNode}
 
   return (
     <html lang={initialLanguage.language}>
-      <body>
+      <body suppressHydrationWarning>
         <Providers
           initialLanguage={initialLanguage.language}
           initialLanguageSource={initialLanguage.source}

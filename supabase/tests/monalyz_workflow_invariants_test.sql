@@ -1,5 +1,5 @@
 begin;
-select plan(137);
+select plan(145);
 
 -- Schema and database API contract.
 -- 1
@@ -14,6 +14,12 @@ select has_column(
   'financial_positions',
   'account_type',
   'financial positions expose their account type'
+);
+
+select has_table(
+  'private',
+  'account_number_configuration',
+  'the singleton account-number configuration exists outside the Data API'
 );
 -- 3
 select has_column(
@@ -53,19 +59,19 @@ select ok(
 select ok(
   has_function_privilege(
     'authenticated',
-    'public.branch_manager_approve_transfer(uuid,text)',
+    'public.branch_manager_review_transfer_check(uuid,text,text)',
     'execute'
   ),
-  'authenticated sessions can reach the guarded branch-manager transfer RPC'
+  'authenticated sessions can reach the guarded sequential transfer-check RPC'
 );
 -- 9
 select ok(
   not has_function_privilege(
     'authenticated',
-    'public.review_transfer_check(uuid,text,text,text)',
+    'public.branch_manager_approve_transfer(uuid,text)',
     'execute'
   ),
-  'the legacy multi-review transfer RPC is no longer exposed to authenticated clients'
+  'the legacy bulk transfer approval RPC is no longer exposed to authenticated clients'
 );
 -- 10
 select ok(
@@ -343,7 +349,7 @@ select throws_ok(
     )
   $test$,
   '42501',
-  'BRANCH_MANAGER_PERMISSION_REQUIRED',
+  'permission denied for function branch_manager_approve_transfer',
   'a non-admin staff member cannot approve a transfer'
 );
 
@@ -383,14 +389,10 @@ select set_config(
 -- 22
 select lives_ok(
   $test$
-    select public.branch_manager_approve_transfer(
-      (
-        select id
-        from public.transfer_intents
-        where idempotency_key = '50000000-0000-0000-0000-000000000001'
-      ),
-      'Contrôles internes terminés'
-    )
+    select public.branch_manager_review_transfer_check((select id from public.transfer_intents where idempotency_key = '50000000-0000-0000-0000-000000000001'), 'dual_review', 'Double validation terminée');
+    select public.branch_manager_review_transfer_check((select id from public.transfer_intents where idempotency_key = '50000000-0000-0000-0000-000000000001'), 'escalation', 'Escalade terminée');
+    select public.branch_manager_review_transfer_check((select id from public.transfer_intents where idempotency_key = '50000000-0000-0000-0000-000000000001'), 'compliance', 'Conformité terminée');
+    select public.branch_manager_review_transfer_check((select id from public.transfer_intents where idempotency_key = '50000000-0000-0000-0000-000000000001'), 'final_authorization', 'Autorisation finale confirmée')
   $test$,
   'the branch manager approves the transfer atomically'
 );
@@ -403,8 +405,8 @@ select is(
     from public.transfer_intents
     where idempotency_key = '50000000-0000-0000-0000-000000000001'
   ),
-  'approved_for_external_execution',
-  'branch-manager approval authorizes external execution'
+  'external_settlement_confirmed',
+  'the fourth check authorizes and settles the transfer'
 );
 -- 24
 select is(
@@ -455,8 +457,8 @@ select is(
     from public.financial_positions
     where id = '40000000-0000-0000-0000-000000000001'
   ),
-  100000::bigint,
-  'approval does not debit the position'
+  97500::bigint,
+  'the fourth check debits the position'
 );
 -- 28
 select is(
@@ -465,15 +467,15 @@ select is(
     from public.financial_positions
     where id = '40000000-0000-0000-0000-000000000001'
   ),
-  2500::bigint,
-  'approval keeps the transfer amount reserved'
+  0::bigint,
+  'the fourth check releases the reservation'
 );
 -- 29
 select is(
   (
     select count(*)
     from public.transactional_email_outbox
-    where template_key = 'transfer_approved'
+    where template_key = 'transfer_completed'
       and entity_id = (
         select id
         from public.transfer_intents
@@ -481,7 +483,7 @@ select is(
       )
   ),
   1::bigint,
-  'transfer approval enqueues one approval email'
+  'transfer finalization enqueues one completion email'
 );
 
 set local role authenticated;
@@ -503,7 +505,7 @@ select throws_ok(
     )
   $test$,
   '42501',
-  'BRANCH_MANAGER_PERMISSION_REQUIRED',
+  'permission denied for function branch_manager_finalize_transfer',
   'a non-admin staff member cannot finalize a transfer'
 );
 
@@ -515,8 +517,8 @@ select is(
     from public.transfer_intents
     where idempotency_key = '50000000-0000-0000-0000-000000000001'
   ),
-  'approved_for_external_execution',
-  'a forbidden finalization leaves the transfer approved'
+  'external_settlement_confirmed',
+  'the fourth review check already finalized the transfer'
 );
 
 set local role authenticated;
@@ -525,8 +527,8 @@ select set_config(
   '30000000-0000-0000-0000-000000000001',
   true
 );
--- 32
-select lives_ok(
+-- 32: the legacy finalization endpoint is no longer exposed to clients.
+select throws_ok(
   $test$
     select public.branch_manager_finalize_transfer(
       (
@@ -537,7 +539,9 @@ select lives_ok(
       'Virement confirmé effectif'
     )
   $test$,
-  'the branch manager finalizes the externally completed transfer'
+  '42501',
+  'permission denied for function branch_manager_finalize_transfer',
+  'the legacy finalization endpoint is blocked'
 );
 
 reset role;
@@ -1222,13 +1226,13 @@ select is(
 -- 75
 select is(
   (select count(*) from public.transactional_email_outbox),
-  10::bigint,
-  'the two transfer and two loan scenarios enqueue ten relevant emails'
+  9::bigint,
+  'the two transfer and two loan scenarios enqueue nine relevant emails'
 );
 -- 76
 select is(
   (select count(distinct event_key) from public.transactional_email_outbox),
-  10::bigint,
+  9::bigint,
   'every transactional email event key is unique'
 );
 -- 77
@@ -1243,7 +1247,6 @@ select is(
     'loan_rejected',
     'loan_submitted',
     'loan_submitted',
-    'transfer_approved',
     'transfer_completed',
     'transfer_rejected',
     'transfer_submitted',
@@ -1848,7 +1851,6 @@ select throws_ok(
       'EUR',
       'FR6699999999990000000001400',
       'DEMOFRP1XXX',
-      'TEST-EUR-000005',
       'Autre Propriétaire Test',
       'Banque Test non routable',
       'Agence Test',
@@ -1865,12 +1867,54 @@ select throws_ok(
   'a non-admin cannot declare a bank account'
 );
 
+select throws_ok(
+  $test$
+    select public.set_account_number_prefix('12345')
+  $test$,
+  '42501',
+  'BRANCH_MANAGER_PERMISSION_REQUIRED',
+  'a non-admin cannot configure the account-number prefix'
+);
+
 set local role authenticated;
 select set_config(
   'request.jwt.claim.sub',
   '30000000-0000-0000-0000-000000000001',
   true
 );
+select throws_ok(
+  $test$
+    select public.set_account_number_prefix('1234A')
+  $test$,
+  '22023',
+  'INVALID_ACCOUNT_NUMBER_PREFIX',
+  'the account-number prefix accepts digits only and requires 5 to 9 digits'
+);
+
+select lives_ok(
+  $test$
+    select public.set_account_number_prefix('12345')
+  $test$,
+  'the branch manager configures the account-number prefix'
+);
+
+select is(
+  (
+    select jsonb_build_object(
+      'prefix', prefix,
+      'length', prefix_length,
+      'capacity', capacity
+    )
+    from public.get_account_number_configuration()
+  ),
+  jsonb_build_object(
+    'prefix', '12345',
+    'length', 5,
+    'capacity', 100000
+  ),
+  'the account-number configuration exposes its length and capacity'
+);
+
 -- 110
 select lives_ok(
   $test$
@@ -1881,7 +1925,6 @@ select lives_ok(
       'EUR',
       'FR6699999999990000000001400',
       'DEMOFRP1XXX',
-      'TEST-EUR-000005',
       'Autre Propriétaire Test',
       'Banque Test non routable',
       'Agence Test',
@@ -1902,6 +1945,8 @@ select is(
   (
     select jsonb_build_object(
       'status', account_status,
+      'account_number_valid',
+        account_number ~ '^12345[0-9]{5}$',
       'iban', iban,
       'amount', amount_minor,
       'demo', is_demo
@@ -1912,6 +1957,7 @@ select is(
   ),
   jsonb_build_object(
     'status', 'active',
+    'account_number_valid', true,
     'iban', 'FR6699999999990000000001400',
     'amount', 70000,
     'demo', true
@@ -1950,7 +1996,6 @@ select lives_ok(
       'EUR',
       'FR6699999999990000000001400',
       'DEMOFRP1XXX',
-      'TEST-EUR-000005',
       'Autre Propriétaire Test',
       'Banque Test non routable',
       'Agence Test',
@@ -1964,6 +2009,83 @@ select lives_ok(
   $test$,
   'an exact account declaration retry is idempotent'
 );
+
+select lives_ok(
+  $test$
+    select public.set_account_number_prefix('987654321')
+  $test$,
+  'the branch manager can change the prefix for future accounts'
+);
+
+select ok(
+  (
+    select account_number ~ '^12345[0-9]{5}$'
+    from public.financial_positions
+    where declaration_idempotency_key =
+      'b2000000-0000-4000-8000-000000000002'
+  ),
+  'changing the prefix preserves existing account numbers'
+);
+
+reset role;
+
+insert into public.financial_positions (
+  owner_id,
+  label,
+  position_kind,
+  currency,
+  amount_minor,
+  reserved_minor,
+  as_of,
+  account_type,
+  account_number,
+  account_status
+)
+select
+  '10000000-0000-0000-0000-000000000002',
+  'Réservation de capacité ' || suffix,
+  'declared',
+  'EUR',
+  0,
+  0,
+  now(),
+  'current',
+  '987654321' || suffix,
+  'pending'
+from generate_series(0, 9) as suffix;
+
+set local role authenticated;
+select set_config(
+  'request.jwt.claim.sub',
+  '30000000-0000-0000-0000-000000000001',
+  true
+);
+
+select throws_ok(
+  $test$
+    select public.branch_manager_declare_account(
+      '10000000-0000-0000-0000-000000000002',
+      'Compte impossible',
+      'current',
+      'EUR',
+      'FR6699999999990000000001400',
+      'DEMOFRP1XXX',
+      'Autre Propriétaire Test',
+      'Banque Test non routable',
+      'Agence Test',
+      'TEST-001',
+      0,
+      timestamptz '2026-01-03 00:00:00+00',
+      true,
+      'Capacité volontairement épuisée pour le test.',
+      'b2000000-0000-4000-8000-000000000099'
+    )
+  $test$,
+  '54000',
+  'ACCOUNT_NUMBER_PREFIX_EXHAUSTED',
+  'account creation fails explicitly when the configured prefix is exhausted'
+);
+
 -- 114
 select lives_ok(
   $test$
@@ -2196,11 +2318,11 @@ select is(
         'b3000000-0000-4000-8000-000000000002'
       and status = 'pending'
       and char_length(snapshot_hash) = 64
-      and snapshot -> 'account' ->> 'iban' =
-        'FR0299999999990000000001000'
+      and not (snapshot -> 'account' ? 'iban')
+      and snapshot -> 'account' ->> 'accountNumber' is not null
   ),
   1::bigint,
-  'the pending document stores one hashed authoritative snapshot'
+  'the pending document stores one hashed snapshot without a client IBAN'
 );
 -- 128
 select is(

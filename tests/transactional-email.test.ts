@@ -160,43 +160,63 @@ const expectedCopy: Record<
 > = {
   transfer_submitted: {
     subject: /demande de virement.*reçue/i,
-    body: /contrôles sont réalisés hors de Monalyz/i,
+    body: /vérifions maintenant les informations fournies/i,
   },
   transfer_approved: {
     subject: /demande de virement.*validée/i,
-    body: /chef d’agence a validé/i,
+    body: /procédons maintenant au virement/i,
   },
   transfer_completed: {
     subject: /virement.*effectué/i,
-    body: /effectif/i,
+    body: /effectué avec succès/i,
   },
   transfer_rejected: {
     subject: /demande de virement.*refusée/i,
-    body: /aucun débit définitif/i,
+    body: /aucun montant.*débité.*compte Monalyz/i,
   },
   transfer_failed: {
     subject: /échec.*virement/i,
-    body: /réservation interne.*libérée/i,
+    body: /montant mis de côté.*de nouveau disponible/i,
   },
   loan_submitted: {
     subject: /demande de prêt.*reçue/i,
-    body: /justificatifs/i,
+    body: /examinons maintenant/i,
   },
   loan_approved: {
     subject: /demande de prêt.*validée/i,
-    body: /chef d’agence a validé/i,
+    body: /préparons maintenant le versement des fonds/i,
   },
   loan_disbursed: {
-    subject: /prêt.*décaissé/i,
-    body: /position courante Monalyz.*créditée/i,
+    subject: /prêt.*versé/i,
+    body: /versé sur votre compte Monalyz/i,
   },
   loan_rejected: {
     subject: /demande de prêt.*refusée/i,
-    body: /aucun décaissement/i,
+    body: /aucun fonds.*versé/i,
   },
   loan_failed: {
-    subject: /décaissement.*échoué/i,
-    body: /n’a pas pu être finalisé/i,
+    subject: /versement.*n’a pas abouti/i,
+    body: /fonds liés.*n’ont pas pu être versés/i,
+  },
+  kyc_submitted: {
+    subject: /dossier d’identité.*reçu/i,
+    body: /contrôle humain/i,
+  },
+  kyc_information_requested: {
+    subject: /action requise/i,
+    body: /uniquement les éléments demandés/i,
+  },
+  kyc_resubmitted: {
+    subject: /dossier d’identité.*resoumis/i,
+    body: /corrections.*reçues/i,
+  },
+  kyc_approved: {
+    subject: /identité.*approuvée/i,
+    body: /compte interne Monalyz.*créé/i,
+  },
+  kyc_rejected: {
+    subject: /dossier d’identité.*rejeté/i,
+    body: /même dossier/i,
   },
 };
 
@@ -258,6 +278,30 @@ for (const language of languages) {
       assert.match(rendered.text, /support@monalyz\.com/);
     });
   }
+}
+
+const internalWording =
+  /chef d’agence|hors de Monalyz|réservation interne|position courante|décaissement en interne|branch manager|outside Monalyz|internal hold|current position|internally|Filialleitung|außerhalb von Monalyz|interne Reservierung|Monalyz-Position|jefe de sucursal|fuera de Monalyz|retención interna|posición corriente/i;
+
+for (const language of languages) {
+  test(`les modèles ${language} restent compréhensibles sans vocabulaire interne`, () => {
+    for (const template of Object.keys(expectedCopy) as TransactionalEmailTemplate[]) {
+      const rendered = renderTransactionalEmail(
+        template,
+        {
+          amountMinor: 125050,
+          currency: 'EUR',
+          recipientName: 'Marie Dupont',
+          reference: 'MONALYZ-LOAN-123',
+        },
+        branding,
+        language,
+      );
+
+      assert.doesNotMatch(rendered.subject, internalWording);
+      assert.doesNotMatch(rendered.text, internalWording);
+    }
+  });
 }
 
 for (const language of languages) {
@@ -428,7 +472,7 @@ test('Brevo reçoit le bon endpoint, le bon payload et l’en-tête d’idempote
   assert.deepEqual(payload.to, [{ email: 'client@example.com' }]);
   assert.equal(payload.replyTo.email, 'support@monalyz.com');
   assert.equal(payload.headers['Idempotency-Key'], `monalyz-${job.id}`);
-  assert.match(payload.subject, /prêt.*décaissé/i);
+  assert.match(payload.subject, /prêt.*versé/i);
   assert.match(
     String((payload as Record<string, unknown>).htmlContent),
     /https:\/\/assets\.monalyz\.test\/brand\/monalyz\/monalyz-wordmark-email-360\.png/,

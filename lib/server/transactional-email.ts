@@ -11,7 +11,12 @@ export type TransactionalEmailTemplate =
   | 'loan_approved'
   | 'loan_disbursed'
   | 'loan_rejected'
-  | 'loan_failed';
+  | 'loan_failed'
+  | 'kyc_submitted'
+  | 'kyc_information_requested'
+  | 'kyc_resubmitted'
+  | 'kyc_approved'
+  | 'kyc_rejected';
 
 export interface TransactionalEmailJob {
   id: string;
@@ -282,66 +287,71 @@ function messageForTemplate(
         return {
           subject: 'Your transfer request has been received',
           heading: 'Transfer request recorded',
-          message: `Your request to transfer ${amount} to ${recipientName} has been recorded. The checks are performed outside Monalyz before the branch manager makes a decision.`,
+          message: `We have received your request to transfer ${amount} to ${recipientName}. We are now reviewing the information provided and will let you know when a decision has been made.`,
         };
       case 'transfer_approved':
         return {
           subject: 'Your transfer request has been approved',
           heading: 'Transfer approved',
           message:
-            'The branch manager has approved your request. The transfer must now be executed outside Monalyz.',
+            'Your request has been approved. We are now processing the transfer.',
         };
       case 'transfer_completed':
         return {
           subject: 'Your transfer has been completed',
           heading: 'Transfer completed successfully',
-          message: `The branch manager has confirmed that your transfer of ${amount} to ${recipientName} is complete.`,
+          message: `Your transfer of ${amount} to ${recipientName} has been completed successfully.`,
         };
       case 'transfer_rejected':
         return {
           subject: 'Your transfer request has been rejected',
           heading: 'Transfer rejected',
           message:
-            'Your transfer request has been rejected. No final debit has been recorded.',
+            'We were unable to approve your transfer request. No money has been taken from your Monalyz account.',
         };
       case 'transfer_failed':
         return {
           subject: 'Your transfer could not be completed',
           heading: 'Transfer not completed',
           message:
-            'The external transfer could not be completed. The corresponding internal hold has been released.',
+            'Your transfer could not be completed. Any money set aside for it is available again in your Monalyz account.',
         };
       case 'loan_submitted':
         return {
           subject: 'Your loan application has been received',
           heading: 'Loan application recorded',
-          message: `Your application ${reference} for ${amount} has been recorded with its supporting documents.`,
+          message: `We have received your application ${reference} for ${amount}. We are reviewing it and will let you know when a decision has been made.`,
         };
       case 'loan_approved':
         return {
           subject: 'Your loan application has been approved',
           heading: 'Loan approved',
           message:
-            'The branch manager has approved your application. The authorised staff must now disburse the funds internally.',
+            'Your application has been approved. We are now preparing the payment of your funds.',
         };
       case 'loan_disbursed':
         return {
-          subject: 'Your loan has been disbursed',
-          heading: 'Loan disbursed successfully',
-          message: `The branch manager has confirmed the disbursement of ${amount}. Your Monalyz current position has been credited.`,
+          subject: 'Your loan has been paid',
+          heading: 'Loan paid successfully',
+          message: `${amount} has been paid into your Monalyz account.`,
         };
       case 'loan_rejected':
         return {
           subject: 'Your loan application has been rejected',
           heading: 'Loan rejected',
-          message: `Your application ${reference} has been rejected. No disbursement has been recorded.`,
+          message: `We were unable to approve your application ${reference}. No funds have been paid.`,
         };
       case 'loan_failed':
         return {
-          subject: 'Your loan disbursement has failed',
-          heading: 'Loan not disbursed',
-          message: `The disbursement associated with ${reference} could not be completed.`,
+          subject: 'Your loan payment could not be completed',
+          heading: 'Loan payment not completed',
+          message: `The funds for your application ${reference} could not be paid. Please contact our support team if you need help.`,
         };
+      case 'kyc_submitted': return { subject: 'Your identity file has been received', heading: 'Identity file received', message: 'Your file is waiting for human review. No action is required for now.' };
+      case 'kyc_information_requested': return { subject: 'Action required on your identity file', heading: 'More information required', message: `Open your file and correct only the requested items. ${payloadText(payload, 'reason', '')}`.trim() };
+      case 'kyc_resubmitted': return { subject: 'Your identity file has been resubmitted', heading: 'Corrections received', message: 'We have received your corrections and will review them.' };
+      case 'kyc_approved': return { subject: 'Your identity has been approved', heading: 'Identity approved', message: 'Your identity is confirmed and your Monalyz internal account has been created.' };
+      case 'kyc_rejected': return { subject: 'Your identity file has been rejected', heading: 'Corrections are possible', message: `Open the same file to see the reason, correct it and resubmit it. ${payloadText(payload, 'reason', '')}`.trim() };
     }
   }
 
@@ -351,66 +361,71 @@ function messageForTemplate(
         return {
           subject: 'Ihr Überweisungsauftrag ist eingegangen',
           heading: 'Überweisungsauftrag erfasst',
-          message: `Ihr Auftrag über ${amount} an ${recipientName} wurde erfasst. Die Prüfungen werden außerhalb von Monalyz durchgeführt, bevor die Filialleitung entscheidet.`,
+          message: `Wir haben Ihren Auftrag über ${amount} an ${recipientName} erhalten. Wir prüfen jetzt Ihre Angaben und informieren Sie, sobald eine Entscheidung getroffen wurde.`,
         };
       case 'transfer_approved':
         return {
           subject: 'Ihr Überweisungsauftrag wurde genehmigt',
           heading: 'Überweisung genehmigt',
           message:
-            'Die Filialleitung hat Ihren Auftrag genehmigt. Die Überweisung muss nun außerhalb von Monalyz ausgeführt werden.',
+            'Ihr Auftrag wurde genehmigt. Wir bearbeiten jetzt die Überweisung.',
         };
       case 'transfer_completed':
         return {
           subject: 'Ihre Überweisung wurde ausgeführt',
           heading: 'Überweisung erfolgreich ausgeführt',
-          message: `Die Filialleitung hat bestätigt, dass Ihre Überweisung über ${amount} an ${recipientName} ausgeführt wurde.`,
+          message: `Ihre Überweisung über ${amount} an ${recipientName} wurde erfolgreich ausgeführt.`,
         };
       case 'transfer_rejected':
         return {
           subject: 'Ihr Überweisungsauftrag wurde abgelehnt',
           heading: 'Überweisung abgelehnt',
           message:
-            'Ihr Überweisungsauftrag wurde abgelehnt. Es wurde keine endgültige Belastung verbucht.',
+            'Wir konnten Ihren Überweisungsauftrag nicht genehmigen. Ihr Monalyz-Konto wurde nicht belastet.',
         };
       case 'transfer_failed':
         return {
           subject: 'Ihre Überweisung konnte nicht ausgeführt werden',
           heading: 'Überweisung nicht ausgeführt',
           message:
-            'Die externe Überweisung konnte nicht abgeschlossen werden. Die entsprechende interne Reservierung wurde aufgehoben.',
+            'Ihre Überweisung konnte nicht ausgeführt werden. Der dafür vorgesehene Betrag ist auf Ihrem Monalyz-Konto wieder verfügbar.',
         };
       case 'loan_submitted':
         return {
           subject: 'Ihr Kreditantrag ist eingegangen',
           heading: 'Kreditantrag erfasst',
-          message: `Ihr Antrag ${reference} über ${amount} wurde mit den erforderlichen Nachweisen erfasst.`,
+          message: `Wir haben Ihren Antrag ${reference} über ${amount} erhalten. Wir prüfen ihn und informieren Sie, sobald eine Entscheidung getroffen wurde.`,
         };
       case 'loan_approved':
         return {
           subject: 'Ihr Kreditantrag wurde genehmigt',
           heading: 'Kredit genehmigt',
           message:
-            'Die Filialleitung hat Ihren Antrag genehmigt. Das zuständige Personal muss die Auszahlung nun intern vornehmen.',
+            'Ihr Antrag wurde genehmigt. Wir bereiten jetzt die Auszahlung vor.',
         };
       case 'loan_disbursed':
         return {
           subject: 'Ihr Kredit wurde ausgezahlt',
           heading: 'Kredit erfolgreich ausgezahlt',
-          message: `Die Filialleitung hat die Auszahlung von ${amount} bestätigt. Ihre laufende Monalyz-Position wurde gutgeschrieben.`,
+          message: `${amount} wurden Ihrem Monalyz-Konto gutgeschrieben.`,
         };
       case 'loan_rejected':
         return {
           subject: 'Ihr Kreditantrag wurde abgelehnt',
           heading: 'Kredit abgelehnt',
-          message: `Ihr Antrag ${reference} wurde abgelehnt. Es wurde keine Auszahlung verbucht.`,
+          message: `Wir konnten Ihren Antrag ${reference} nicht genehmigen. Es wurden keine Gelder ausgezahlt.`,
         };
       case 'loan_failed':
         return {
           subject: 'Die Auszahlung Ihres Kredits ist fehlgeschlagen',
           heading: 'Kredit nicht ausgezahlt',
-          message: `Die mit ${reference} verbundene Auszahlung konnte nicht abgeschlossen werden.`,
+          message: `Die Gelder für Ihren Antrag ${reference} konnten nicht ausgezahlt werden. Bitte wenden Sie sich an unseren Support, wenn Sie Hilfe benötigen.`,
         };
+      case 'kyc_submitted': return { subject: 'Ihre Identitätsunterlagen sind eingegangen', heading: 'Unterlagen erhalten', message: 'Ihre Unterlagen warten auf die manuelle Prüfung. Derzeit ist keine Aktion erforderlich.' };
+      case 'kyc_information_requested': return { subject: 'Aktion für Ihre Identitätsprüfung erforderlich', heading: 'Ergänzung erforderlich', message: `Öffnen Sie Ihre Unterlagen und korrigieren Sie nur die angeforderten Elemente. ${payloadText(payload, 'reason', '')}`.trim() };
+      case 'kyc_resubmitted': return { subject: 'Ihre Identitätsunterlagen wurden erneut eingereicht', heading: 'Korrekturen erhalten', message: 'Wir haben Ihre Korrekturen erhalten und prüfen sie.' };
+      case 'kyc_approved': return { subject: 'Ihre Identität wurde bestätigt', heading: 'Identität bestätigt', message: 'Ihre Identität wurde bestätigt und Ihr internes Monalyz-Konto wurde erstellt.' };
+      case 'kyc_rejected': return { subject: 'Ihre Identitätsunterlagen wurden abgelehnt', heading: 'Korrekturen sind möglich', message: `Öffnen Sie denselben Vorgang, prüfen Sie den Grund und reichen Sie Korrekturen ein. ${payloadText(payload, 'reason', '')}`.trim() };
     }
   }
 
@@ -420,66 +435,71 @@ function messageForTemplate(
         return {
           subject: 'Hemos recibido su solicitud de transferencia',
           heading: 'Solicitud de transferencia registrada',
-          message: `Su solicitud de ${amount} para ${recipientName} se ha registrado correctamente. Las comprobaciones se realizan fuera de Monalyz antes de la decisión del jefe de sucursal.`,
+          message: `Hemos recibido su solicitud de ${amount} para ${recipientName}. Ahora revisaremos la información y le avisaremos cuando se haya tomado una decisión.`,
         };
       case 'transfer_approved':
         return {
           subject: 'Su solicitud de transferencia ha sido aprobada',
           heading: 'Transferencia aprobada',
           message:
-            'El jefe de sucursal ha aprobado su solicitud. La transferencia debe ejecutarse ahora fuera de Monalyz.',
+            'Su solicitud ha sido aprobada. Ahora estamos procesando la transferencia.',
         };
       case 'transfer_completed':
         return {
           subject: 'Su transferencia se ha realizado',
           heading: 'Transferencia realizada correctamente',
-          message: `El jefe de sucursal ha confirmado que su transferencia de ${amount} para ${recipientName} se ha completado.`,
+          message: `Su transferencia de ${amount} para ${recipientName} se ha realizado correctamente.`,
         };
       case 'transfer_rejected':
         return {
           subject: 'Su solicitud de transferencia ha sido rechazada',
           heading: 'Transferencia rechazada',
           message:
-            'Su solicitud de transferencia ha sido rechazada. No se ha registrado ningún débito definitivo.',
+            'No hemos podido aprobar su solicitud de transferencia. No se ha retirado dinero de su cuenta Monalyz.',
         };
       case 'transfer_failed':
         return {
           subject: 'No se pudo realizar su transferencia',
           heading: 'Transferencia no realizada',
           message:
-            'No se pudo completar la transferencia externa. Se ha liberado la retención interna correspondiente.',
+            'No se pudo realizar su transferencia. El importe reservado para ella vuelve a estar disponible en su cuenta Monalyz.',
         };
       case 'loan_submitted':
         return {
           subject: 'Hemos recibido su solicitud de préstamo',
           heading: 'Solicitud de préstamo registrada',
-          message: `Su solicitud ${reference} por un importe de ${amount} se ha registrado con sus justificantes.`,
+          message: `Hemos recibido su solicitud ${reference} por un importe de ${amount}. Ahora la revisaremos y le avisaremos cuando se haya tomado una decisión.`,
         };
       case 'loan_approved':
         return {
           subject: 'Su solicitud de préstamo ha sido aprobada',
           heading: 'Préstamo aprobado',
           message:
-            'El jefe de sucursal ha aprobado su solicitud. El personal autorizado debe realizar ahora el desembolso internamente.',
+            'Su solicitud ha sido aprobada. Ahora estamos preparando el pago de los fondos.',
         };
       case 'loan_disbursed':
         return {
-          subject: 'Su préstamo ha sido desembolsado',
-          heading: 'Préstamo desembolsado correctamente',
-          message: `El jefe de sucursal ha confirmado el desembolso de ${amount}. Se ha abonado su posición corriente en Monalyz.`,
+          subject: 'Su préstamo ha sido abonado',
+          heading: 'Préstamo abonado correctamente',
+          message: `Se han abonado ${amount} en su cuenta Monalyz.`,
         };
       case 'loan_rejected':
         return {
           subject: 'Su solicitud de préstamo ha sido rechazada',
           heading: 'Préstamo rechazado',
-          message: `Su solicitud ${reference} ha sido rechazada. No se ha registrado ningún desembolso.`,
+          message: `No hemos podido aprobar su solicitud ${reference}. No se ha abonado ningún fondo.`,
         };
       case 'loan_failed':
         return {
-          subject: 'El desembolso de su préstamo ha fallado',
-          heading: 'Préstamo no desembolsado',
-          message: `No se pudo completar el desembolso asociado a ${reference}.`,
+          subject: 'No se pudo abonar su préstamo',
+          heading: 'Pago del préstamo no realizado',
+          message: `No se pudieron abonar los fondos de su solicitud ${reference}. Póngase en contacto con nuestro servicio de asistencia si necesita ayuda.`,
         };
+      case 'kyc_submitted': return { subject: 'Hemos recibido su expediente de identidad', heading: 'Expediente recibido', message: 'Su expediente espera una revisión humana. Por ahora no debe hacer nada.' };
+      case 'kyc_information_requested': return { subject: 'Acción necesaria en su expediente de identidad', heading: 'Información adicional requerida', message: `Abra su expediente y corrija únicamente los elementos solicitados. ${payloadText(payload, 'reason', '')}`.trim() };
+      case 'kyc_resubmitted': return { subject: 'Su expediente de identidad ha sido reenviado', heading: 'Correcciones recibidas', message: 'Hemos recibido sus correcciones y las revisaremos.' };
+      case 'kyc_approved': return { subject: 'Su identidad ha sido aprobada', heading: 'Identidad aprobada', message: 'Su identidad está confirmada y se ha creado su cuenta interna Monalyz.' };
+      case 'kyc_rejected': return { subject: 'Su expediente de identidad ha sido rechazado', heading: 'Puede corregirlo', message: `Abra el mismo expediente, consulte el motivo, corríjalo y vuelva a enviarlo. ${payloadText(payload, 'reason', '')}`.trim() };
     }
   }
 
@@ -488,66 +508,71 @@ function messageForTemplate(
       return {
         subject: 'Votre demande de virement a été reçue',
         heading: 'Demande de virement enregistrée',
-        message: `Votre demande de ${amount} vers ${recipientName} a bien été enregistrée. Les contrôles sont réalisés hors de Monalyz avant la décision du chef d’agence.`,
+        message: `Nous avons reçu votre demande de ${amount} vers ${recipientName}. Nous vérifions maintenant les informations fournies et vous informerons dès qu’une décision aura été prise.`,
       };
     case 'transfer_approved':
       return {
         subject: 'Votre demande de virement a été validée',
         heading: 'Virement validé',
         message:
-          'Le chef d’agence a validé votre demande. Le virement doit maintenant être exécuté hors de Monalyz.',
+          'Votre demande a été validée. Nous procédons maintenant au virement.',
       };
     case 'transfer_completed':
       return {
         subject: 'Votre virement a été effectué',
         heading: 'Virement effectué avec succès',
-        message: `Le chef d’agence a confirmé que votre virement de ${amount} vers ${recipientName} est effectif.`,
+        message: `Votre virement de ${amount} vers ${recipientName} a été effectué avec succès.`,
       };
     case 'transfer_rejected':
       return {
         subject: 'Votre demande de virement a été refusée',
         heading: 'Virement refusé',
         message:
-          'Votre demande de virement a été refusée. Aucun débit définitif n’a été enregistré.',
+          'Nous n’avons pas pu valider votre demande de virement. Aucun montant n’a été débité de votre compte Monalyz.',
       };
     case 'transfer_failed':
       return {
         subject: 'Échec de l’exécution de votre virement',
         heading: 'Virement non exécuté',
         message:
-          'Le virement externe n’a pas pu être finalisé. La réservation interne correspondante a été libérée.',
+          'Votre virement n’a pas pu être effectué. Le montant mis de côté pour ce virement est de nouveau disponible sur votre compte Monalyz.',
       };
     case 'loan_submitted':
       return {
         subject: 'Votre demande de prêt a été reçue',
         heading: 'Demande de prêt enregistrée',
-        message: `Votre demande ${reference} d’un montant de ${amount} a bien été enregistrée avec ses justificatifs.`,
+        message: `Nous avons reçu votre demande ${reference} d’un montant de ${amount}. Nous l’examinons maintenant et vous informerons dès qu’une décision aura été prise.`,
       };
     case 'loan_approved':
       return {
         subject: 'Votre demande de prêt a été validée',
         heading: 'Prêt validé',
         message:
-          'Le chef d’agence a validé votre demande. Le personnel compétent doit maintenant effectuer le décaissement en interne.',
+          'Votre demande a été validée. Nous préparons maintenant le versement des fonds.',
       };
     case 'loan_disbursed':
       return {
-        subject: 'Votre prêt a été décaissé',
-        heading: 'Prêt décaissé avec succès',
-        message: `Le chef d’agence a confirmé le décaissement de ${amount}. Votre position courante Monalyz a été créditée.`,
+        subject: 'Votre prêt a été versé',
+        heading: 'Prêt versé avec succès',
+        message: `Le montant de ${amount} a été versé sur votre compte Monalyz.`,
       };
     case 'loan_rejected':
       return {
         subject: 'Votre demande de prêt a été refusée',
         heading: 'Prêt refusé',
-        message: `Votre demande ${reference} a été refusée. Aucun décaissement n’a été enregistré.`,
+        message: `Nous n’avons pas pu valider votre demande ${reference}. Aucun fonds n’a été versé.`,
       };
     case 'loan_failed':
       return {
-        subject: 'Le décaissement de votre prêt a échoué',
-        heading: 'Prêt non décaissé',
-        message: `Le décaissement associé à ${reference} n’a pas pu être finalisé.`,
+        subject: 'Le versement de votre prêt n’a pas abouti',
+        heading: 'Versement du prêt non effectué',
+        message: `Les fonds liés à votre demande ${reference} n’ont pas pu être versés. Contactez notre assistance si vous avez besoin d’aide.`,
       };
+    case 'kyc_submitted': return { subject: 'Votre dossier d’identité a été reçu', heading: 'Dossier d’identité reçu', message: 'Votre dossier attend un contrôle humain. Aucune action n’est requise pour le moment.' };
+    case 'kyc_information_requested': return { subject: 'Action requise sur votre dossier d’identité', heading: 'Complément requis', message: `Ouvrez votre dossier et corrigez uniquement les éléments demandés. ${payloadText(payload, 'reason', '')}`.trim() };
+    case 'kyc_resubmitted': return { subject: 'Votre dossier d’identité a été resoumis', heading: 'Corrections reçues', message: 'Vos corrections ont bien été reçues et vont être examinées.' };
+    case 'kyc_approved': return { subject: 'Votre identité a été approuvée', heading: 'Identité approuvée', message: 'Votre identité est confirmée et votre compte interne Monalyz a été créé.' };
+    case 'kyc_rejected': return { subject: 'Votre dossier d’identité a été rejeté', heading: 'Vous pouvez le corriger', message: `Ouvrez le même dossier, consultez le motif, corrigez-le puis resoumettez-le. ${payloadText(payload, 'reason', '')}`.trim() };
   }
 }
 
@@ -573,10 +598,24 @@ export function renderTransactionalEmail(
     throw new Error('URL du wordmark e-mail invalide.');
   }
   const safeWordmarkUrl = escapeHtml(wordmarkUrl.toString());
+  const actionPath = payloadText(payload, 'actionPath', '');
+  const actionUrl = actionPath.startsWith('/')
+    ? new URL(actionPath, wordmarkUrl.origin).toString()
+    : '';
+  const actionLabel: Record<TransactionalEmailLanguage, string> = {
+    fr: 'Ouvrir mon dossier',
+    en: 'Open my file',
+    de: 'Unterlagen öffnen',
+    es: 'Abrir mi expediente',
+  };
+  const actionText = actionUrl ? `\n\n${actionLabel[language]}: ${actionUrl}` : '';
+  const actionHtml = actionUrl
+    ? `<p style="margin:24px 0 0"><a href="${escapeHtml(actionUrl)}" style="display:inline-block;background:#315cf4;color:#fff;text-decoration:none;font-weight:bold;padding:12px 18px;border-radius:10px">${escapeHtml(actionLabel[language])}</a></p>`
+    : '';
 
   return {
     subject: content.subject,
-    text: `${content.heading}\n\n${content.message}\n\n${support.text}`,
+    text: `${content.heading}\n\n${content.message}${actionText}\n\n${support.text}`,
     html: `<!doctype html>
 <html lang="${language}">
   <body style="margin:0;background:#f4f6fa;font-family:Arial,sans-serif;color:#0f172a">
@@ -586,7 +625,7 @@ export function renderTransactionalEmail(
       </div>
       <div style="background:#fff;padding:28px 24px;border:1px solid #e2e8f0;border-radius:0 0 18px 18px">
         <h1 style="font-size:22px;margin:0 0 16px">${safeHeading}</h1>
-        <p style="font-size:15px;line-height:1.6;margin:0">${safeMessage}</p>
+        <p style="font-size:15px;line-height:1.6;margin:0">${safeMessage}</p>${actionHtml}
         <p style="font-size:12px;color:#64748b;margin:28px 0 0">${safeSupport}</p>
       </div>
     </div>

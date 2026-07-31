@@ -4,15 +4,7 @@ import React, { useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import { formatDirectCurrency } from '@/lib/currency';
 import type { PendingTransfer } from '@/lib/types';
-import {
-  CheckCircle2,
-  Clock,
-  Search,
-  Send,
-  ShieldCheck,
-  X,
-  XCircle,
-} from 'lucide-react';
+import { CheckCircle2, Clock, Search, Send, X, XCircle } from 'lucide-react';
 
 const STATUS_LABELS: Record<string, string> = {
   submitted: 'À valider par le chef d’agence',
@@ -29,8 +21,7 @@ export default function AdminTransfersView() {
   const {
     language,
     pendingTransfers,
-    approveTransfer,
-    finalizeTransfer,
+    reviewTransferCheck,
     rejectTransfer,
   } = useAppStore();
 
@@ -77,6 +68,19 @@ export default function AdminTransfersView() {
       return 'bg-rose-100 text-rose-800';
     }
     return 'bg-amber-100 text-amber-800';
+  };
+
+  const checkDefinitions = [
+    { kind: 'dual_review' as const, label: 'Double validation interne' },
+    { kind: 'escalation' as const, label: 'Escalade hiérarchique' },
+    { kind: 'compliance' as const, label: 'Contrôle conformité' },
+    { kind: 'final_authorization' as const, label: 'Autorisation finale' },
+  ];
+
+  const checkStatusLabel = (status: string) => {
+    if (status === 'termine') return 'Terminé';
+    if (status === 'en_cours') return 'En cours';
+    return 'En attente';
   };
 
   return (
@@ -207,17 +211,51 @@ export default function AdminTransfersView() {
               </p>
             )}
 
-            {['submitted', 'under_review'].includes(
-              selected.workflowStatus ?? 'submitted',
-            ) && (
+            {['submitted', 'under_review'].includes(selected.workflowStatus ?? 'submitted') && (
               <div className="space-y-4">
                 <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900">
-                  En validant, vous confirmez en qualité de chef d&apos;agence que les
-                  contrôles requis ont déjà été effectués en interne par le personnel
-                  compétent.
+                  Validez chaque contrôle dans l&apos;ordre. Le quatrième contrôle débite
+                  automatiquement le compte et clôture le virement.
+                </div>
+                <div className="space-y-2">
+                  {checkDefinitions.map((check, index) => {
+                    const status = selected.complianceChecks[{
+                      dual_review: 'doubleValidation',
+                      escalation: 'escalade',
+                      compliance: 'controleConformite',
+                      final_authorization: 'autorisationFinale',
+                    }[check.kind] as keyof typeof selected.complianceChecks];
+                    const previous = index === 0
+                      ? undefined
+                      : selected.complianceChecks[{
+                          dual_review: 'doubleValidation',
+                          escalation: 'escalade',
+                          compliance: 'controleConformite',
+                          final_authorization: 'autorisationFinale',
+                        }[checkDefinitions[index - 1].kind] as keyof typeof selected.complianceChecks];
+                    const enabled = status !== 'termine' && (index === 0 || previous === 'termine');
+                    return (
+                      <div key={check.kind} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-3">
+                        <div>
+                          <p className="text-xs font-bold text-slate-900">{index + 1}. {check.label}</p>
+                          <p className={`text-[11px] ${status === 'termine' ? 'text-emerald-600' : enabled ? 'text-indigo-600' : 'text-slate-500'}`}>
+                            {checkStatusLabel(status)}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={isSubmitting || !enabled || !note.trim()}
+                          onClick={() => void run(() => reviewTransferCheck(selected.id, check.kind, note.trim()))}
+                          className={`rounded-xl px-3 py-2 text-[11px] font-bold text-white disabled:opacity-40 ${check.kind === 'final_authorization' ? 'bg-emerald-600' : 'bg-blue-600'}`}
+                        >
+                          {check.kind === 'final_authorization' ? 'Confirmer définitivement' : 'Valider ce contrôle'}
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
                 <label className="block text-xs font-bold">
-                  Note interne ou motif de refus
+                  Note du contrôle ou motif de refus
                   <textarea
                     value={note}
                     onChange={(event) => setNote(event.target.value)}
@@ -226,17 +264,6 @@ export default function AdminTransfersView() {
                   />
                 </label>
                 <div className="grid sm:grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    disabled={isSubmitting}
-                    onClick={() =>
-                      void run(() => approveTransfer(selected.id, note.trim()))
-                    }
-                    className="py-3 bg-blue-600 text-white rounded-xl font-bold disabled:opacity-50"
-                  >
-                    <ShieldCheck className="inline w-4 h-4 mr-2" />
-                    Valider le virement
-                  </button>
                   <button
                     type="button"
                     disabled={isSubmitting || !note.trim()}
@@ -248,54 +275,6 @@ export default function AdminTransfersView() {
                     <XCircle className="inline w-4 h-4 mr-2" />
                     Refuser la demande
                   </button>
-                </div>
-              </div>
-            )}
-
-            {[
-              'approved_for_external_execution',
-              'external_execution_recorded',
-            ].includes(selected.workflowStatus ?? '') && (
-              <div className="space-y-4">
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900">
-                  Confirmez uniquement après avoir reçu, hors Monalyz, la confirmation
-                  que le virement a effectivement été exécuté. Cette action finalise le
-                  dossier et débite le compte bancaire déclaré.
-                </div>
-                <label className="block text-xs font-bold">
-                  Note de confirmation obligatoire
-                  <textarea
-                    required
-                    value={note}
-                    onChange={(event) => setNote(event.target.value)}
-                    className="mt-1 w-full border rounded-xl p-3"
-                    rows={3}
-                  />
-                </label>
-                <div className="grid sm:grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    disabled={isSubmitting || !note.trim()}
-                    onClick={() =>
-                      void run(() => finalizeTransfer(selected.id, note.trim()))
-                    }
-                    className="py-3 bg-emerald-600 text-white rounded-xl font-bold disabled:opacity-50"
-                  >
-                    <CheckCircle2 className="inline w-4 h-4 mr-2" />
-                    Confirmer le virement effectué
-                  </button>
-                  {selected.workflowStatus === 'approved_for_external_execution' && (
-                    <button
-                      type="button"
-                      disabled={isSubmitting || !note.trim()}
-                      onClick={() =>
-                        void run(() => rejectTransfer(selected.id, note.trim()))
-                      }
-                      className="py-3 bg-rose-50 text-rose-700 rounded-xl font-bold disabled:opacity-50"
-                    >
-                      Refuser la demande
-                    </button>
-                  )}
                 </div>
               </div>
             )}

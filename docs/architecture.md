@@ -43,12 +43,12 @@ flowchart LR
 
 ## Registre des comptes et des soldes
 
-`financial_positions` est l’agrégat de compte consommé par l’application. Une
-position active porte les données déclarées par l’établissement : titulaire,
-numéro de compte, IBAN, BIC, établissement, agence, devise, type de compte et
-solde. Le chef d’agence déclare le compte avec
-`branch_manager_declare_account` après sa création dans les procédures
-internes. L’approbation KYC seule ne crée donc aucun compte.
+`financial_positions` est l’agrégat de compte consommé par l’application.
+L’approbation KYC crée dans la même transaction une position courante active à
+solde nul. La base lui attribue un numéro interne unique de 10 chiffres ; ce
+numéro n’est jamais saisi dans le navigateur. L’IBAN, le BIC et l’agence sont
+gérés par la banque hors Monalyz et ne sont ni requis ni fabriqués lors de
+cette ouverture automatique.
 
 Chaque création ou variation effective du solde ajoute, dans la même
 transaction, une ligne à `financial_ledger_entries`. Ce grand livre est
@@ -59,11 +59,9 @@ provenance séquencée.
 
 ```mermaid
 flowchart LR
-  K["KYC approuvé"] --> I["Compte créé dans les processus internes"]
-  I --> C["Déclaration par le chef d’agence"]
-  C --> P["financial_positions actif"]
-  C --> L["Écriture d’ouverture du grand livre"]
-  L --> V["Compte et IBAN visibles par le client"]
+  K["KYC approuvé"] --> P["Compte interne actif et numéroté"]
+  K --> L["Écriture d’ouverture à solde nul"]
+  L --> V["Compte et numéro visibles par le client"]
 ```
 
 Les comptes de démonstration utilisent un IBAN synthétique valide et
@@ -92,24 +90,25 @@ les cookies et, après authentification, le profil Supabase.
 
 1. L’utilisateur remplit et soumet le formulaire de virement. La base réserve
    le montant sur sa position interne, sans débit définitif.
-2. Le personnel compétent de l’établissement réalise tous les contrôles
-   nécessaires dans ses processus internes, hors de Monalyz.
-3. Après ces contrôles, le chef d’agence complète seul les contrôles requis
-   dans l’application et valide la demande.
-4. Le dossier devient autorisé pour exécution interne, toujours sans débit.
-5. Un opérateur réalise le virement dans les systèmes ou procédures internes
-   de l’établissement, hors Monalyz, et remet les éléments de confirmation au
-   chef d’agence.
-6. Le chef d’agence confirme dans Monalyz que le virement est effectif.
-7. La position interne est débitée, le dossier devient final et l’utilisateur
-   reçoit un e-mail de réussite.
+2. Le chef d’agence valide séparément les quatre contrôles, dans cet ordre :
+   double validation interne, escalade hiérarchique, contrôle conformité,
+   autorisation finale.
+3. Chaque validation est journalisée avec son auteur, sa note et sa date. Le
+   dashboard client affiche 25 %, 50 %, 75 % puis 100 %.
+4. La quatrième validation clôture atomiquement le virement : la position
+   interne est débitée, la réservation est libérée, une écriture de grand livre
+   et une notification client sont créées, puis l’e-mail de réussite est mis en
+   file d’envoi.
 
 Une annulation ou un rejet libère la réservation ; elle ne crée pas un
-« remboursement », puisqu’aucun débit n’a encore eu lieu.
+« remboursement », puisqu’aucun débit n’a encore eu lieu. Les statuts
+`approved_for_external_execution` et `external_execution_recorded` restent
+lisibles pour les dossiers historiques.
 
 ## Flux d’un prêt
 
-1. L’utilisateur soumet sa demande avec les justificatifs nécessaires.
+1. L’utilisateur soumet sa demande sans téléverser de justificatif dans le
+   formulaire de prêt ; les pièces d’identité et de domicile proviennent du KYC.
 2. Le personnel compétent de l’établissement réalise tous les contrôles
    nécessaires dans ses procédures internes, hors de Monalyz.
 3. Après ces contrôles, le chef d’agence complète seul les contrôles requis

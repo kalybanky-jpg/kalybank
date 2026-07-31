@@ -97,12 +97,17 @@ export function shouldPersistLanguageCookie(source: LanguageSource): boolean {
   return source !== 'profile';
 }
 
+export function preferredLanguageMetadata(language: Language) {
+  return { preferred_language: language };
+}
+
 export function registrationLanguageMetadata(
   displayName: string,
   language: Language,
 ) {
   return {
     display_name: displayName.trim(),
-    preferred_language: language,
+    full_name: displayName.trim(),
+    ...preferredLanguageMetadata(language),
   };
 }

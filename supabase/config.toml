@@ -227,16 +227,16 @@ otp_expiry = 3600
 # sender_name = "Admin"
 
 [auth.email.template.confirmation]
-subject = "Confirmez votre compte Monalyz"
+subject = '{{ if eq .Data.preferred_language "en" }}Confirm your email address{{ else if eq .Data.preferred_language "de" }}Bestätigen Sie Ihre E-Mail-Adresse{{ else if eq .Data.preferred_language "es" }}Confirme su correo electrónico{{ else }}Confirmez votre adresse e-mail{{ end }}'
 content_path = "./supabase/templates/confirmation.html"
 
 [auth.email.template.recovery]
-subject = "Réinitialisez votre mot de passe Monalyz"
+subject = '{{ if eq .Data.preferred_language "en" }}Reset your Monalyz password{{ else if eq .Data.preferred_language "de" }}Setzen Sie Ihr Monalyz-Passwort zurück{{ else if eq .Data.preferred_language "es" }}Restablezca su contraseña de Monalyz{{ else }}Réinitialisez votre mot de passe Monalyz{{ end }}'
 content_path = "./supabase/templates/recovery.html"
 
 [auth.email.notification.password_changed]
 enabled = true
-subject = "Votre mot de passe Monalyz a été modifié"
+subject = '{{ if eq .Data.preferred_language "en" }}Your Monalyz password has been changed{{ else if eq .Data.preferred_language "de" }}Ihr Monalyz-Passwort wurde geändert{{ else if eq .Data.preferred_language "es" }}Su contraseña de Monalyz ha sido modificada{{ else }}Votre mot de passe Monalyz a été modifié{{ end }}'
 content_path = "./templates/password_changed_notification.html"
 
 [auth.sms]

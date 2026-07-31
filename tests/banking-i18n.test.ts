@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { accountIbanLabel, bankingMessages } from '../lib/banking-i18n';
+import { accountNumberLabel, bankingMessages } from '../lib/banking-i18n';
 import { publicMessages } from '../lib/public-i18n';
 import type { Language } from '../lib/types';
 
@@ -63,13 +63,13 @@ test('les écrans publics ouvrent un espace bancaire sans promettre une exécuti
   }
 });
 
-test('une référence absente est présentée comme un IBAN en cours d’attribution', () => {
+test('un numéro absent est présenté comme en cours d’attribution', () => {
   assert.equal(
-    accountIbanLabel('Référence externe non renseignée', 'IBAN en cours'),
-    'IBAN en cours',
+    accountNumberLabel('Référence externe non renseignée', 'Numéro en cours'),
+    'Numéro en cours',
   );
   assert.equal(
-    accountIbanLabel('FR76 0000 0000 0000 0000 0000 000', 'IBAN en cours'),
-    'FR76 0000 0000 0000 0000 0000 000',
+    accountNumberLabel('1234567890', 'Numéro en cours'),
+    '1234567890',
   );
 });

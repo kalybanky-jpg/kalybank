@@ -27,8 +27,8 @@ interface BankingMessages {
     declaredBalance: string;
     reconciledBalance: string;
     updatedAt: string;
-    iban: string;
-    ibanPending: string;
+    accountNumber: string;
+    accountNumberPending: string;
     noAccounts: string;
     identityCheck: string;
     identityApproved: string;
@@ -56,8 +56,8 @@ interface BankingMessages {
     accountStatus: string;
     activeAccount: string;
     lastUpdate: string;
-    iban: string;
-    ibanPending: string;
+    accountNumber: string;
+    accountNumberPending: string;
     noAccounts: string;
     recentTransactions: string;
     recentTransactionsHint: string;
@@ -132,7 +132,7 @@ export const bankingMessages: Record<Language, BankingMessages> = {
       eyebrow: 'Votre banque en ligne',
       title: 'Vos comptes en un coup d’œil',
       subtitle:
-        'Consultez vos soldes, vos IBAN et l’avancement de vos virements et prêts depuis votre espace sécurisé.',
+        'Consultez vos soldes, vos numéros de compte et l’avancement de vos virements et prêts depuis votre espace sécurisé.',
       balances: 'Soldes de vos comptes',
       balanceSource: 'Soldes déclarés et tenus à jour par la banque',
       showBalances: 'Afficher les soldes',
@@ -140,8 +140,8 @@ export const bankingMessages: Record<Language, BankingMessages> = {
       declaredBalance: 'Solde déclaré',
       reconciledBalance: 'Solde rapproché',
       updatedAt: 'Mis à jour le',
-      iban: 'IBAN',
-      ibanPending: 'IBAN en cours d’attribution',
+      accountNumber: 'Numéro de compte',
+      accountNumberPending: 'Numéro en cours d’attribution',
       noAccounts: 'Aucun compte bancaire n’est encore déclaré.',
       identityCheck: 'Vérification d’identité',
       identityApproved: 'Identité vérifiée',
@@ -163,15 +163,15 @@ export const bankingMessages: Record<Language, BankingMessages> = {
     },
     accounts: {
       eyebrow: 'Mes comptes',
-      title: 'Comptes, soldes et IBAN',
+      title: 'Comptes, soldes et numéros de compte',
       subtitle:
         'Retrouvez les coordonnées et les soldes déclarés de vos comptes Monalyz. Les mises à jour sont saisies par le personnel de la banque.',
       availableBalance: 'Solde disponible',
       accountStatus: 'Statut du compte',
       activeAccount: 'Actif',
       lastUpdate: 'Dernière mise à jour',
-      iban: 'IBAN',
-      ibanPending: 'En cours d’attribution',
+      accountNumber: 'Numéro de compte',
+      accountNumberPending: 'En cours d’attribution',
       noAccounts: 'Aucun compte bancaire n’est encore disponible.',
       recentTransactions: 'Opérations du compte',
       recentTransactionsHint: 'Virements et décaissements finalisés par la banque',
@@ -244,7 +244,7 @@ export const bankingMessages: Record<Language, BankingMessages> = {
       eyebrow: 'Your online bank',
       title: 'Your accounts at a glance',
       subtitle:
-        'View your balances, IBANs, transfers and loan progress from your secure workspace.',
+        'View your balances, account numbers, transfers and loan progress from your secure workspace.',
       balances: 'Account balances',
       balanceSource: 'Balances declared and maintained by the bank',
       showBalances: 'Show balances',
@@ -252,8 +252,8 @@ export const bankingMessages: Record<Language, BankingMessages> = {
       declaredBalance: 'Declared balance',
       reconciledBalance: 'Reconciled balance',
       updatedAt: 'Updated on',
-      iban: 'IBAN',
-      ibanPending: 'IBAN assignment in progress',
+      accountNumber: 'Account number',
+      accountNumberPending: 'Number assignment in progress',
       noAccounts: 'No bank account has been declared yet.',
       identityCheck: 'Identity verification',
       identityApproved: 'Identity verified',
@@ -275,15 +275,15 @@ export const bankingMessages: Record<Language, BankingMessages> = {
     },
     accounts: {
       eyebrow: 'My accounts',
-      title: 'Accounts, balances and IBANs',
+      title: 'Accounts, balances and account numbers',
       subtitle:
         'Find the details and declared balances of your Monalyz accounts. Updates are entered by bank staff.',
       availableBalance: 'Available balance',
       accountStatus: 'Account status',
       activeAccount: 'Active',
       lastUpdate: 'Last update',
-      iban: 'IBAN',
-      ibanPending: 'Assignment in progress',
+      accountNumber: 'Account number',
+      accountNumberPending: 'Assignment in progress',
       noAccounts: 'No bank account is available yet.',
       recentTransactions: 'Account transactions',
       recentTransactionsHint: 'Transfers and disbursements finalized by the bank',
@@ -356,7 +356,7 @@ export const bankingMessages: Record<Language, BankingMessages> = {
       eyebrow: 'Ihre Online-Bank',
       title: 'Ihre Konten auf einen Blick',
       subtitle:
-        'Sehen Sie Salden, IBANs sowie den Stand Ihrer Überweisungen und Kredite in Ihrem sicheren Bereich.',
+        'Sehen Sie Salden, Kontonummern sowie den Stand Ihrer Überweisungen und Kredite in Ihrem sicheren Bereich.',
       balances: 'Kontosalden',
       balanceSource: 'Von der Bank erfasste und gepflegte Salden',
       showBalances: 'Salden anzeigen',
@@ -364,8 +364,8 @@ export const bankingMessages: Record<Language, BankingMessages> = {
       declaredBalance: 'Erfasster Saldo',
       reconciledBalance: 'Abgestimmter Saldo',
       updatedAt: 'Aktualisiert am',
-      iban: 'IBAN',
-      ibanPending: 'IBAN-Zuweisung läuft',
+      accountNumber: 'Kontonummer',
+      accountNumberPending: 'Nummernvergabe läuft',
       noAccounts: 'Es wurde noch kein Bankkonto erfasst.',
       identityCheck: 'Identitätsprüfung',
       identityApproved: 'Identität bestätigt',
@@ -387,15 +387,15 @@ export const bankingMessages: Record<Language, BankingMessages> = {
     },
     accounts: {
       eyebrow: 'Meine Konten',
-      title: 'Konten, Salden und IBANs',
+      title: 'Konten, Salden und Kontonummern',
       subtitle:
         'Hier finden Sie die Daten und erfassten Salden Ihrer Monalyz-Konten. Aktualisierungen werden vom Bankpersonal eingetragen.',
       availableBalance: 'Verfügbarer Saldo',
       accountStatus: 'Kontostatus',
       activeAccount: 'Aktiv',
       lastUpdate: 'Letzte Aktualisierung',
-      iban: 'IBAN',
-      ibanPending: 'Zuweisung läuft',
+      accountNumber: 'Kontonummer',
+      accountNumberPending: 'Zuweisung läuft',
       noAccounts: 'Noch kein Bankkonto verfügbar.',
       recentTransactions: 'Kontoumsätze',
       recentTransactionsHint: 'Von der Bank abgeschlossene Überweisungen und Auszahlungen',
@@ -468,7 +468,7 @@ export const bankingMessages: Record<Language, BankingMessages> = {
       eyebrow: 'Su banco en línea',
       title: 'Sus cuentas de un vistazo',
       subtitle:
-        'Consulte saldos, IBAN y el progreso de sus transferencias y préstamos desde su espacio seguro.',
+        'Consulte saldos, números de cuenta y el progreso de sus transferencias y préstamos desde su espacio seguro.',
       balances: 'Saldos de sus cuentas',
       balanceSource: 'Saldos declarados y mantenidos por el banco',
       showBalances: 'Mostrar saldos',
@@ -476,8 +476,8 @@ export const bankingMessages: Record<Language, BankingMessages> = {
       declaredBalance: 'Saldo declarado',
       reconciledBalance: 'Saldo conciliado',
       updatedAt: 'Actualizado el',
-      iban: 'IBAN',
-      ibanPending: 'Asignación del IBAN en curso',
+      accountNumber: 'Número de cuenta',
+      accountNumberPending: 'Asignación del número en curso',
       noAccounts: 'Aún no se ha declarado ninguna cuenta bancaria.',
       identityCheck: 'Verificación de identidad',
       identityApproved: 'Identidad verificada',
@@ -499,15 +499,15 @@ export const bankingMessages: Record<Language, BankingMessages> = {
     },
     accounts: {
       eyebrow: 'Mis cuentas',
-      title: 'Cuentas, saldos e IBAN',
+      title: 'Cuentas, saldos y números de cuenta',
       subtitle:
         'Consulte los datos y saldos declarados de sus cuentas Monalyz. El personal del banco registra las actualizaciones.',
       availableBalance: 'Saldo disponible',
       accountStatus: 'Estado de la cuenta',
       activeAccount: 'Activa',
       lastUpdate: 'Última actualización',
-      iban: 'IBAN',
-      ibanPending: 'Asignación en curso',
+      accountNumber: 'Número de cuenta',
+      accountNumberPending: 'Asignación en curso',
       noAccounts: 'Aún no hay ninguna cuenta bancaria disponible.',
       recentTransactions: 'Operaciones de la cuenta',
       recentTransactionsHint: 'Transferencias y desembolsos finalizados por el banco',
@@ -561,7 +561,7 @@ export const bankingMessages: Record<Language, BankingMessages> = {
   },
 };
 
-export function accountIbanLabel(value: string | undefined, fallback: string) {
+export function accountNumberLabel(value: string | undefined, fallback: string) {
   if (
     !value ||
     /référence externe non renseignée|external reference not provided/i.test(value)

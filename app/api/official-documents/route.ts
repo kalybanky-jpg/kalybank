@@ -2,12 +2,17 @@ import { createHash } from 'node:crypto';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { NextResponse, type NextRequest } from 'next/server';
 import { renderOfficialDocumentPdf } from '@/lib/server/official-document-pdf';
+import {
+  fetchBrandRowOrDefault,
+  readBrandAsset,
+} from '@/lib/server/branding';
 import { getPublicSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
 import type {
   Language,
   OfficialDocumentType,
 } from '@/lib/types';
+import { officialDocumentTitle } from '@/lib/user-i18n';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -28,7 +33,6 @@ interface IssuePayload {
   transferId?: unknown;
   loanId?: unknown;
   documentType?: unknown;
-  title?: unknown;
   periodStart?: unknown;
   periodEnd?: unknown;
 }
@@ -41,10 +45,14 @@ interface IssuedDocumentRow {
   title: string;
   language: string;
   version: number;
+  localization_revision: number;
   issued_at: string | null;
   is_demo: boolean;
   snapshot: Record<string, unknown>;
   content_hash: string | null;
+  brand_name_snapshot?: string;
+  brand_revision_snapshot?: number;
+  brand_logo_path_snapshot?: string;
 }
 
 function noStoreJson(body: unknown, status = 200) {
@@ -139,8 +147,6 @@ export async function POST(request: NextRequest) {
     DOCUMENT_TYPES.has(body.documentType as OfficialDocumentType)
       ? (body.documentType as OfficialDocumentType)
       : null;
-  const title =
-    typeof body.title === 'string' ? body.title.trim().slice(0, 180) : '';
 
   if (
     !ownerId ||
@@ -149,8 +155,7 @@ export async function POST(request: NextRequest) {
     loanId === undefined ||
     periodStart === undefined ||
     periodEnd === undefined ||
-    !documentType ||
-    title.length < 3
+    !documentType
   ) {
     return noStoreJson({ error: 'Paramètres de document invalides.' }, 400);
   }
@@ -163,10 +168,11 @@ export async function POST(request: NextRequest) {
     .select('preferred_language')
     .eq('user_id', ownerId)
     .single();
-  if (profileError) return noStoreJson({ error: profileError.message }, 400);
+  if (profileError) return noStoreJson({ error: 'Le profil destinataire est introuvable.' }, 400);
   const language = LANGUAGES.has(profile.preferred_language as Language)
     ? (profile.preferred_language as Language)
     : 'fr';
+  const title = officialDocumentTitle(language, documentType);
   const idempotencyKey = crypto.randomUUID();
 
   const { data, error: issueError } = await supabase.rpc(
@@ -184,7 +190,7 @@ export async function POST(request: NextRequest) {
       p_idempotency_key: idempotencyKey,
     },
   );
-  if (issueError) return noStoreJson({ error: issueError.message }, 400);
+  if (issueError) return noStoreJson({ error: 'Le document ne peut pas être émis avec les paramètres sélectionnés.' }, 400);
 
   const document = (Array.isArray(data) ? data[0] : data) as
     | IssuedDocumentRow
@@ -196,16 +202,30 @@ export async function POST(request: NextRequest) {
   const worker = privilegedClient();
   const storagePath = `${ownerId}/${document.id}/v${document.version}.pdf`;
   try {
+    const currentBrand = await fetchBrandRowOrDefault(worker);
+    const bankName = document.brand_name_snapshot || currentBrand.bank_name;
+    const brandRevision = Number(
+      document.brand_revision_snapshot ?? currentBrand.revision,
+    );
+    const brandLogoPath =
+      document.brand_logo_path_snapshot || currentBrand.pdf_logo_path;
+    const logoBytes = await readBrandAsset(worker, brandLogoPath);
     const pdf = await renderOfficialDocumentPdf({
       documentNumber: document.document_number,
       documentType: document.document_type,
       title: document.title,
       language: document.language,
       version: document.version,
+      localizationRevision: document.localization_revision ?? 2,
       issuedAt: document.issued_at ?? new Date().toISOString(),
       isDemo: document.is_demo,
       contentHash: document.content_hash,
       snapshot: document.snapshot,
+      branding: {
+        bankName,
+        revision: brandRevision,
+        logoBytes,
+      },
     });
     const pdfBytes = Buffer.from(pdf);
     const contentHash = createHash('sha256').update(pdfBytes).digest('hex');

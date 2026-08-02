@@ -4,18 +4,24 @@ import React, { useState, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
 import { translations } from '@/lib/i18n';
 import { bankingMessages } from '@/lib/banking-i18n';
-import { TransferType, Currency } from '@/lib/types';
-import { formatCurrency, convertAmount, convertAnyAmount, formatDirectCurrency } from '@/lib/currency';
+import type { TransferType } from '@/lib/types';
+import { convertAnyAmount, formatDirectCurrency } from '@/lib/currency';
+import { formatLocalizedDateTime } from '@/lib/language';
+import {
+  accountTypeLabel,
+  extraUserMessages,
+  interpolate,
+  localizedAppError,
+} from '@/lib/user-i18n';
 import {
   X,
   Send,
   CheckCircle2,
-  ShieldCheck,
   ArrowLeft,
   ArrowRight,
-  Clock,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useBranded } from '@/components/brand/BrandProvider';
 
 export default function WireTransferModal() {
   const {
@@ -28,8 +34,12 @@ export default function WireTransferModal() {
     addTransfer,
   } = useAppStore();
 
-  const t = translations[language] || translations.fr;
-  const banking = bankingMessages[language];
+  const t = useBranded(translations[language] || translations.fr);
+  const banking = useBranded(bankingMessages[language]);
+  const copy = useBranded(extraUserMessages[language]);
+  const transferCopy = copy.transferModal;
+  const required = (field: keyof typeof transferCopy.fields) =>
+    interpolate(transferCopy.required, { field: transferCopy.fields[field] });
 
   const [step, setStep] = useState(1);
   const [transferType, setTransferType] = useState<TransferType>('canada');
@@ -93,50 +103,50 @@ export default function WireTransferModal() {
     const newErrors: Record<string, string> = {};
     if (step === 1) {
       if (!recipientName.trim()) {
-        newErrors.recipientName = language === 'fr' ? 'Le nom du bénéficiaire est obligatoire.' : 'Recipient name is required.';
+        newErrors.recipientName = required('recipientName');
       }
     } else if (step === 2) {
       if (transferType === 'eurozone') {
         if (!iban.trim()) {
-          newErrors.iban = language === 'fr' ? "L'IBAN est obligatoire." : 'IBAN is required.';
+          newErrors.iban = required('iban');
         }
         if (!bicSwift.trim()) {
-          newErrors.bicSwift = language === 'fr' ? 'Le code BIC/SWIFT est obligatoire.' : 'BIC/SWIFT code is required.';
+          newErrors.bicSwift = required('bicSwift');
         }
       } else if (transferType === 'usa') {
         if (!routingNumber.trim()) {
-          newErrors.routingNumber = language === 'fr' ? "Le numéro d'acheminement (Routing Number) est obligatoire." : 'Routing number is required.';
+          newErrors.routingNumber = required('routingNumber');
         }
         if (!accountNumber.trim()) {
-          newErrors.accountNumber = language === 'fr' ? 'Le numéro de compte est obligatoire.' : 'Account number is required.';
+          newErrors.accountNumber = required('accountNumber');
         }
       } else if (transferType === 'swiss') {
         if (!swissIban.trim()) {
-          newErrors.swissIban = language === 'fr' ? "L'IBAN suisse est obligatoire." : 'Swiss IBAN is required.';
+          newErrors.swissIban = required('swissIban');
         }
         if (!clearingNumber.trim()) {
-          newErrors.clearingNumber = language === 'fr' ? 'Le numéro Clearing est obligatoire.' : 'Clearing number is required.';
+          newErrors.clearingNumber = required('clearingNumber');
         }
       } else if (transferType === 'uk') {
         if (!routingNumber.trim()) {
-          newErrors.routingNumber = language === 'fr' ? 'Le Sort Code (Code de tri) est obligatoire.' : 'Sort Code is required.';
+          newErrors.routingNumber = required('sortCode');
         }
         if (!accountNumber.trim()) {
-          newErrors.accountNumber = language === 'fr' ? 'Le numéro de compte est obligatoire.' : 'Account number is required.';
+          newErrors.accountNumber = required('accountNumber');
         }
       } else if (transferType === 'latam') {
         if (!accountNumber.trim()) {
-          newErrors.accountNumber = language === 'fr' ? 'Le numéro de compte / CLABE est obligatoire.' : 'Account number or CLABE is required.';
+          newErrors.accountNumber = required('accountOrClabe');
         }
         if (!iban.trim()) {
-          newErrors.iban = language === 'fr' ? 'Le nom de la banque est obligatoire.' : 'Bank name is required.';
+          newErrors.iban = required('bankName');
         }
       } else if (transferType === 'africa') {
         if (!accountNumber.trim()) {
-          newErrors.accountNumber = language === 'fr' ? 'Le numéro de compte ou RIB est obligatoire.' : 'Account number or RIB is required.';
+          newErrors.accountNumber = required('accountOrRib');
         }
         if (!bicSwift.trim()) {
-          newErrors.bicSwift = language === 'fr' ? 'Le code BIC / SWIFT / Banque est obligatoire.' : 'BIC / SWIFT or Bank code is required.';
+          newErrors.bicSwift = required('bankCode');
         }
       } else if (transferType === 'canada') {
         const hasTransit = !!transitNumber.trim();
@@ -148,28 +158,26 @@ export default function WireTransferModal() {
         const isInteracAttempt = hasInterac;
 
         if (!isDirectDepositAttempt && !isInteracAttempt) {
-          newErrors.canadaSelection = language === 'fr'
-            ? 'Veuillez remplir soit le courriel Interac, soit les coordonnées de dépôt direct (Transit, Institution et Compte).'
-            : 'Please fill either Interac email or direct deposit details (Transit, Institution, and Account).';
+          newErrors.canadaSelection = transferCopy.canadaSelection;
           newErrors.interacEmail = ' ';
           newErrors.transitNumber = ' ';
           newErrors.institutionNumber = ' ';
           newErrors.accountNumber = ' ';
         } else if (isDirectDepositAttempt) {
           if (!transitNumber.trim()) {
-            newErrors.transitNumber = language === 'fr' ? 'Le numéro de transit est requis.' : 'Transit number is required.';
+            newErrors.transitNumber = required('transitNumber');
           }
           if (!institutionNumber.trim()) {
-            newErrors.institutionNumber = language === 'fr' ? "Le numéro d'institution est requis." : 'Institution number is required.';
+            newErrors.institutionNumber = required('institutionNumber');
           }
           if (!accountNumber.trim()) {
-            newErrors.accountNumber = language === 'fr' ? 'Le numéro de compte est requis.' : 'Account number is required.';
+            newErrors.accountNumber = required('accountNumber');
           }
         } else if (isInteracAttempt) {
           if (!interacEmail.trim()) {
-            newErrors.interacEmail = language === 'fr' ? 'Le courriel Interac est requis.' : 'Interac email is required.';
+            newErrors.interacEmail = required('interacEmail');
           } else if (!interacEmail.includes('@')) {
-            newErrors.interacEmail = language === 'fr' ? 'Veuillez saisir un courriel valide.' : 'Please enter a valid email.';
+            newErrors.interacEmail = transferCopy.invalidEmail;
           }
         }
       }
@@ -198,10 +206,10 @@ export default function WireTransferModal() {
 
     const newErrors: Record<string, string> = {};
     if (!recipientName.trim()) {
-      newErrors.recipientName = language === 'fr' ? 'Le nom du bénéficiaire est obligatoire.' : 'Recipient name is required.';
+      newErrors.recipientName = required('recipientName');
     }
     if (numericAmount <= 0) {
-      newErrors.amountInput = language === 'fr' ? 'Le montant doit être supérieur à 0.' : 'Amount must be greater than 0.';
+      newErrors.amountInput = transferCopy.positiveAmount;
     }
 
     const availableBalance = sourceAccount?.availableBalance ?? sourceAccount?.balance ?? 0;
@@ -273,12 +281,8 @@ export default function WireTransferModal() {
         setRecipientName('');
         setStep(1);
       }, 2500);
-    } catch (caughtError) {
-      setSubmitError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : 'L’instruction n’a pas pu être enregistrée.',
-      );
+    } catch {
+      setSubmitError(localizedAppError(language, 'SAVE_FAILED'));
     } finally {
       setIsSubmitting(false);
     }
@@ -286,14 +290,7 @@ export default function WireTransferModal() {
 
   if (!isTransferModalOpen) return null;
 
-  const stepsLabels = {
-    fr: ['Destinataire', 'Coordonnées externes', 'Montant'],
-    en: ['Recipient', 'External details', 'Amount'],
-    es: ['Destinatario', 'Datos externos', 'Monto'],
-    de: ['Empfänger', 'Externe Daten', 'Betrag'],
-  };
-
-  const stepNames = stepsLabels[language] || stepsLabels.fr;
+  const stepNames = [transferCopy.stepRecipient, transferCopy.stepDetails, transferCopy.stepAmount];
 
   return (
     <AnimatePresence>
@@ -313,7 +310,7 @@ export default function WireTransferModal() {
               <div>
                 <h3 className="text-base sm:text-lg font-extrabold">{t.newTransferTitle}</h3>
                 <p className="text-[11px] sm:text-xs text-slate-400">
-                  Instruction préparée dans Monalyz — exécution hors application
+                  {transferCopy.subtitle}
                 </p>
               </div>
             </div>
@@ -321,6 +318,7 @@ export default function WireTransferModal() {
               onClick={() => setIsTransferModalOpen(false)}
               id="close-transfer-modal-btn"
               className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition"
+              aria-label={copy.common.close}
             >
               <X className="w-5 h-5" />
             </button>
@@ -382,9 +380,7 @@ export default function WireTransferModal() {
                   <span className="text-base">⚠️</span>
                   <div className="text-xs">
                     <p className="font-bold">
-                      {language === 'fr' 
-                        ? 'Veuillez remplir tous les champs obligatoires en rouge :' 
-                        : 'Please fill all required fields in red :'}
+                      {transferCopy.errorIntro}
                     </p>
                     <ul className="list-disc list-inside mt-1 font-medium space-y-0.5">
                       {submitError && <li>{submitError}</li>}
@@ -418,13 +414,13 @@ export default function WireTransferModal() {
                         id="select-transfer-destination"
                         className="w-full px-3.5 py-3 rounded-2xl border border-slate-200 bg-slate-50 text-slate-900 font-bold focus:ring-2 focus:ring-blue-500 outline-none transition-all cursor-pointer text-sm"
                       >
-                        <option value="canada">🇨🇦 CANADA (CAD)</option>
-                        <option value="eurozone">🇪🇺 ZONE EURO (EUR)</option>
-                        <option value="usa">🇺🇸 ÉTATS-UNIS (USD)</option>
-                        <option value="swiss">🇨🇭 SUISSE (CHF)</option>
-                        <option value="uk">🇬🇧 ROYAUME-UNI (GBP)</option>
-                        <option value="latam">🌎 AMÉR. LATINE</option>
-                        <option value="africa">🌍 AFRIQUE</option>
+                        <option value="canada">🇨🇦 {transferCopy.destinationCanada}</option>
+                        <option value="eurozone">🇪🇺 {transferCopy.destinationEurozone}</option>
+                        <option value="usa">🇺🇸 {transferCopy.destinationUsa}</option>
+                        <option value="swiss">🇨🇭 {transferCopy.destinationSwiss}</option>
+                        <option value="uk">🇬🇧 {transferCopy.destinationUk}</option>
+                        <option value="latam">🌎 {transferCopy.destinationLatam}</option>
+                        <option value="africa">🌍 {transferCopy.destinationAfrica}</option>
                       </select>
                     </div>
 
@@ -440,7 +436,7 @@ export default function WireTransferModal() {
                         >
                           {accounts.map((acc) => (
                             <option key={acc.id} value={acc.id} className="bg-white text-slate-900">
-                              {acc.name} — {banking.accounts.availableBalance}:{' '}
+                              {accountTypeLabel(language, acc.accountType)} — {banking.accounts.availableBalance}:{' '}
                               {formatDirectCurrency(
                                 acc.availableBalance ?? acc.balance,
                                 acc.currency,
@@ -456,7 +452,7 @@ export default function WireTransferModal() {
                         <input
                           type="text"
                           required
-                          placeholder="ex: Claire Dupont"
+                          placeholder={transferCopy.recipientPlaceholder}
                           value={recipientName}
                           onChange={(e) => {
                             setRecipientName(e.target.value);
@@ -566,7 +562,7 @@ export default function WireTransferModal() {
                           </div>
                           <div className="relative flex py-1 items-center">
                             <div className="flex-grow border-t border-slate-200"></div>
-                            <span className="flex-shrink mx-4 text-slate-400 text-[10px] font-bold uppercase">OU</span>
+                          <span className="flex-shrink mx-4 text-slate-400 text-[10px] font-bold uppercase">{copy.common.or}</span>
                             <div className="flex-grow border-t border-slate-200"></div>
                           </div>
                           <div>
@@ -698,7 +694,7 @@ export default function WireTransferModal() {
                       {transferType === 'swiss' && (
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                           <div className="sm:col-span-2">
-                            <label className="block text-xs font-bold text-slate-700 mb-1">IBAN / QR-IBAN Suisse *</label>
+                            <label className="block text-xs font-bold text-slate-700 mb-1">{transferCopy.fields.swissIban} / QR-IBAN *</label>
                             <input
                               type="text"
                               value={swissIban}
@@ -718,7 +714,7 @@ export default function WireTransferModal() {
                             )}
                           </div>
                           <div>
-                            <label className="block text-xs font-bold text-slate-700 mb-1">No Clearing *</label>
+                            <label className="block text-xs font-bold text-slate-700 mb-1">{transferCopy.fields.clearingNumber} *</label>
                             <input
                               type="text"
                               value={clearingNumber}
@@ -743,7 +739,7 @@ export default function WireTransferModal() {
                       {transferType === 'uk' && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
-                            <label className="block text-xs font-bold text-slate-700 mb-1">Sort Code (Code de tri) *</label>
+                            <label className="block text-xs font-bold text-slate-700 mb-1">{transferCopy.fields.sortCode} *</label>
                             <input
                               type="text"
                               maxLength={6}
@@ -764,7 +760,7 @@ export default function WireTransferModal() {
                             )}
                           </div>
                           <div>
-                            <label className="block text-xs font-bold text-slate-700 mb-1">Numéro de compte (Account Number) *</label>
+                            <label className="block text-xs font-bold text-slate-700 mb-1">{transferCopy.fields.accountNumber} *</label>
                             <input
                               type="text"
                               maxLength={8}
@@ -790,7 +786,7 @@ export default function WireTransferModal() {
                       {transferType === 'latam' && (
                         <div className="space-y-3">
                           <div className="space-y-1">
-                            <label className="block text-xs font-bold text-slate-700">Sélectionnez la devise de réception *</label>
+                            <label className="block text-xs font-bold text-slate-700">{transferCopy.receivingCurrency} *</label>
                             <div className="flex flex-wrap gap-2 pt-1">
                               {[
                                 { code: 'BRL', flag: '🇧🇷', label: 'BRL (Brésil)' },
@@ -816,7 +812,7 @@ export default function WireTransferModal() {
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                             <div>
-                              <label className="block text-xs font-bold text-slate-700 mb-1">Numéro de compte / CLABE / CPF *</label>
+                              <label className="block text-xs font-bold text-slate-700 mb-1">{transferCopy.accountOrClabe} *</label>
                               <input
                                 type="text"
                                 placeholder="ex: 13870001000100 ou CLABE"
@@ -836,7 +832,7 @@ export default function WireTransferModal() {
                               )}
                             </div>
                             <div>
-                              <label className="block text-xs font-bold text-slate-700 mb-1">Établissement destinataire déclaré *</label>
+                              <label className="block text-xs font-bold text-slate-700 mb-1">{transferCopy.recipientInstitution} *</label>
                               <input
                                 type="text"
                                 placeholder="ex: Banco do Brasil, Banamex"
@@ -862,7 +858,7 @@ export default function WireTransferModal() {
                       {transferType === 'africa' && (
                         <div className="space-y-3">
                           <div className="space-y-1">
-                            <label className="block text-xs font-bold text-slate-700">Sélectionnez la devise de réception *</label>
+                            <label className="block text-xs font-bold text-slate-700">{transferCopy.receivingCurrency} *</label>
                             <div className="flex flex-wrap gap-2 pt-1">
                               {[
                                 { code: 'XOF', flag: '🇸🇳', label: 'Franc CFA (BCEAO)' },
@@ -889,10 +885,10 @@ export default function WireTransferModal() {
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                             <div>
-                              <label className="block text-xs font-bold text-slate-700 mb-1">Numéro de compte / RIB *</label>
+                              <label className="block text-xs font-bold text-slate-700 mb-1">{transferCopy.accountOrRib} *</label>
                               <input
                                 type="text"
-                                placeholder="Numéro de compte ou RIB"
+                                placeholder={transferCopy.accountOrRibPlaceholder}
                                 value={accountNumber}
                                 onChange={(e) => {
                                   setAccountNumber(e.target.value.replace(/\D/g, ''));
@@ -909,7 +905,7 @@ export default function WireTransferModal() {
                               )}
                             </div>
                             <div>
-                              <label className="block text-xs font-bold text-slate-700 mb-1">Code externe BIC / SWIFT / établissement *</label>
+                              <label className="block text-xs font-bold text-slate-700 mb-1">{transferCopy.externalBankCode} *</label>
                               <input
                                 type="text"
                                 placeholder="ex: SGABSNDAKAR, Attijariwafa"
@@ -934,10 +930,10 @@ export default function WireTransferModal() {
                     </div>
 
                     <div>
-                      <label className="block font-bold text-slate-800 mb-1">Motif du virement (optionnel)</label>
+                      <label className="block font-bold text-slate-800 mb-1">{transferCopy.transferMotive}</label>
                       <input
                         type="text"
-                        placeholder="ex: Facture #4029"
+                        placeholder={transferCopy.motivePlaceholder}
                         value={motive}
                         onChange={(e) => setMotive(e.target.value)}
                         className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 placeholder-slate-400 font-bold focus:ring-2 focus:ring-blue-500 outline-none"
@@ -996,16 +992,16 @@ export default function WireTransferModal() {
                       </div>
 
                       <div className="flex items-center justify-between text-xs text-blue-100 pt-2 border-t border-blue-800/80">
-                        <span>Frais externes : <strong className="text-amber-200">non connus par Monalyz</strong></span>
-                        <span>Taux indicatif au {new Date(rates.updatedAt).toLocaleString(language)}</span>
+                        <span>{transferCopy.externalFees}: <strong className="text-amber-200">{transferCopy.externalFeesUnknown}</strong></span>
+                        <span>{interpolate(transferCopy.rateAsOf, { date: formatLocalizedDateTime(rates.updatedAt, language) })}</span>
                       </div>
                     </div>
 
                     <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-slate-600 text-xs space-y-1">
                       <p className="font-bold text-slate-800">{t.newTransferTitle}</p>
-                      <p>Bénéficiaire : <strong className="text-slate-900">{recipientName}</strong></p>
-                      <p>{t.sourceAccount}: <strong className="text-slate-900">{sourceAccount?.name}</strong></p>
-                      {motive && <p>Motif : <strong className="text-slate-900">{motive}</strong></p>}
+                      <p>{transferCopy.beneficiary}: <strong className="text-slate-900">{recipientName}</strong></p>
+                      <p>{t.sourceAccount}: <strong className="text-slate-900">{sourceAccount ? accountTypeLabel(language, sourceAccount.accountType) : copy.common.unavailable}</strong></p>
+                      {motive && <p>{transferCopy.motive}: <strong className="text-slate-900">{motive}</strong></p>}
                     </div>
                   </motion.div>
                 )}
@@ -1021,7 +1017,7 @@ export default function WireTransferModal() {
                     className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold transition text-xs flex items-center space-x-1"
                   >
                     <ArrowLeft className="w-3.5 h-3.5" />
-                    <span>{language === 'fr' ? 'Retour' : 'Back'}</span>
+                    <span>{copy.common.back}</span>
                   </button>
                 ) : (
                   <button
@@ -1041,7 +1037,7 @@ export default function WireTransferModal() {
                     onClick={handleNextStep}
                     className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold transition text-xs flex items-center space-x-1"
                   >
-                    <span>{language === 'fr' ? 'Continuer' : 'Next'}</span>
+                    <span>{copy.common.next}</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 ) : (
@@ -1053,7 +1049,7 @@ export default function WireTransferModal() {
                     className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-extrabold transition shadow-md text-xs flex items-center space-x-2"
                   >
                     <Send className="w-4 h-4" />
-                    <span>{isSubmitting ? 'Enregistrement…' : 'Enregistrer l’instruction'}</span>
+                    <span>{isSubmitting ? copy.common.saving : transferCopy.saveInstruction}</span>
                   </button>
                 )}
               </div>

@@ -5,6 +5,8 @@ import { useAppStore } from '@/lib/store';
 import { formatDirectCurrency } from '@/lib/currency';
 import { bankingMessages } from '@/lib/banking-i18n';
 import { Clock, Search, Send } from 'lucide-react';
+import { formatLocalizedDateTime, formatLocalizedPercent } from '@/lib/language';
+import { useBranded } from '@/components/brand/BrandProvider';
 
 export default function UserTransfersView() {
   const {
@@ -13,7 +15,7 @@ export default function UserTransfersView() {
     accounts,
     setIsTransferModalOpen,
   } = useAppStore();
-  const t = bankingMessages[language];
+  const t = useBranded(bankingMessages[language]);
   const [searchQuery, setSearchQuery] = useState('');
 
   const filtered = pendingTransfers.filter((transfer) => {
@@ -70,7 +72,9 @@ export default function UserTransfersView() {
                   <p className="font-extrabold text-blue-700">
                     {formatDirectCurrency(transfer.amount, transfer.currency, language)}
                   </p>
-                  <p className="text-[10px] text-slate-500">{transfer.date}</p>
+                  <p className="text-[10px] text-slate-500">
+                    {formatLocalizedDateTime(transfer.date, language)}
+                  </p>
                 </div>
               </div>
               <div className="mt-4 p-3 bg-slate-50 rounded-xl flex items-start gap-2">
@@ -80,7 +84,7 @@ export default function UserTransfersView() {
                     {t.transfers.statuses[transfer.workflowStatus ?? 'submitted']}
                   </p>
                   <p className="text-[10px] text-slate-500 mt-1">
-                    {t.transfers.progress}: {transfer.complianceProgress} %.{' '}
+                    {t.transfers.progress}: {formatLocalizedPercent(transfer.complianceProgress, language)}.{' '}
                     {t.transfers.progressHint}
                   </p>
                 </div>

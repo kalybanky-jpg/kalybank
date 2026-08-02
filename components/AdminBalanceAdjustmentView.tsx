@@ -12,11 +12,13 @@ import {
 } from 'lucide-react';
 import { formatDirectCurrency } from '@/lib/currency';
 import { useAppStore } from '@/lib/store';
+import { useBrand } from '@/components/brand/BrandProvider';
 
 type AdjustmentDirection = 'credit' | 'debit';
 
 export default function AdminBalanceAdjustmentView() {
-  const { accounts, language, updateAccountBalance } = useAppStore();
+  const { brand } = useBrand();
+  const { accounts, updateAccountBalance } = useAppStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedAccountId, setSelectedAccountId] = useState('');
   const [direction, setDirection] = useState<AdjustmentDirection>('credit');
@@ -35,7 +37,7 @@ export default function AdminBalanceAdjustmentView() {
   );
 
   const filteredAccounts = useMemo(() => {
-    const query = searchQuery.trim().toLocaleLowerCase(language);
+    const query = searchQuery.trim().toLocaleLowerCase('fr-FR');
     if (!query) return currentAccounts;
 
     return currentAccounts.filter((account) =>
@@ -45,9 +47,9 @@ export default function AdminBalanceAdjustmentView() {
         account.accountNumber,
         account.iban,
         account.currency,
-      ].some((value) => value?.toLocaleLowerCase(language).includes(query)),
+      ].some((value) => value?.toLocaleLowerCase('fr-FR').includes(query)),
     );
-  }, [currentAccounts, language, searchQuery]);
+  }, [currentAccounts, searchQuery]);
 
   const selectedAccount = currentAccounts.find(
     (account) => account.id === selectedAccountId,
@@ -89,7 +91,7 @@ export default function AdminBalanceAdjustmentView() {
         `${operationLabel} de ${formatDirectCurrency(
           movement,
           selectedAccount.currency,
-          language,
+            'fr',
         )} enregistré avec succès.`,
       );
       setAmount('');
@@ -114,7 +116,7 @@ export default function AdminBalanceAdjustmentView() {
             <div>
               <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[#aaa0ff]">
                 <Landmark className="h-4 w-4" />
-                Grand livre Monalyz
+                Grand livre {brand.bankName}
               </div>
               <h1 className="mt-2 text-2xl font-extrabold sm:text-[28px]">
                 Réajuster un solde courant
@@ -197,7 +199,7 @@ export default function AdminBalanceAdjustmentView() {
                   <span className="mt-3 flex items-end justify-between gap-3">
                     <span className="text-[9px] text-[#7a84a8]">Solde actuel</span>
                     <strong className="text-sm text-[#0a154f]">
-                      {formatDirectCurrency(account.balance, account.currency, language)}
+                  {formatDirectCurrency(account.balance, account.currency, 'fr')}
                     </strong>
                   </span>
                 </button>
@@ -293,7 +295,7 @@ export default function AdminBalanceAdjustmentView() {
                     {formatDirectCurrency(
                       selectedAccount.balance,
                       selectedAccount.currency,
-                      language,
+                    'fr',
                     )}
                   </p>
                 </div>
@@ -312,7 +314,7 @@ export default function AdminBalanceAdjustmentView() {
                     {formatDirectCurrency(
                       targetBalance,
                       selectedAccount.currency,
-                      language,
+                    'fr',
                     )}
                   </p>
                 </div>
@@ -323,7 +325,7 @@ export default function AdminBalanceAdjustmentView() {
                 }`}
               >
                 {direction === 'credit' ? '+' : '−'}{' '}
-                {formatDirectCurrency(movement, selectedAccount.currency, language)}
+                    {formatDirectCurrency(movement, selectedAccount.currency, 'fr')}
               </p>
             </div>
           )}

@@ -227,7 +227,7 @@ otp_expiry = 3600
 # sender_name = "Admin"
 
 [auth.email.template.confirmation]
-subject = '{{ if eq .Data.preferred_language "en" }}Confirm your email address{{ else if eq .Data.preferred_language "de" }}Bestätigen Sie Ihre E-Mail-Adresse{{ else if eq .Data.preferred_language "es" }}Confirme su correo electrónico{{ else }}Confirmez votre adresse e-mail{{ end }}'
+subject = '{{ if eq .Data.preferred_language "en" }}Your confirmation code{{ else if eq .Data.preferred_language "de" }}Ihr Bestätigungscode{{ else if eq .Data.preferred_language "es" }}Su código de confirmación{{ else }}Votre code de confirmation{{ end }}'
 content_path = "./supabase/templates/confirmation.html"
 
 [auth.email.template.recovery]

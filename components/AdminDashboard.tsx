@@ -61,7 +61,6 @@ function ProgressBar({ value }: { value: number }) {
 
 export default function AdminDashboard() {
   const {
-    language,
     activeTab,
     setActiveTab,
     pendingTransfers,
@@ -132,7 +131,7 @@ export default function AdminDashboard() {
     };
   const defaultCurrency = loans[0]?.currency ?? pendingTransfers[0]?.currency ?? 'EUR';
   const money = (amount: number, currency = defaultCurrency) =>
-    formatDirectCurrency(amount, currency, language);
+    formatDirectCurrency(amount, currency, 'fr');
 
   const stats = [
     {

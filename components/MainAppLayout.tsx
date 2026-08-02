@@ -11,14 +11,17 @@ import LoanApplicationModal from '@/components/LoanApplicationModal';
 import NotificationsDrawer from '@/components/NotificationsDrawer';
 import AccountStatementsModal from '@/components/AccountStatementsModal';
 import ContactModal from '@/components/ContactModal';
+import { extraUserMessages } from '@/lib/user-i18n';
+import { useBranded } from '@/components/brand/BrandProvider';
 
 interface MainAppLayoutProps {
   forcedRole?: 'user' | 'admin';
 }
 
 export default function MainAppLayout({ forcedRole }: MainAppLayoutProps) {
-  const { role, isLoading, lastError } = useAppStore();
+  const { role, language, isLoading, lastError } = useAppStore();
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const brandedMessages = useBranded(extraUserMessages[language]);
 
   // Route access is enforced by middleware; the role is always derived from
   // the authenticated staff_members row, never from the URL or client state.
@@ -27,7 +30,9 @@ export default function MainAppLayout({ forcedRole }: MainAppLayoutProps) {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center text-sm font-bold">
-        Chargement sécurisé…
+        {forcedRole === 'admin'
+          ? 'Chargement sécurisé…'
+          : brandedMessages.shell.loadingSession}
       </div>
     );
   }

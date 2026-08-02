@@ -3,8 +3,10 @@
 import React from 'react';
 import { useAppStore } from '@/lib/store';
 import { BarChart3, CheckCircle2, Clock, XCircle } from 'lucide-react';
+import { useBrand } from '@/components/brand/BrandProvider';
 
 export default function AdminReportsView() {
+  const { brand } = useBrand();
   const { pendingTransfers, loans, kycApplications } = useAppStore();
 
   const terminalFailures =
@@ -29,10 +31,10 @@ export default function AdminReportsView() {
           <BarChart3 className="w-4 h-4" />
           <span>Indicateurs applicatifs</span>
         </div>
-        <h1 className="text-2xl font-extrabold mt-1">Rapport opérationnel Monalyz</h1>
+        <h1 className="text-2xl font-extrabold mt-1">Rapport opérationnel {brand.bankName}</h1>
         <p className="text-xs text-slate-300 mt-2">
           Les métriques portent sur les comptes et opérations enregistrés par le
-          personnel dans Monalyz.
+          personnel dans {brand.bankName}.
         </p>
       </header>
 

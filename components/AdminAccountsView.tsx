@@ -12,6 +12,7 @@ import {
   WalletCards,
   X,
 } from 'lucide-react';
+import { useBrand } from '@/components/brand/BrandProvider';
 
 interface DeclarationForm {
   ownerId: string;
@@ -29,7 +30,7 @@ interface DeclarationForm {
   reason: string;
 }
 
-const initialDeclaration: DeclarationForm = {
+const initialDeclaration = (bankName: string): DeclarationForm => ({
   ownerId: '',
   label: 'Compte courant',
   accountType: 'current' as const,
@@ -37,17 +38,17 @@ const initialDeclaration: DeclarationForm = {
   iban: '',
   bic: '',
   accountHolderName: '',
-  institutionName: 'Monalyz',
+  institutionName: bankName,
   branchName: '',
   branchCode: '',
   openingBalance: 0,
   openedAt: new Date().toISOString().slice(0, 10),
   reason: '',
-};
+});
 
 export default function AdminAccountsView() {
+  const { brand } = useBrand();
   const {
-    language,
     accounts,
     kycApplications,
     declareBankAccount,
@@ -58,7 +59,7 @@ export default function AdminAccountsView() {
   const [selected, setSelected] = useState<BankAccount | null>(null);
   const [isDeclarationOpen, setIsDeclarationOpen] = useState(false);
   const [declaration, setDeclaration] =
-    useState<DeclarationForm>(initialDeclaration);
+    useState<DeclarationForm>(() => initialDeclaration(brand.bankName));
   const [newAmount, setNewAmount] = useState(0);
   const [reason, setReason] = useState('');
   const [error, setError] = useState('');
@@ -107,7 +108,7 @@ export default function AdminAccountsView() {
     setIsSaving(true);
     try {
       await declareBankAccount(declaration);
-      setDeclaration(initialDeclaration);
+      setDeclaration(initialDeclaration(brand.bankName));
       setIsDeclarationOpen(false);
     } catch (caughtError) {
       setError(
@@ -204,11 +205,11 @@ export default function AdminAccountsView() {
                     </span>
                   </td>
                   <td className="py-4 px-2 text-right font-extrabold">
-                    {formatDirectCurrency(account.balance, account.currency, language)}
+                    {formatDirectCurrency(account.balance, account.currency, 'fr')}
                   </td>
                   <td className="py-4 px-2 text-slate-600">
                     {account.asOf
-                      ? new Date(account.asOf).toLocaleString(language)
+                      ? new Date(account.asOf).toLocaleString('fr-FR')
                       : '—'}
                   </td>
                   <td className="py-4 px-2 text-right">

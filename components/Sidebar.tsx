@@ -21,8 +21,10 @@ import {
 import { motion } from 'motion/react';
 import { useAppStore } from '@/lib/store';
 import { translations } from '@/lib/i18n';
+import { extraUserMessages } from '@/lib/user-i18n';
 import { createClient } from '@/lib/supabase/client';
 import BrandLogo from '@/components/brand/BrandLogo';
+import { useBranded } from '@/components/brand/BrandProvider';
 
 interface SidebarProps {
   isOpenOnMobile?: boolean;
@@ -37,10 +39,13 @@ export default function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps)
     setActiveTab,
     setIsContactModalOpen,
   } = useAppStore();
-  const t = translations[language] || translations.fr;
+  const effectiveLanguage = role === 'admin' ? 'fr' : language;
+  const t = useBranded(translations[effectiveLanguage] || translations.fr);
+  const shell = useBranded(extraUserMessages[effectiveLanguage].shell);
 
   const userNavItems = [
     { id: 'dashboard', label: t.dashboard, icon: LayoutGrid },
+    { id: 'accounts', label: t.accounts, icon: CreditCard },
     { id: 'transfers', label: t.transfers, icon: SendHorizontal },
     { id: 'loan', label: t.loan, icon: WalletCards },
     { id: 'documents', label: t.documents, icon: FileText },
@@ -79,7 +84,7 @@ export default function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps)
         <div className="mb-8 flex items-center justify-between px-1">
           <button
             type="button"
-            aria-label="Monalyz — accueil"
+            aria-label={shell.homeAria}
             onClick={() => handleNavClick('dashboard')}
             className="rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
           >
@@ -95,14 +100,14 @@ export default function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps)
               type="button"
               onClick={onCloseMobile}
               className="rounded-lg p-1.5 text-white/70 hover:bg-white/10 hover:text-white lg:hidden"
-              aria-label="Fermer le menu"
+              aria-label={shell.closeMenu}
             >
               <X className="h-5 w-5" />
             </button>
           )}
         </div>
 
-        <nav className="space-y-1.5" aria-label="Navigation principale">
+        <nav className="space-y-1.5" aria-label={shell.mainNavigation}>
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
@@ -129,7 +134,7 @@ export default function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps)
                 <span className="min-w-0 flex-1">{item.label}</span>
                 {'featured' in item && item.featured === true && !isActive && (
                   <span className="rounded bg-[#7863ff] px-1.5 py-0.5 text-[8px] font-bold tracking-wide text-white">
-                    ACTION
+                    {shell.actions.toUpperCase()}
                   </span>
                 )}
               </button>
@@ -143,9 +148,7 @@ export default function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps)
           <Headphones className="mb-4 h-8 w-8 text-[#7054ff]" strokeWidth={1.8} />
           <h2 className="text-[15px] font-semibold">{t.needHelp}</h2>
           <p className="mt-1.5 text-[11px] leading-5 text-white/66">
-            {role === 'admin'
-              ? 'Notre équipe admin est là pour vous accompagner.'
-              : 'Notre équipe est là pour vous accompagner.'}
+            {role === 'admin' ? shell.adminHelp : shell.userHelp}
           </p>
           <button
             type="button"
@@ -153,7 +156,7 @@ export default function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps)
             id="help-contact-us-btn"
             className="mt-4 rounded-md bg-gradient-to-r from-[#6044ff] to-[#4128ef] px-5 py-2.5 text-[11px] font-semibold text-white shadow-lg shadow-indigo-950/30 hover:brightness-110"
           >
-            {t.contactUs}
+            {shell.contact}
           </button>
         </div>
 
@@ -183,7 +186,7 @@ export default function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps)
         <div className="fixed inset-0 z-50 flex lg:hidden">
           <motion.button
             type="button"
-            aria-label="Fermer le menu"
+            aria-label={shell.closeMenu}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}

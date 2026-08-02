@@ -3,6 +3,7 @@
 import type { Language } from '@/lib/types';
 import { publicMessages } from '@/lib/public-i18n';
 import { useAppStore } from '@/lib/store';
+import { useBranded } from '@/components/brand/BrandProvider';
 
 const LANGUAGE_OPTIONS: Array<{ code: Language; label: string }> = [
   { code: 'fr', label: 'Français' },
@@ -23,14 +24,15 @@ export default function LanguageSelector({
   dark = false,
 }: LanguageSelectorProps) {
   const { language, setLanguage } = useAppStore();
+  const messages = useBranded(publicMessages[language]);
 
   return (
     <label className={`inline-flex items-center gap-2 ${className}`}>
       <span className={compact ? 'sr-only' : 'text-xs font-bold'}>
-        {publicMessages[language].languageSelector}
+        {messages.languageSelector}
       </span>
       <select
-        aria-label={publicMessages[language].languageSelector}
+        aria-label={messages.languageSelector}
         value={language}
         onChange={(event) => {
           void setLanguage(event.target.value as Language);

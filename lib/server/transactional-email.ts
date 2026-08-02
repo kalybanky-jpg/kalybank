@@ -1,3 +1,5 @@
+import { applyBrand } from '@/lib/branding';
+
 export type TransactionalEmailProvider = 'resend' | 'brevo';
 export type TransactionalEmailLanguage = 'fr' | 'en' | 'de' | 'es';
 
@@ -37,13 +39,22 @@ export interface TransactionalEmailConfig {
 }
 
 export interface TransactionalEmailBranding {
+  bankName?: string;
   wordmarkUrl: string;
 }
 
-interface RenderedEmail {
+export interface RenderedEmail {
   subject: string;
   text: string;
   html: string;
+}
+
+export interface BrandedEmailDelivery {
+  recipientEmail: string;
+  idempotencyKey: string;
+  email: RenderedEmail;
+  bankName: string;
+  tags?: string[];
 }
 
 type FetchLike = typeof fetch;
@@ -307,14 +318,14 @@ function messageForTemplate(
           subject: 'Your transfer request has been rejected',
           heading: 'Transfer rejected',
           message:
-            'We were unable to approve your transfer request. No money has been taken from your Monalyz account.',
+            'We were unable to approve your transfer request. No money has been taken from your {bankName} account.',
         };
       case 'transfer_failed':
         return {
           subject: 'Your transfer could not be completed',
           heading: 'Transfer not completed',
           message:
-            'Your transfer could not be completed. Any money set aside for it is available again in your Monalyz account.',
+            'Your transfer could not be completed. Any money set aside for it is available again in your {bankName} account.',
         };
       case 'loan_submitted':
         return {
@@ -333,7 +344,7 @@ function messageForTemplate(
         return {
           subject: 'Your loan has been paid',
           heading: 'Loan paid successfully',
-          message: `${amount} has been paid into your Monalyz account.`,
+          message: `${amount} has been paid into your {bankName} account.`,
         };
       case 'loan_rejected':
         return {
@@ -348,10 +359,10 @@ function messageForTemplate(
           message: `The funds for your application ${reference} could not be paid. Please contact our support team if you need help.`,
         };
       case 'kyc_submitted': return { subject: 'Your identity file has been received', heading: 'Identity file received', message: 'Your file is waiting for human review. No action is required for now.' };
-      case 'kyc_information_requested': return { subject: 'Action required on your identity file', heading: 'More information required', message: `Open your file and correct only the requested items. ${payloadText(payload, 'reason', '')}`.trim() };
+      case 'kyc_information_requested': return { subject: 'Action required on your identity file', heading: 'More information required', message: 'Open your file and correct only the requested items.' };
       case 'kyc_resubmitted': return { subject: 'Your identity file has been resubmitted', heading: 'Corrections received', message: 'We have received your corrections and will review them.' };
-      case 'kyc_approved': return { subject: 'Your identity has been approved', heading: 'Identity approved', message: 'Your identity is confirmed and your Monalyz internal account has been created.' };
-      case 'kyc_rejected': return { subject: 'Your identity file has been rejected', heading: 'Corrections are possible', message: `Open the same file to see the reason, correct it and resubmit it. ${payloadText(payload, 'reason', '')}`.trim() };
+      case 'kyc_approved': return { subject: 'Your identity has been approved', heading: 'Identity approved', message: 'Your identity is confirmed and your {bankName} internal account has been created.' };
+      case 'kyc_rejected': return { subject: 'Your identity file has been rejected', heading: 'Corrections are possible', message: 'Open the same file to view the structured reason, correct the requested items and resubmit it.' };
     }
   }
 
@@ -381,14 +392,14 @@ function messageForTemplate(
           subject: 'Ihr Überweisungsauftrag wurde abgelehnt',
           heading: 'Überweisung abgelehnt',
           message:
-            'Wir konnten Ihren Überweisungsauftrag nicht genehmigen. Ihr Monalyz-Konto wurde nicht belastet.',
+            'Wir konnten Ihren Überweisungsauftrag nicht genehmigen. Ihr {bankName}-Konto wurde nicht belastet.',
         };
       case 'transfer_failed':
         return {
           subject: 'Ihre Überweisung konnte nicht ausgeführt werden',
           heading: 'Überweisung nicht ausgeführt',
           message:
-            'Ihre Überweisung konnte nicht ausgeführt werden. Der dafür vorgesehene Betrag ist auf Ihrem Monalyz-Konto wieder verfügbar.',
+            'Ihre Überweisung konnte nicht ausgeführt werden. Der dafür vorgesehene Betrag ist auf Ihrem {bankName}-Konto wieder verfügbar.',
         };
       case 'loan_submitted':
         return {
@@ -407,7 +418,7 @@ function messageForTemplate(
         return {
           subject: 'Ihr Kredit wurde ausgezahlt',
           heading: 'Kredit erfolgreich ausgezahlt',
-          message: `${amount} wurden Ihrem Monalyz-Konto gutgeschrieben.`,
+          message: `${amount} wurden Ihrem {bankName}-Konto gutgeschrieben.`,
         };
       case 'loan_rejected':
         return {
@@ -422,10 +433,10 @@ function messageForTemplate(
           message: `Die Gelder für Ihren Antrag ${reference} konnten nicht ausgezahlt werden. Bitte wenden Sie sich an unseren Support, wenn Sie Hilfe benötigen.`,
         };
       case 'kyc_submitted': return { subject: 'Ihre Identitätsunterlagen sind eingegangen', heading: 'Unterlagen erhalten', message: 'Ihre Unterlagen warten auf die manuelle Prüfung. Derzeit ist keine Aktion erforderlich.' };
-      case 'kyc_information_requested': return { subject: 'Aktion für Ihre Identitätsprüfung erforderlich', heading: 'Ergänzung erforderlich', message: `Öffnen Sie Ihre Unterlagen und korrigieren Sie nur die angeforderten Elemente. ${payloadText(payload, 'reason', '')}`.trim() };
+      case 'kyc_information_requested': return { subject: 'Aktion für Ihre Identitätsprüfung erforderlich', heading: 'Ergänzung erforderlich', message: 'Öffnen Sie Ihre Unterlagen und korrigieren Sie nur die angeforderten Elemente.' };
       case 'kyc_resubmitted': return { subject: 'Ihre Identitätsunterlagen wurden erneut eingereicht', heading: 'Korrekturen erhalten', message: 'Wir haben Ihre Korrekturen erhalten und prüfen sie.' };
-      case 'kyc_approved': return { subject: 'Ihre Identität wurde bestätigt', heading: 'Identität bestätigt', message: 'Ihre Identität wurde bestätigt und Ihr internes Monalyz-Konto wurde erstellt.' };
-      case 'kyc_rejected': return { subject: 'Ihre Identitätsunterlagen wurden abgelehnt', heading: 'Korrekturen sind möglich', message: `Öffnen Sie denselben Vorgang, prüfen Sie den Grund und reichen Sie Korrekturen ein. ${payloadText(payload, 'reason', '')}`.trim() };
+      case 'kyc_approved': return { subject: 'Ihre Identität wurde bestätigt', heading: 'Identität bestätigt', message: 'Ihre Identität wurde bestätigt und Ihr internes {bankName}-Konto wurde erstellt.' };
+      case 'kyc_rejected': return { subject: 'Ihre Identitätsunterlagen wurden abgelehnt', heading: 'Korrekturen sind möglich', message: 'Öffnen Sie denselben Vorgang, prüfen Sie den strukturierten Grund und reichen Sie die angeforderten Korrekturen ein.' };
     }
   }
 
@@ -455,14 +466,14 @@ function messageForTemplate(
           subject: 'Su solicitud de transferencia ha sido rechazada',
           heading: 'Transferencia rechazada',
           message:
-            'No hemos podido aprobar su solicitud de transferencia. No se ha retirado dinero de su cuenta Monalyz.',
+            'No hemos podido aprobar su solicitud de transferencia. No se ha retirado dinero de su cuenta {bankName}.',
         };
       case 'transfer_failed':
         return {
           subject: 'No se pudo realizar su transferencia',
           heading: 'Transferencia no realizada',
           message:
-            'No se pudo realizar su transferencia. El importe reservado para ella vuelve a estar disponible en su cuenta Monalyz.',
+            'No se pudo realizar su transferencia. El importe reservado para ella vuelve a estar disponible en su cuenta {bankName}.',
         };
       case 'loan_submitted':
         return {
@@ -481,7 +492,7 @@ function messageForTemplate(
         return {
           subject: 'Su préstamo ha sido abonado',
           heading: 'Préstamo abonado correctamente',
-          message: `Se han abonado ${amount} en su cuenta Monalyz.`,
+          message: `Se han abonado ${amount} en su cuenta {bankName}.`,
         };
       case 'loan_rejected':
         return {
@@ -496,10 +507,10 @@ function messageForTemplate(
           message: `No se pudieron abonar los fondos de su solicitud ${reference}. Póngase en contacto con nuestro servicio de asistencia si necesita ayuda.`,
         };
       case 'kyc_submitted': return { subject: 'Hemos recibido su expediente de identidad', heading: 'Expediente recibido', message: 'Su expediente espera una revisión humana. Por ahora no debe hacer nada.' };
-      case 'kyc_information_requested': return { subject: 'Acción necesaria en su expediente de identidad', heading: 'Información adicional requerida', message: `Abra su expediente y corrija únicamente los elementos solicitados. ${payloadText(payload, 'reason', '')}`.trim() };
+      case 'kyc_information_requested': return { subject: 'Acción necesaria en su expediente de identidad', heading: 'Información adicional requerida', message: 'Abra su expediente y corrija únicamente los elementos solicitados.' };
       case 'kyc_resubmitted': return { subject: 'Su expediente de identidad ha sido reenviado', heading: 'Correcciones recibidas', message: 'Hemos recibido sus correcciones y las revisaremos.' };
-      case 'kyc_approved': return { subject: 'Su identidad ha sido aprobada', heading: 'Identidad aprobada', message: 'Su identidad está confirmada y se ha creado su cuenta interna Monalyz.' };
-      case 'kyc_rejected': return { subject: 'Su expediente de identidad ha sido rechazado', heading: 'Puede corregirlo', message: `Abra el mismo expediente, consulte el motivo, corríjalo y vuelva a enviarlo. ${payloadText(payload, 'reason', '')}`.trim() };
+      case 'kyc_approved': return { subject: 'Su identidad ha sido aprobada', heading: 'Identidad aprobada', message: 'Su identidad está confirmada y se ha creado su cuenta interna {bankName}.' };
+      case 'kyc_rejected': return { subject: 'Su expediente de identidad ha sido rechazado', heading: 'Puede corregirlo', message: 'Abra el mismo expediente, consulte el motivo estructurado, corrija los elementos solicitados y vuelva a enviarlo.' };
     }
   }
 
@@ -528,14 +539,14 @@ function messageForTemplate(
         subject: 'Votre demande de virement a été refusée',
         heading: 'Virement refusé',
         message:
-          'Nous n’avons pas pu valider votre demande de virement. Aucun montant n’a été débité de votre compte Monalyz.',
+          'Nous n’avons pas pu valider votre demande de virement. Aucun montant n’a été débité de votre compte {bankName}.',
       };
     case 'transfer_failed':
       return {
         subject: 'Échec de l’exécution de votre virement',
         heading: 'Virement non exécuté',
         message:
-          'Votre virement n’a pas pu être effectué. Le montant mis de côté pour ce virement est de nouveau disponible sur votre compte Monalyz.',
+          'Votre virement n’a pas pu être effectué. Le montant mis de côté pour ce virement est de nouveau disponible sur votre compte {bankName}.',
       };
     case 'loan_submitted':
       return {
@@ -554,7 +565,7 @@ function messageForTemplate(
       return {
         subject: 'Votre prêt a été versé',
         heading: 'Prêt versé avec succès',
-        message: `Le montant de ${amount} a été versé sur votre compte Monalyz.`,
+        message: `Le montant de ${amount} a été versé sur votre compte {bankName}.`,
       };
     case 'loan_rejected':
       return {
@@ -569,10 +580,10 @@ function messageForTemplate(
         message: `Les fonds liés à votre demande ${reference} n’ont pas pu être versés. Contactez notre assistance si vous avez besoin d’aide.`,
       };
     case 'kyc_submitted': return { subject: 'Votre dossier d’identité a été reçu', heading: 'Dossier d’identité reçu', message: 'Votre dossier attend un contrôle humain. Aucune action n’est requise pour le moment.' };
-    case 'kyc_information_requested': return { subject: 'Action requise sur votre dossier d’identité', heading: 'Complément requis', message: `Ouvrez votre dossier et corrigez uniquement les éléments demandés. ${payloadText(payload, 'reason', '')}`.trim() };
+    case 'kyc_information_requested': return { subject: 'Action requise sur votre dossier d’identité', heading: 'Complément requis', message: 'Ouvrez votre dossier et corrigez uniquement les éléments demandés.' };
     case 'kyc_resubmitted': return { subject: 'Votre dossier d’identité a été resoumis', heading: 'Corrections reçues', message: 'Vos corrections ont bien été reçues et vont être examinées.' };
-    case 'kyc_approved': return { subject: 'Votre identité a été approuvée', heading: 'Identité approuvée', message: 'Votre identité est confirmée et votre compte interne Monalyz a été créé.' };
-    case 'kyc_rejected': return { subject: 'Votre dossier d’identité a été rejeté', heading: 'Vous pouvez le corriger', message: `Ouvrez le même dossier, consultez le motif, corrigez-le puis resoumettez-le. ${payloadText(payload, 'reason', '')}`.trim() };
+    case 'kyc_approved': return { subject: 'Votre identité a été approuvée', heading: 'Identité approuvée', message: 'Votre identité est confirmée et votre compte interne {bankName} a été créé.' };
+    case 'kyc_rejected': return { subject: 'Votre dossier d’identité a été rejeté', heading: 'Vous pouvez le corriger', message: 'Ouvrez le même dossier, consultez le motif structuré, corrigez les éléments demandés puis resoumettez-le.' };
   }
 }
 
@@ -582,7 +593,11 @@ export function renderTransactionalEmail(
   branding: TransactionalEmailBranding,
   language: TransactionalEmailLanguage = 'fr',
 ): RenderedEmail {
-  const content = messageForTemplate(template, payload, language);
+  const bankName = branding.bankName?.trim() || 'Monalyz';
+  const content = applyBrand(
+    messageForTemplate(template, payload, language),
+    bankName,
+  );
   const support = SUPPORT_COPY[language];
   const safeHeading = escapeHtml(content.heading);
   const safeMessage = escapeHtml(content.message);
@@ -621,7 +636,7 @@ export function renderTransactionalEmail(
   <body style="margin:0;background:#f4f6fa;font-family:Arial,sans-serif;color:#0f172a">
     <div style="max-width:600px;margin:0 auto;padding:32px 16px">
       <div style="background:#FBFAF7;padding:18px 24px;border:1px solid #e8e2eb;border-bottom:0;border-radius:18px 18px 0 0">
-        <img src="${safeWordmarkUrl}" width="180" alt="Monalyz" style="display:block;width:180px;max-width:100%;height:auto;border:0">
+        <img src="${safeWordmarkUrl}" width="180" alt="${escapeHtml(bankName)}" style="display:block;width:180px;max-width:100%;height:auto;border:0">
       </div>
       <div style="background:#fff;padding:28px 24px;border:1px solid #e2e8f0;border-radius:0 0 18px 18px">
         <h1 style="font-size:22px;margin:0 0 16px">${safeHeading}</h1>
@@ -651,30 +666,52 @@ export async function sendTransactionalEmail(
   config: TransactionalEmailConfig,
   language: TransactionalEmailLanguage,
   fetchImpl: FetchLike = fetch,
+  branding?: TransactionalEmailBranding,
 ): Promise<string> {
+  const resolvedBranding = branding ?? {
+    bankName: config.fromName,
+    wordmarkUrl: buildEmailWordmarkUrl(config.assetBaseUrl),
+  };
+  const senderName = resolvedBranding.bankName?.trim() || config.fromName;
   const email = renderTransactionalEmail(
     job.template_key,
     job.payload,
-    {
-      wordmarkUrl: buildEmailWordmarkUrl(config.assetBaseUrl),
-    },
+    resolvedBranding,
     language,
   );
 
+  return sendBrandedEmail(
+    {
+      recipientEmail: job.recipient_email,
+      idempotencyKey: `monalyz-${job.id}`,
+      email,
+      bankName: senderName,
+      tags: ['monalyz-transactional'],
+    },
+    config,
+    fetchImpl,
+  );
+}
+
+export async function sendBrandedEmail(
+  delivery: BrandedEmailDelivery,
+  config: TransactionalEmailConfig,
+  fetchImpl: FetchLike = fetch,
+): Promise<string> {
   if (config.provider === 'resend') {
     const response = await fetchImpl('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${config.apiKey}`,
         'Content-Type': 'application/json',
-        'Idempotency-Key': `monalyz-${job.id}`,
+        'Idempotency-Key': delivery.idempotencyKey,
       },
       body: JSON.stringify({
-        from: `${config.fromName} <${config.fromEmail}>`,
-        to: [job.recipient_email],
-        subject: email.subject,
-        html: email.html,
-        text: email.text,
+        from: `${delivery.bankName} <${config.fromEmail}>`,
+        to: [delivery.recipientEmail],
+        subject: delivery.email.subject,
+        html: delivery.email.html,
+        text: delivery.email.text,
         reply_to: config.replyTo,
       }),
     });
@@ -694,14 +731,14 @@ export async function sendTransactionalEmail(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      sender: { name: config.fromName, email: config.fromEmail },
-      to: [{ email: job.recipient_email }],
+      sender: { name: delivery.bankName, email: config.fromEmail },
+      to: [{ email: delivery.recipientEmail }],
       replyTo: { email: config.replyTo },
-      subject: email.subject,
-      htmlContent: email.html,
-      textContent: email.text,
-      headers: { 'Idempotency-Key': `monalyz-${job.id}` },
-      tags: ['monalyz-transactional'],
+      subject: delivery.email.subject,
+      htmlContent: delivery.email.html,
+      textContent: delivery.email.text,
+      headers: { 'Idempotency-Key': delivery.idempotencyKey },
+      tags: delivery.tags ?? ['transactional'],
     }),
   });
   if (!response.ok) throw new Error(await responseError(response));

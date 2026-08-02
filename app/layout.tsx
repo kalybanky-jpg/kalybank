@@ -11,6 +11,7 @@ import {
 import { isPublicSupabaseConfigured } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
 import { safeHttpOrigin } from '@/lib/security/navigation';
+import { getRequestBrandSettings } from '@/lib/server/branding';
 
 const metadataOrigin =
   safeHttpOrigin(process.env.APP_ORIGIN ?? process.env.NEXT_PUBLIC_APP_ORIGIN) ??
@@ -18,59 +19,53 @@ const metadataOrigin =
     ? 'https://monalyz.com'
     : 'http://127.0.0.1:3000');
 
-export const metadata: Metadata = {
-  metadataBase: new URL(metadataOrigin),
-  applicationName: 'Monalyz',
-  title: {
-    default: 'Monalyz',
-    template: '%s | Monalyz',
-  },
-  description:
-    'Instructions, contrôles et traçabilité d’opérations financières exécutées hors application.',
-  manifest: '/manifest.webmanifest',
-  icons: {
-    icon: [
-      {
-        url: '/brand/monalyz/monalyz-favicon.ico',
-        sizes: '16x16 32x32 48x48',
-      },
-      {
-        url: '/brand/monalyz/monalyz-favicon-32.png',
-        type: 'image/png',
-        sizes: '32x32',
-      },
-    ],
-    apple: [
-      {
-        url: '/brand/monalyz/monalyz-apple-touch-icon-180.png',
-        type: 'image/png',
-        sizes: '180x180',
-      },
-    ],
-  },
-  openGraph: {
-    type: 'website',
-    siteName: 'Monalyz',
-    title: 'Monalyz',
-    description:
-      'Instructions, contrôles et traçabilité d’opérations financières exécutées hors application.',
-    images: [
-      {
-        url: '/brand/monalyz/monalyz-opengraph-1200x630.png',
-        width: 1200,
-        height: 630,
-        alt: 'Monalyz',
-      },
-    ],
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'Monalyz',
-    description:
-      'Instructions, contrôles et traçabilité d’opérations financières exécutées hors application.',
-    images: ['/brand/monalyz/monalyz-twitter-1200x630.png'],
-  },
-};
+const description =
+  'Instructions, contrôles et traçabilité d’opérations financières exécutées hors application.';
+
+export async function generateMetadata(): Promise<Metadata> {
+  const brand = await getRequestBrandSettings();
+  return {
+    metadataBase: new URL(metadataOrigin),
+    applicationName: brand.bankName,
+    title: {
+      default: brand.bankName,
+      template: `%s | ${brand.bankName}`,
+    },
+    description,
+    manifest: '/manifest.webmanifest',
+    icons: {
+      icon: [
+        { url: brand.faviconIcoUrl, sizes: '16x16 32x32 48x48' },
+        { url: brand.favicon16Url, type: 'image/png', sizes: '16x16' },
+        { url: brand.favicon32Url, type: 'image/png', sizes: '32x32' },
+        { url: brand.favicon48Url, type: 'image/png', sizes: '48x48' },
+      ],
+      apple: [
+        { url: brand.appleTouchIconUrl, type: 'image/png', sizes: '180x180' },
+      ],
+    },
+    openGraph: {
+      type: 'website',
+      siteName: brand.bankName,
+      title: brand.bankName,
+      description,
+      images: [
+        {
+          url: brand.socialCardUrl,
+          width: 1200,
+          height: 630,
+          alt: brand.bankName,
+        },
+      ],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: brand.bankName,
+      description,
+      images: [brand.socialCardUrl],
+    },
+  };
+}
 
 export default async function RootLayout({children}: {children: React.ReactNode}) {
   // Nonce-based CSP requires every HTML response to be rendered with the
@@ -105,6 +100,7 @@ export default async function RootLayout({children}: {children: React.ReactNode}
     cookieSource: cookieStore.get(LANGUAGE_SOURCE_COOKIE)?.value,
     acceptedLanguages: parseAcceptLanguage(requestHeaders.get('accept-language')),
   });
+  const initialBrand = await getRequestBrandSettings();
 
   return (
     <html lang={initialLanguage.language}>
@@ -112,6 +108,7 @@ export default async function RootLayout({children}: {children: React.ReactNode}
         <Providers
           initialLanguage={initialLanguage.language}
           initialLanguageSource={initialLanguage.source}
+          initialBrand={initialBrand}
         >
           {children}
         </Providers>

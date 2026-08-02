@@ -8,6 +8,7 @@ import {
 } from '@/lib/server/transactional-email';
 import { getPublicSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
+import { resolveBrandSettings } from '@/lib/server/branding';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -89,6 +90,7 @@ export async function POST(request: NextRequest) {
   if (claimError) return noStoreJson({ error: claimError.message }, 400);
 
   const jobs = (data ?? []) as TransactionalEmailJob[];
+  const brand = await resolveBrandSettings(worker);
   let sent = 0;
   let failed = 0;
 
@@ -105,6 +107,11 @@ export async function POST(request: NextRequest) {
         job,
         config,
         language,
+        fetch,
+        {
+          bankName: brand.bankName,
+          wordmarkUrl: brand.emailLogoUrl,
+        },
       );
       const { error } = await worker.rpc('complete_transactional_email', {
         p_email_id: job.id,

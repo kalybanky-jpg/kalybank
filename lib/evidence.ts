@@ -1,5 +1,8 @@
 'use client';
 
+import { AppError } from './app-error';
+import type { AppErrorCode } from './types';
+
 export type EvidenceBucket =
   | 'kyc-evidence'
   | 'loan-evidence'
@@ -20,9 +23,9 @@ export async function uploadEvidence(
     body,
     credentials: 'same-origin',
   });
-  const result = (await response.json()) as { path?: string; error?: string };
+  const result = (await response.json()) as { path?: string; error?: { code?: AppErrorCode } };
   if (!response.ok || !result.path) {
-    throw new Error(result.error ?? 'Téléversement du justificatif impossible.');
+    throw new AppError(result.error?.code ?? 'UPLOAD_FAILED');
   }
   return result.path;
 }

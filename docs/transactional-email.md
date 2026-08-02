@@ -73,10 +73,11 @@ Variables communes :
 | --- | --- |
 | `TRANSACTIONAL_EMAIL_PROVIDER` | `resend` ou `brevo` |
 | `TRANSACTIONAL_EMAIL_FROM_EMAIL` | Adresse expéditrice vérifiée |
-| `TRANSACTIONAL_EMAIL_FROM_NAME` | Nom visible, `Monalyz` par défaut |
+| `TRANSACTIONAL_EMAIL_FROM_NAME` | Secours de configuration ; le nom publié dans le back-office est utilisé à l’envoi |
 | `TRANSACTIONAL_EMAIL_REPLY_TO` | Adresse de réponse, sinon l’expéditeur |
 | `TRANSACTIONAL_EMAIL_ASSET_BASE_URL` | Base publique du wordmark, facultative si une origine applicative est définie |
 | `SUPABASE_SECRET_KEY` | Clé serveur privilégiée du worker d’outbox |
+| `SEND_EMAIL_HOOK_SECRET` | Secret signé du Send Email Hook Supabase (`v1,whsec_…`) |
 
 `SUPABASE_SERVICE_ROLE_KEY` reste accepté pour les projets utilisant les
 anciennes clés JWT. Préférer `SUPABASE_SECRET_KEY`. Ces deux variables sont
@@ -85,9 +86,18 @@ strictement serveur et ne doivent jamais porter le préfixe `NEXT_PUBLIC_`.
 La base des assets est résolue dans cet ordre :
 `TRANSACTIONAL_EMAIL_ASSET_BASE_URL`, `APP_ORIGIN`, puis
 `NEXT_PUBLIC_APP_ORIGIN`. Elle doit être une URL HTTP(S) absolue; en production,
-HTTPS est obligatoire. Le fichier
-`/brand/monalyz/monalyz-wordmark-email-360.png` doit être publiquement
-accessible sous cette base.
+HTTPS est obligatoire. Le logo e-mail courant est lu dans `brand_settings` et
+servi depuis le bucket public versionné `brand-assets`; l’asset historique
+local reste le secours.
+
+### Hook Supabase Auth
+
+Configurer le Send Email Hook HTTP Supabase vers
+`https://<origine>/api/auth/send-email-hook`, puis copier son secret dans
+`SEND_EMAIL_HOOK_SECRET`. L’endpoint vérifie les trois en-têtes Standard
+Webhooks avant tout accès aux données et gère inscription, récupération,
+invitation, changement d’e-mail sécurisé et notifications de sécurité. Les
+modèles HTML Supabase versionnés restent des secours génériques sans marque.
 
 ### Resend métier
 
@@ -167,7 +177,9 @@ et de mot de passe, applique les modèles versionnés de `supabase/templates`,
 puis relit la configuration distante. Son résumé masque toujours les secrets.
 Les trois modèles incluent le wordmark à partir de
 `{{ .SiteURL }}/brand/monalyz/monalyz-wordmark-email-360.png` et conservent les
-liens sécurisés existants. Le sujet et le corps utilisent les conditions Go
+liens sécurisés des parcours de récupération. La confirmation d’inscription
+utilise uniquement le code `{{ .Token }}` à six chiffres, sans lien, et peut
+saluer l’utilisateur avec `user_metadata.display_name`. Le sujet et le corps utilisent les conditions Go
 Template de Supabase pour sélectionner le français, l’anglais, l’allemand ou
 l’espagnol depuis `user_metadata.preferred_language`; une valeur absente ou
 inconnue utilise le français. Pour les nouveaux projets Free créés depuis le

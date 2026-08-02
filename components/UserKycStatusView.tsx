@@ -4,12 +4,14 @@ import React from 'react';
 import { ArrowRight, CalendarDays, CheckCircle2, Clock3, ShieldCheck, XCircle } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { kycStatusLabels } from '@/lib/kyc-i18n';
+import { formatLocalizedDate, formatLocalizedDateTime } from '@/lib/language';
+import { useBranded } from '@/components/brand/BrandProvider';
 
 const COPY = {
-  fr: { title: 'Suivi de mon identité', submitted: 'Date de soumission', next: 'Prochaine action', waiting: 'Aucune action requise. Monalyz examine votre dossier.', correct: 'Corrigez uniquement les éléments signalés puis resoumettez le même dossier.', done: 'Votre identité est confirmée et votre compte interne est ouvert.', edit: 'Corriger mon dossier', noFile: 'Aucun dossier KYC soumis.', start: 'Commencer la vérification', due: 'Échéance' },
-  en: { title: 'My identity status', submitted: 'Submission date', next: 'Next action', waiting: 'No action required. Monalyz is reviewing your file.', correct: 'Correct only the flagged items, then resubmit the same file.', done: 'Your identity is confirmed and your internal account is open.', edit: 'Correct my file', noFile: 'No KYC file submitted.', start: 'Start verification', due: 'Due date' },
-  de: { title: 'Status meiner Identität', submitted: 'Einreichungsdatum', next: 'Nächste Aktion', waiting: 'Keine Aktion erforderlich. Monalyz prüft Ihre Unterlagen.', correct: 'Korrigieren Sie nur die markierten Elemente und reichen Sie denselben Vorgang erneut ein.', done: 'Ihre Identität wurde bestätigt und Ihr internes Konto eröffnet.', edit: 'Unterlagen korrigieren', noFile: 'Keine KYC-Unterlagen eingereicht.', start: 'Prüfung starten', due: 'Frist' },
-  es: { title: 'Estado de mi identidad', submitted: 'Fecha de envío', next: 'Próxima acción', waiting: 'No se requiere ninguna acción. Monalyz está revisando su expediente.', correct: 'Corrija únicamente los elementos indicados y vuelva a enviar el mismo expediente.', done: 'Su identidad está confirmada y su cuenta interna está abierta.', edit: 'Corregir mi expediente', noFile: 'No se ha enviado ningún expediente KYC.', start: 'Iniciar verificación', due: 'Fecha límite' },
+  fr: { title: 'Suivi de mon identité', submitted: 'Date de soumission', next: 'Prochaine action', waiting: 'Aucune action requise. {bankName} examine votre dossier.', correct: 'Corrigez uniquement les éléments signalés puis resoumettez le même dossier.', done: 'Votre identité est confirmée et votre compte interne est ouvert.', edit: 'Corriger mon dossier', noFile: 'Aucun dossier KYC soumis.', start: 'Commencer la vérification', due: 'Échéance' },
+  en: { title: 'My identity status', submitted: 'Submission date', next: 'Next action', waiting: 'No action required. {bankName} is reviewing your file.', correct: 'Correct only the flagged items, then resubmit the same file.', done: 'Your identity is confirmed and your internal account is open.', edit: 'Correct my file', noFile: 'No KYC file submitted.', start: 'Start verification', due: 'Due date' },
+  de: { title: 'Status meiner Identität', submitted: 'Einreichungsdatum', next: 'Nächste Aktion', waiting: 'Keine Aktion erforderlich. {bankName} prüft Ihre Unterlagen.', correct: 'Korrigieren Sie nur die markierten Elemente und reichen Sie denselben Vorgang erneut ein.', done: 'Ihre Identität wurde bestätigt und Ihr internes Konto eröffnet.', edit: 'Unterlagen korrigieren', noFile: 'Keine KYC-Unterlagen eingereicht.', start: 'Prüfung starten', due: 'Frist' },
+  es: { title: 'Estado de mi identidad', submitted: 'Fecha de envío', next: 'Próxima acción', waiting: 'No se requiere ninguna acción. {bankName} está revisando su expediente.', correct: 'Corrija únicamente los elementos indicados y vuelva a enviar el mismo expediente.', done: 'Su identidad está confirmada y su cuenta interna está abierta.', edit: 'Corregir mi expediente', noFile: 'No se ha enviado ningún expediente KYC.', start: 'Iniciar verificación', due: 'Fecha límite' },
 } as const;
 
 const REASON_LABELS: Record<string, Record<string, string>> = {
@@ -36,7 +38,7 @@ const ITEM_LABELS: Record<string, Record<string, string>> = {
 
 export default function UserKycStatusView() {
   const { language, kycApplications } = useAppStore();
-  const copy = COPY[language];
+  const copy = useBranded(COPY[language]);
   const application = kycApplications[0];
 
   if (!application) return (
@@ -68,15 +70,16 @@ export default function UserKycStatusView() {
           </div>
         </div>
         <dl className="mt-6 grid gap-4 sm:grid-cols-2">
-          <div className="rounded-2xl bg-slate-50 p-4"><dt className="flex items-center gap-2 text-xs text-slate-500"><CalendarDays className="h-4 w-4" />{copy.submitted}</dt><dd className="mt-2 text-sm font-bold">{application.submittedAt}</dd></div>
+          <div className="rounded-2xl bg-slate-50 p-4"><dt className="flex items-center gap-2 text-xs text-slate-500"><CalendarDays className="h-4 w-4" />{copy.submitted}</dt><dd className="mt-2 text-sm font-bold">{formatLocalizedDateTime(application.submittedAt, language)}</dd></div>
           <div className="rounded-2xl bg-slate-50 p-4"><dt className="text-xs text-slate-500">{copy.next}</dt><dd className="mt-2 text-sm font-bold">{nextAction}</dd></div>
         </dl>
         {needsAction && <>
           <div className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
-            {application.correctionReasonCode && <p className="font-extrabold">{REASON_LABELS[application.correctionReasonCode]?.[language]}</p>}
-            <p className="font-bold">{application.rejectionReason}</p>
-            {application.requestedItems.length > 0 && <p className="mt-2 text-xs">{application.requestedItems.map((item) => ITEM_LABELS[item]?.[language] ?? item).join(' · ')}</p>}
-            {application.correctionDueAt && <p className="mt-2 text-xs">{copy.due} : {application.correctionDueAt}</p>}
+            <p className="font-extrabold">
+              {(REASON_LABELS[application.correctionReasonCode ?? 'other'] ?? REASON_LABELS.other)[language]}
+            </p>
+            {application.requestedItems.length > 0 && <p className="mt-2 text-xs">{application.requestedItems.map((item) => (ITEM_LABELS[item] ?? REASON_LABELS.other)[language]).join(' · ')}</p>}
+            {application.correctionDueAt && <p className="mt-2 text-xs">{copy.due} : {formatLocalizedDate(application.correctionDueAt, language)}</p>}
           </div>
           <a href="/onboarding" className="mt-5 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white">{copy.edit}<ArrowRight className="h-4 w-4" /></a>
         </>}

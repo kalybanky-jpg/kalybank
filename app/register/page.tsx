@@ -1,30 +1,43 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, CheckCircle2, Mail, UserRound } from 'lucide-react';
+import { ArrowRight, KeyRound, Mail, RefreshCw, UserRound } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
-import { configuredAppOrigin } from '@/lib/security/navigation';
 import LanguageSelector from '@/components/LanguageSelector';
 import { useAppStore } from '@/lib/store';
 import { publicMessages } from '@/lib/public-i18n';
 import { registrationLanguageMetadata } from '@/lib/language';
 import PasswordField from '@/components/auth/PasswordField';
 import BrandLogo from '@/components/brand/BrandLogo';
+import { useBranded } from '@/components/brand/BrandProvider';
 
 export default function RegisterPage() {
   const { language } = useAppStore();
-  const copy = publicMessages[language].register;
+  const copy = useBranded(publicMessages[language].register);
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
   const passwordPolicyInvalid = error === copy.passwordPolicyError;
   const confirmationInvalid = error === copy.passwordMismatchError;
+
+  useEffect(() => {
+    if (!submitted || resendCooldown <= 0) return;
+    const timer = window.setInterval(() => {
+      setResendCooldown((seconds) => Math.max(0, seconds - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [submitted, resendCooldown]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -42,14 +55,10 @@ export default function RegisterPage() {
     setIsLoading(true);
     try {
       const supabase = createClient();
-      const origin = configuredAppOrigin();
-      if (!origin) throw new Error('Invalid public application origin.');
-      const callbackUrl = `${origin}/auth/callback?next=/onboarding`;
       const { data, error: signUpError } = await supabase.auth.signUp({
-        email: email.trim(),
+        email: email.trim().toLowerCase(),
         password,
         options: {
-          emailRedirectTo: callbackUrl,
           data: registrationLanguageMetadata(displayName, language),
         },
       });
@@ -60,10 +69,60 @@ export default function RegisterPage() {
         return;
       }
       setSubmitted(true);
+      setResendCooldown(60);
     } catch {
       setError(copy.genericError);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError('');
+    setNotice('');
+
+    if (!/^\d{6}$/.test(otpCode)) {
+      setError(copy.otpInvalidError);
+      return;
+    }
+
+    setIsVerifying(true);
+    try {
+      const supabase = createClient();
+      const { data, error: verificationError } = await supabase.auth.verifyOtp({
+        email: email.trim().toLowerCase(),
+        token: otpCode,
+        type: 'email',
+      });
+      if (verificationError || !data.session) throw verificationError ?? new Error('Session absente.');
+      window.location.assign('/onboarding');
+    } catch {
+      setError(copy.otpVerificationError);
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (isResending || resendCooldown > 0) return;
+    setError('');
+    setNotice('');
+    setIsResending(true);
+    try {
+      const supabase = createClient();
+      const { error: resendError } = await supabase.auth.resend({
+        type: 'signup',
+        email: email.trim().toLowerCase(),
+      });
+      if (resendError) throw resendError;
+      setOtpCode('');
+      setResendCooldown(60);
+      setNotice(copy.resendSuccess);
+    } catch {
+      setError(copy.resendError);
+    } finally {
+      setIsResending(false);
     }
   };
 
@@ -91,19 +150,81 @@ export default function RegisterPage() {
       >
         <div className="rounded-3xl border border-slate-200 bg-white px-6 py-8 shadow-2xl sm:px-10">
           {submitted ? (
-            <div className="space-y-4 text-center">
-              <CheckCircle2 className="mx-auto h-14 w-14 text-emerald-600" />
+            <form onSubmit={handleVerifyOtp} className="space-y-5" aria-busy={isVerifying}>
+              <div className="text-center">
+                <KeyRound className="mx-auto h-14 w-14 text-blue-700" />
+              </div>
               <h2 className="text-lg font-bold text-slate-900">{copy.checkEmailTitle}</h2>
-              <p className="text-sm text-slate-600">
-                {copy.checkEmailBody}
+              <p id="register-otp-description" className="text-sm leading-relaxed text-slate-600">
+                {copy.checkEmailBody.replace('{email}', email.trim())}
               </p>
+              {error && (
+                <div id="register-otp-error" role="alert" className="rounded-xl border border-rose-300 bg-rose-50 p-3.5 text-xs font-medium text-rose-800">
+                  {error}
+                </div>
+              )}
+              {notice && (
+                <div role="status" className="rounded-xl border border-emerald-300 bg-emerald-50 p-3.5 text-xs font-medium text-emerald-800">
+                  {notice}
+                </div>
+              )}
+              <div>
+                <label htmlFor="register-otp" className="block text-xs font-bold text-slate-700">
+                  {copy.otpLabel}
+                </label>
+                <input
+                  id="register-otp"
+                  name="otp"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  pattern="[0-9]{6}"
+                  minLength={6}
+                  maxLength={6}
+                  required
+                  autoFocus
+                  value={otpCode}
+                  onChange={(event) => setOtpCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder={copy.otpPlaceholder}
+                  aria-describedby={`register-otp-description register-otp-hint${error ? ' register-otp-error' : ''}`}
+                  aria-invalid={Boolean(error)}
+                  className="mt-1.5 w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-center font-mono text-2xl font-extrabold tracking-[0.45em] text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30"
+                />
+                <p id="register-otp-hint" className="mt-2 text-xs leading-relaxed text-slate-600">
+                  {copy.otpHint}
+                </p>
+              </div>
+              <button
+                type="submit"
+                disabled={isVerifying}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-3.5 text-sm font-extrabold text-white transition hover:from-blue-700 hover:to-indigo-700 disabled:cursor-wait disabled:opacity-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-500/40 focus-visible:ring-offset-2"
+              >
+                {isVerifying ? copy.otpSubmitting : copy.otpSubmit}
+                {!isVerifying && <ArrowRight className="h-4 w-4" />}
+              </button>
+              <div className="text-center text-xs text-slate-600">
+                <p>{copy.resendPrompt}</p>
+                <button
+                  type="button"
+                  onClick={handleResendOtp}
+                  disabled={isResending || resendCooldown > 0}
+                  className="mt-1 inline-flex items-center gap-1.5 rounded font-bold text-blue-700 hover:underline disabled:cursor-not-allowed disabled:text-slate-500 disabled:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
+                >
+                  <RefreshCw aria-hidden="true" className={`h-3.5 w-3.5 ${isResending ? 'animate-spin' : ''}`} />
+                  {isResending
+                    ? copy.resending
+                    : resendCooldown > 0
+                      ? copy.resendCooldown.replace('{seconds}', String(resendCooldown))
+                      : copy.resendAction}
+                </button>
+              </div>
               <Link
                 href="/login"
-                className="inline-block rounded font-bold text-blue-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
+                className="block text-center text-xs font-bold text-blue-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
               >
                 {copy.backToLogin}
               </Link>
-            </div>
+            </form>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-5" aria-busy={isLoading}>
               {error && (

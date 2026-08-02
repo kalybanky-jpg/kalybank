@@ -3,7 +3,11 @@
 import React, { useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import { translations } from '@/lib/i18n';
-import { formatCurrency, formatDirectCurrency } from '@/lib/currency';
+import { formatDirectCurrency } from '@/lib/currency';
+import { calculateLoanMonthlyPayment } from '@/lib/domain/financial';
+import { formatLocalizedMonths, languageLocale } from '@/lib/language';
+import { extraUserMessages, loanMotiveLabel, localizedAppError } from '@/lib/user-i18n';
+import type { LoanMotiveCode } from '@/lib/types';
 import {
   X,
   FileText,
@@ -14,37 +18,79 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useBranded } from '@/components/brand/BrandProvider';
+
+function alignDurationToSettings(
+  value: number,
+  minimumDurationMonths: number,
+  maximumDurationMonths: number,
+  durationStepMonths: number,
+) {
+  const clampedValue = Math.min(maximumDurationMonths, Math.max(minimumDurationMonths, value));
+  const alignedValue =
+    minimumDurationMonths +
+    Math.round((clampedValue - minimumDurationMonths) / durationStepMonths) * durationStepMonths;
+
+  return Math.min(maximumDurationMonths, Math.max(minimumDurationMonths, alignedValue));
+}
 
 export default function LoanApplicationModal() {
   const {
     language,
     currency,
-    rates,
+    loanProductSettings,
     isLoanModalOpen,
     setIsLoanModalOpen,
     addLoanApplication,
   } = useAppStore();
 
-  const t = translations[language] || translations.fr;
+  const t = useBranded(translations[language] || translations.fr);
+  const copy = useBranded(extraUserMessages[language]);
 
   const [step, setStep] = useState(1);
-  const [motive, setMotive] = useState('Prêt personnel');
-  const [requestedAmount, setRequestedAmount] = useState(8000);
-  const [durationMonths, setDurationMonths] = useState(36);
+  const [motiveCode, setMotiveCode] = useState<LoanMotiveCode>('personal');
+  const [requestedAmountSelection, setRequestedAmountSelection] = useState(8000);
+  const [durationSelectionMonths, setDurationSelectionMonths] = useState(36);
   const [isSuccess, setIsSuccess] = useState(false);
   const [submittedReference, setSubmittedReference] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Simple monthly payment estimation (3.5% interest rate baseline)
-  const annualRate = 0.035;
-  const monthlyRate = annualRate / 12;
-  const estimatedMonthlyPayment =
-    (requestedAmount * monthlyRate * Math.pow(1 + monthlyRate, durationMonths)) /
-    (Math.pow(1 + monthlyRate, durationMonths) - 1);
+  const loanSettings = loanProductSettings.find((settings) => settings.currency === currency);
+  const isLoanAvailable = loanSettings?.isActive === true;
+  const minimumAmount = loanSettings?.minimumAmount ?? 0;
+  const maximumAmount = loanSettings?.maximumAmount ?? 0;
+  const minimumDurationMonths = loanSettings?.minimumDurationMonths ?? 1;
+  const maximumDurationMonths = loanSettings?.maximumDurationMonths ?? 1;
+  const durationStepMonths = Math.max(1, loanSettings?.durationStepMonths ?? 1);
+  const annualRate = loanSettings?.fixedAnnualRate ?? 0;
+  const requestedAmount = isLoanAvailable
+    ? Math.min(maximumAmount, Math.max(minimumAmount, requestedAmountSelection))
+    : requestedAmountSelection;
+  const durationMonths = isLoanAvailable
+    ? alignDurationToSettings(
+        durationSelectionMonths,
+        minimumDurationMonths,
+        maximumDurationMonths,
+        durationStepMonths,
+      )
+    : durationSelectionMonths;
+  const configurationUnavailableMessage = copy.loanModal.productUnavailable;
+  const formattedAnnualRate = new Intl.NumberFormat(languageLocale(language), {
+    style: 'percent',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 3,
+  }).format(annualRate);
+
+  const estimatedMonthlyPayment = isLoanAvailable
+    ? calculateLoanMonthlyPayment(requestedAmount, annualRate, durationMonths, currency)
+    : 0;
 
   const handleNextStep = () => {
     const newErrors: Record<string, string> = {};
+    if (!isLoanAvailable) {
+      newErrors.configuration = configurationUnavailableMessage;
+    }
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       return;
@@ -66,6 +112,11 @@ export default function LoanApplicationModal() {
       return;
     }
 
+    if (!isLoanAvailable) {
+      setErrors({ configuration: configurationUnavailableMessage });
+      return;
+    }
+
     setErrors({});
 
     try {
@@ -77,10 +128,9 @@ export default function LoanApplicationModal() {
         approvedAmount: 0,
         currency,
         durationMonths,
-        monthlyPayment: Math.round(estimatedMonthlyPayment),
-        motive,
-        disbursementAccount: 'Compte courant non encore crédité',
-        nextDueDate: 'Non applicable avant contractualisation externe',
+        monthlyPayment: estimatedMonthlyPayment,
+        motive: loanMotiveLabel('fr', motiveCode),
+        motiveCode,
       });
       setSubmittedReference(reference);
       setIsSuccess(true);
@@ -90,12 +140,9 @@ export default function LoanApplicationModal() {
         setIsLoanModalOpen(false);
         setStep(1);
       }, 2500);
-    } catch (caughtError) {
+    } catch {
       setErrors({
-        submission:
-          caughtError instanceof Error
-            ? caughtError.message
-            : 'La demande n’a pas pu être déposée.',
+        submission: localizedAppError(language, 'SAVE_FAILED'),
       });
     } finally {
       setIsSubmitting(false);
@@ -105,14 +152,7 @@ export default function LoanApplicationModal() {
   if (!isLoanModalOpen) return null;
 
   // Visual translations for step labels
-  const stepsLabels = {
-    fr: ['Informations', 'Simulation'],
-    en: ['Profile', 'Simulation'],
-    es: ['Información', 'Simulación'],
-    de: ['Informationen', 'Simulation'],
-  };
-
-  const stepNames = stepsLabels[language] || stepsLabels.fr;
+  const stepNames = [copy.loanModal.stepInformation, copy.loanModal.stepSimulation];
 
   return (
     <AnimatePresence>
@@ -122,6 +162,9 @@ export default function LoanApplicationModal() {
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
           className="relative w-full max-w-xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-8"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="loan-application-modal-title"
         >
           {/* Header */}
           <div className="bg-slate-900 p-6 text-white flex items-center justify-between border-b border-slate-800">
@@ -130,14 +173,16 @@ export default function LoanApplicationModal() {
                 <Building2 className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-base sm:text-lg font-extrabold">{t.loanApplicationTitle}</h3>
-                <p className="text-[11px] sm:text-xs text-slate-400">Simulation en temps réel et dépôt de dossier</p>
+                <h3 id="loan-application-modal-title" className="text-base sm:text-lg font-extrabold">{t.loanApplicationTitle}</h3>
+                <p className="text-[11px] sm:text-xs text-slate-400">{copy.loanModal.subtitle}</p>
               </div>
             </div>
             <button
+              type="button"
               onClick={() => setIsLoanModalOpen(false)}
               id="close-loan-modal-btn"
               className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition"
+              aria-label={copy.common.close}
             >
               <X className="w-5 h-5" />
             </button>
@@ -191,20 +236,27 @@ export default function LoanApplicationModal() {
                 {submittedReference}
               </p>
               <p className="text-xs text-slate-600 max-w-md mx-auto">
-                Votre demande est enregistrée pour étude. La simulation ne constitue
-                ni une offre de crédit, ni une approbation, ni une promesse de versement.
+                {copy.loanModal.disclaimer}
               </p>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="p-6 space-y-5 text-xs sm:text-sm">
+              {!isLoanAvailable && (
+                <div
+                  className="bg-amber-50 text-amber-900 border border-amber-200 p-3.5 rounded-2xl flex items-start space-x-2.5"
+                  role="alert"
+                  id="loan-configuration-unavailable-banner"
+                >
+                  <span className="text-base" aria-hidden="true">⚠️</span>
+                  <p className="text-xs font-bold">{configurationUnavailableMessage}</p>
+                </div>
+              )}
               {Object.keys(errors).length > 0 && (
                 <div className="bg-rose-50 text-rose-800 border border-rose-200/60 p-3.5 rounded-2xl flex items-start space-x-2.5" id="loan-error-banner">
                   <span className="text-base">⚠️</span>
                   <div className="text-xs">
                     <p className="font-bold">
-                      {language === 'fr' 
-                        ? 'Veuillez remplir tous les champs obligatoires en rouge :' 
-                        : 'Please fill all required fields in red :'}
+                      {copy.loanModal.errorIntro}
                     </p>
                     <ul className="list-disc list-inside mt-1 font-medium space-y-0.5">
                       {Object.values(errors).filter(Boolean).map((err, idx) => (
@@ -225,29 +277,29 @@ export default function LoanApplicationModal() {
                     className="space-y-4"
                   >
                     <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900">
-                      Le demandeur est identifié par la session Supabase Auth. Aucun
-                      nom ou e-mail libre ne peut remplacer cette identité.
+                      {copy.loanModal.identityNotice}
                     </div>
 
                     <div>
-                      <label className="block font-bold text-slate-700 mb-1">{t.loanMotive}</label>
+                      <label htmlFor="loan-motive-select" className="block font-bold text-slate-700 mb-1">{t.loanMotive}</label>
                       <select
-                        value={motive}
-                        onChange={(e) => setMotive(e.target.value)}
+                        value={motiveCode}
+                        onChange={(e) => setMotiveCode(e.target.value as LoanMotiveCode)}
+                        disabled={!isLoanAvailable}
                         id="loan-motive-select"
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 font-bold focus:ring-2 focus:ring-emerald-500 outline-none disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        <option value="Prêt personnel" className="bg-white text-slate-900">Prêt personnel</option>
-                        <option value="Projet immobilier" className="bg-white text-slate-900">Projet immobilier</option>
-                        <option value="Achat véhicule / Auto" className="bg-white text-slate-900">Achat véhicule / Auto</option>
-                        <option value="Travaux / Rénovation" className="bg-white text-slate-900">Travaux / Rénovation</option>
-                        <option value="Trésorerie entreprise" className="bg-white text-slate-900">Trésorerie entreprise</option>
+                        {(['personal', 'real_estate', 'vehicle', 'renovation', 'business_cashflow', 'other'] as LoanMotiveCode[]).map((code) => (
+                          <option key={code} value={code} className="bg-white text-slate-900">
+                            {loanMotiveLabel(language, code)}
+                          </option>
+                        ))}
                       </select>
                     </div>
                   </motion.div>
                 )}
 
-                {step === 2 && (
+                {step === 2 && isLoanAvailable && (
                   <motion.div
                     key="step2"
                     initial={{ opacity: 0, x: 10 }}
@@ -266,18 +318,30 @@ export default function LoanApplicationModal() {
                       </div>
                       <input
                         type="range"
-                        min="1000"
-                        max="50000"
-                        step="500"
+                        min={minimumAmount}
+                        max={maximumAmount}
+                        step={1}
                         value={requestedAmount}
-                        onChange={(e) => setRequestedAmount(Number(e.target.value))}
+                        onChange={(e) =>
+                          setRequestedAmountSelection(
+                            Math.min(maximumAmount, Math.max(minimumAmount, Number(e.target.value))),
+                          )
+                        }
                         id="loan-amount-slider"
+                        aria-label={t.requestedAmount}
+                        aria-valuetext={formatDirectCurrency(requestedAmount, currency, language)}
                         className="w-full accent-emerald-600 cursor-pointer"
                       />
                       <div className="flex justify-between text-[10px] text-slate-500 font-bold">
-                        <span>{formatDirectCurrency(1000, currency, language)}</span>
-                        <span>{formatDirectCurrency(25000, currency, language)}</span>
-                        <span>{formatDirectCurrency(50000, currency, language)}</span>
+                        <span>{formatDirectCurrency(minimumAmount, currency, language)}</span>
+                        <span>
+                          {formatDirectCurrency(
+                            minimumAmount + (maximumAmount - minimumAmount) / 2,
+                            currency,
+                            language,
+                          )}
+                        </span>
+                        <span>{formatDirectCurrency(maximumAmount, currency, language)}</span>
                       </div>
                     </div>
 
@@ -286,19 +350,34 @@ export default function LoanApplicationModal() {
                       <div className="flex items-center justify-between">
                         <span className="font-bold text-slate-800">{t.durationLabel}</span>
                         <span className="text-base font-extrabold text-blue-700">
-                          {durationMonths} mois ({Math.round(durationMonths / 12)} ans)
+                          {formatLocalizedMonths(durationMonths, language)}
                         </span>
                       </div>
                       <input
                         type="range"
-                        min="12"
-                        max="84"
-                        step="6"
+                        min={minimumDurationMonths}
+                        max={maximumDurationMonths}
+                        step={durationStepMonths}
                         value={durationMonths}
-                        onChange={(e) => setDurationMonths(Number(e.target.value))}
+                        onChange={(e) =>
+                          setDurationSelectionMonths(
+                            alignDurationToSettings(
+                              Number(e.target.value),
+                              minimumDurationMonths,
+                              maximumDurationMonths,
+                              durationStepMonths,
+                            ),
+                          )
+                        }
                         id="loan-duration-slider"
+                        aria-label={t.durationLabel}
+                        aria-valuetext={formatLocalizedMonths(durationMonths, language)}
                         className="w-full accent-blue-600 cursor-pointer"
                       />
+                      <div className="flex justify-between text-[10px] text-slate-500 font-bold">
+                        <span>{formatLocalizedMonths(minimumDurationMonths, language)}</span>
+                        <span>{formatLocalizedMonths(maximumDurationMonths, language)}</span>
+                      </div>
                     </div>
 
                     {/* Monthly Payment Preview Banner */}
@@ -310,12 +389,12 @@ export default function LoanApplicationModal() {
                         <div>
                           <p className="text-[10px] sm:text-xs text-emerald-200 font-bold">{t.monthlyPaymentEstimated}</p>
                           <p className="text-base sm:text-lg font-extrabold text-emerald-300">
-                            {formatDirectCurrency(Math.round(estimatedMonthlyPayment), currency, language)} / mois
+                            {formatDirectCurrency(estimatedMonthlyPayment, currency, language)} {copy.loanModal.perMonth}
                           </p>
                         </div>
                       </div>
                       <span className="text-[10px] bg-emerald-800 px-2.5 py-1 rounded-full text-emerald-100 font-mono font-bold">
-                        Hypothèse indicative 3,5 %
+                        {copy.loanModal.fixedAnnualRate} {formattedAnnualRate}
                       </span>
                     </div>
                   </motion.div>
@@ -332,7 +411,7 @@ export default function LoanApplicationModal() {
                     className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold transition text-xs flex items-center space-x-1"
                   >
                     <ArrowLeft className="w-3.5 h-3.5" />
-                    <span>{language === 'fr' ? 'Retour' : 'Back'}</span>
+                    <span>{copy.common.back}</span>
                   </button>
                 ) : (
                   <button
@@ -348,20 +427,21 @@ export default function LoanApplicationModal() {
                   <button
                     type="button"
                     onClick={handleNextStep}
-                    className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold transition text-xs flex items-center space-x-1"
+                    disabled={!isLoanAvailable}
+                    className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-extrabold transition text-xs flex items-center space-x-1"
                   >
-                    <span>{language === 'fr' ? 'Continuer' : 'Next'}</span>
+                    <span>{copy.common.next}</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 ) : (
                   <button
                     type="submit"
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || !isLoanAvailable}
                     id="submit-loan-application-btn"
-                    className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-extrabold transition shadow-md text-xs flex items-center space-x-2"
+                    className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-extrabold transition shadow-md text-xs flex items-center space-x-2"
                   >
                     <FileText className="w-4 h-4" />
-                    <span>{isSubmitting ? 'Dépôt…' : t.submitLoan}</span>
+                    <span>{isSubmitting ? copy.common.submitting : t.submitLoan}</span>
                   </button>
                 )}
               </div>

@@ -19,7 +19,7 @@ const commonEnvironment: AuthEmailEnvironment = {
 
 const templates = {
   confirmation:
-    '<span>{{ .Data.preferred_language }}</span><img src="{{ .SiteURL }}/brand/monalyz/monalyz-wordmark-email-360.png"><a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email">confirmation</a>',
+    '<span>{{ .Data.preferred_language }}</span><span>{{ .Data.display_name }}</span><img src="{{ .SiteURL }}/brand/monalyz/monalyz-wordmark-email-360.png"><strong>{{ .Token }}</strong>',
   recovery:
     '<span>{{ .Data.preferred_language }}</span><img src="{{ .SiteURL }}/brand/monalyz/monalyz-wordmark-email-360.png"><a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery">recovery</a>',
   passwordChanged:
@@ -87,6 +87,8 @@ test("les deux profils conservent les protections Auth et les modèles Monalyz",
     config.payload.mailer_templates_confirmation_content,
     templates.confirmation,
   );
+  assert.match(config.payload.mailer_templates_confirmation_content, /\{\{ \.Token \}\}/);
+  assert.doesNotMatch(config.payload.mailer_templates_confirmation_content, /TokenHash|ConfirmationURL|type=email/);
   assert.equal(
     config.payload.mailer_templates_recovery_content,
     templates.recovery,
@@ -127,6 +129,14 @@ test("les modèles Auth versionnés couvrent les quatre langues en langage simpl
       /compte applicatif|traitement interne|back-?office|workflow/i,
     );
   }
+
+  const confirmation = await readFile(
+    path.join(templatesRoot, "confirmation.html"),
+    "utf8",
+  );
+  assert.match(confirmation, /\{\{ \.Token \}\}/);
+  assert.match(confirmation, /\.Data\.display_name/);
+  assert.doesNotMatch(confirmation, /TokenHash|ConfirmationURL|type=email/);
 });
 
 test("le résumé ne divulgue jamais le secret SMTP", () => {
@@ -190,5 +200,23 @@ test("un modèle qui casserait un parcours Auth est refusé avant le PATCH", () 
         },
       ),
     /modèle recovery ne contient pas/,
+  );
+});
+
+test("un modèle de confirmation qui réintroduit un lien est refusé", () => {
+  assert.throws(
+    () =>
+      buildSupabaseAuthEmailConfig(
+        "resend",
+        {
+          ...commonEnvironment,
+          RESEND_API_KEY: "re_a_secret_value",
+        },
+        {
+          ...templates,
+          confirmation: `${templates.confirmation}<a href="{{ .ConfirmationURL }}">link</a>`,
+        },
+      ),
+    /contient encore.*ConfirmationURL.*OTP/,
   );
 });

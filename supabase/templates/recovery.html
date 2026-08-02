@@ -8,9 +8,7 @@
             style="max-width:560px;background:#ffffff;border:1px solid #e4ded3;border-radius:20px;box-shadow:0 14px 38px rgba(23,32,51,0.08);overflow:hidden">
             <tr>
               <td style="padding:22px 32px;background:#FBFAF7;border-bottom:1px solid #ebe5db">
-                <img src="{{ .SiteURL }}/brand/monalyz/monalyz-wordmark-email-360.png"
-                  width="180" alt="Monalyz"
-                  style="display:block;width:180px;max-width:100%;height:auto;border:0;margin:0">
+                <a href="{{ .SiteURL }}" style="color:#15324b;text-decoration:none;font-size:18px;font-weight:700">Espace bancaire sécurisé</a>
               </td>
             </tr>
             <tr>
@@ -18,22 +16,22 @@
                 {{ if eq .Data.preferred_language "en" }}
                 <h1 style="margin:0 0 16px;font-size:24px">Reset your password</h1>
                 <p style="margin:0 0 24px;line-height:1.6">
-                  We received a request to reset your Monalyz password. Click the button below to choose a new one.
+                  We received a request to reset your banking password. Click the button below to choose a new one.
                 </p>
                 {{ else if eq .Data.preferred_language "de" }}
                 <h1 style="margin:0 0 16px;font-size:24px">Passwort zurücksetzen</h1>
                 <p style="margin:0 0 24px;line-height:1.6">
-                  Wir haben eine Anfrage zum Zurücksetzen Ihres Monalyz-Passworts erhalten. Klicken Sie unten, um ein neues Passwort zu wählen.
+                  Wir haben eine Anfrage zum Zurücksetzen Ihres Bankpassworts erhalten. Klicken Sie unten, um ein neues Passwort zu wählen.
                 </p>
                 {{ else if eq .Data.preferred_language "es" }}
                 <h1 style="margin:0 0 16px;font-size:24px">Restablezca su contraseña</h1>
                 <p style="margin:0 0 24px;line-height:1.6">
-                  Hemos recibido una solicitud para restablecer su contraseña de Monalyz. Pulse el botón siguiente para elegir una nueva.
+                  Hemos recibido una solicitud para restablecer su contraseña bancaria. Pulse el botón siguiente para elegir una nueva.
                 </p>
                 {{ else }}
                 <h1 style="margin:0 0 16px;font-size:24px">Réinitialisez votre mot de passe</h1>
                 <p style="margin:0 0 24px;line-height:1.6">
-                  Nous avons reçu une demande de réinitialisation de votre mot de passe Monalyz. Cliquez sur le bouton ci-dessous pour en choisir un nouveau.
+                  Nous avons reçu une demande de réinitialisation de votre mot de passe bancaire. Cliquez sur le bouton ci-dessous pour en choisir un nouveau.
                 </p>
                 {{ end }}
                 <p style="margin:0 0 24px">

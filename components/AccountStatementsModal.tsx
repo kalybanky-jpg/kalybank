@@ -4,6 +4,8 @@ import React from 'react';
 import { useAppStore } from '@/lib/store';
 import type { Language } from '@/lib/types';
 import { Download, FileText, X } from 'lucide-react';
+import { officialDocumentTitle } from '@/lib/user-i18n';
+import { useBranded } from '@/components/brand/BrandProvider';
 
 const messages: Record<
   Language,
@@ -57,7 +59,7 @@ export default function AccountStatementsModal() {
     isStatementsModalOpen,
     setIsStatementsModalOpen,
   } = useAppStore();
-  const t = messages[language];
+  const t = useBranded(messages[language]);
 
   if (!isStatementsModalOpen) return null;
 
@@ -95,7 +97,7 @@ export default function AccountStatementsModal() {
             >
               <div>
                 <p className="text-xs font-extrabold text-slate-900">
-                  {statement.title}
+                  {officialDocumentTitle(language, statement.documentType)}
                 </p>
                 <p className="font-mono text-[10px] text-slate-500 mt-1">
                   {statement.documentNumber}

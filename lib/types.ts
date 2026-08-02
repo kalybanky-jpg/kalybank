@@ -1,5 +1,73 @@
 export type Language = 'fr' | 'en' | 'de' | 'es';
 
+export interface BrandSettings {
+  bankName: string;
+  primaryLogoUrl: string;
+  primaryLogoWidth: number;
+  primaryLogoHeight: number;
+  reversedLogoUrl: string;
+  reversedLogoWidth: number;
+  reversedLogoHeight: number;
+  emailLogoUrl: string;
+  pdfLogoUrl: string;
+  faviconIcoUrl: string;
+  favicon16Url: string;
+  favicon32Url: string;
+  favicon48Url: string;
+  appleTouchIconUrl: string;
+  appIcon192Url: string;
+  appIcon512Url: string;
+  maskableIconUrl: string;
+  socialCardUrl: string;
+  revision: number;
+  updatedAt: string;
+}
+
+export type AppErrorCode =
+  | 'AUTH_REQUIRED'
+  | 'CONFIGURATION_UNAVAILABLE'
+  | 'INVALID_REQUEST'
+  | 'NETWORK_ERROR'
+  | 'NOT_FOUND'
+  | 'PERMISSION_DENIED'
+  | 'SAVE_FAILED'
+  | 'UPLOAD_FAILED'
+  | 'UNKNOWN_ERROR';
+
+export type NotificationMessageKey =
+  | 'generic_info'
+  | 'transfer_submitted'
+  | 'transfer_approved'
+  | 'transfer_completed'
+  | 'transfer_rejected'
+  | 'transfer_failed'
+  | 'loan_submitted'
+  | 'loan_approved'
+  | 'loan_disbursed'
+  | 'loan_rejected'
+  | 'loan_failed'
+  | 'kyc_submitted'
+  | 'kyc_information_requested'
+  | 'kyc_resubmitted'
+  | 'kyc_approved'
+  | 'kyc_rejected'
+  | 'document_available';
+
+export type LoanMotiveCode =
+  | 'personal'
+  | 'real_estate'
+  | 'vehicle'
+  | 'renovation'
+  | 'business_cashflow'
+  | 'other';
+
+export type LedgerEntryKind =
+  | 'migration_opening_balance'
+  | 'account_opening'
+  | 'manual_adjustment'
+  | 'transfer_debit'
+  | 'loan_credit';
+
 export type Currency = 'EUR' | 'USD' | 'CAD' | 'CHF' | 'GBP';
 
 export type UserRole = 'user' | 'admin';
@@ -25,6 +93,7 @@ export interface BankAccount {
   availableBalance?: number;
   currency: Currency;
   type: 'courant';
+  accountType: 'current' | 'savings';
   positionKind?: 'declared' | 'internally_reconciled';
   asOf?: string;
   ownerId?: string;
@@ -37,10 +106,27 @@ export interface AccountNumberConfiguration {
   updatedAt: string;
 }
 
+export interface LoanProductSettings {
+  currency: Currency;
+  minimumAmount: number;
+  maximumAmount: number;
+  minimumDurationMonths: number;
+  maximumDurationMonths: number;
+  durationStepMonths: number;
+  /** Fixed annual percentage rate as a decimal (for example, 0.035 for 3.5%). */
+  fixedAnnualRate: number;
+  referencePrefix: string;
+  isActive: boolean;
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
 export interface Transaction {
   id: string;
   accountId?: string;
   title: string;
+  entryKind: LedgerEntryKind;
+  metadata: Record<string, unknown>;
   date: string;
   amount: number;
   currency?: Currency;
@@ -73,6 +159,8 @@ export interface OfficialDocument {
   periodStart?: string;
   periodEnd?: string;
   version: number;
+  localizationRevision: number;
+  supersedesDocumentId?: string;
   status: 'pending' | 'issued' | 'failed' | 'revoked';
   contentHash?: string;
   storagePath?: string;
@@ -146,12 +234,13 @@ export interface LoanApplication {
     | 'external_failed';
   currentStep: number; // 1: Demande envoyée, 2: Analyse, 3: Validation, 4: Conformité, 5: Décaissement, 6: Viré
   complianceProgress: number; // 0 to 100 percentage
-  nextDueDate: string;
-  disbursementAccount: string;
+  nextDueDate?: string;
+  disbursementAccount?: string;
   creditedPositionId?: string;
   durationMonths: number;
   monthlyPayment: number;
   motive: string;
+  motiveCode: LoanMotiveCode;
   complianceChecks: {
     doubleValidation: 'termine' | 'en_cours' | 'en_attente';
     escalade: 'termine' | 'en_cours' | 'en_attente';
@@ -165,6 +254,9 @@ export interface SystemNotification {
   title: string;
   message: string;
   timestamp: string;
+  messageKey: NotificationMessageKey;
+  messageParams: Record<string, unknown>;
+  createdAt: string;
   read: boolean;
   type: 'info' | 'success' | 'alert' | 'transfer' | 'loan' | 'kyc';
   actionPath?: string;

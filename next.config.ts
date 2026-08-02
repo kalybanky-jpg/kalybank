@@ -12,6 +12,13 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: false,
   },
   transpilePackages: ['motion'],
+  outputFileTracingIncludes: {
+    '/api/official-documents': [
+      './assets/fonts/NotoSans-Regular.ttf',
+      './assets/fonts/NotoSans-Bold.ttf',
+      './public/brand/monalyz/monalyz-wordmark-reversed-white.png',
+    ],
+  },
   async headers() {
     return [
       {

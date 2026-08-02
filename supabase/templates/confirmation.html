@@ -8,49 +8,59 @@
             style="max-width:560px;background:#ffffff;border:1px solid #e4ded3;border-radius:20px;box-shadow:0 14px 38px rgba(23,32,51,0.08);overflow:hidden">
             <tr>
               <td style="padding:22px 32px;background:#FBFAF7;border-bottom:1px solid #ebe5db">
-                <img src="{{ .SiteURL }}/brand/monalyz/monalyz-wordmark-email-360.png"
-                  width="180" alt="Monalyz"
-                  style="display:block;width:180px;max-width:100%;height:auto;border:0;margin:0">
+                <a href="{{ .SiteURL }}" style="color:#15324b;text-decoration:none;font-size:18px;font-weight:700">Espace bancaire sécurisé</a>
               </td>
             </tr>
             <tr>
               <td style="padding:32px;background:#ffffff">
                 {{ if eq .Data.preferred_language "en" }}
-                <h1 style="margin:0 0 16px;font-size:24px">Confirm your email address</h1>
+                <h1 style="margin:0 0 16px;font-size:24px">Your email confirmation code</h1>
+                <p style="margin:0 0 12px;line-height:1.6">
+                  {{ if .Data.display_name }}Hello {{ .Data.display_name }},{{ else }}Hello,{{ end }}
+                </p>
                 <p style="margin:0 0 24px;line-height:1.6">
-                  Click the button below to activate your Monalyz account.
+                  Enter this 6-digit code on the registration screen to activate your secure banking account.
                 </p>
                 {{ else if eq .Data.preferred_language "de" }}
-                <h1 style="margin:0 0 16px;font-size:24px">Bestätigen Sie Ihre E-Mail-Adresse</h1>
+                <h1 style="margin:0 0 16px;font-size:24px">Ihr E-Mail-Bestätigungscode</h1>
+                <p style="margin:0 0 12px;line-height:1.6">
+                  {{ if .Data.display_name }}Guten Tag {{ .Data.display_name }},{{ else }}Guten Tag,{{ end }}
+                </p>
                 <p style="margin:0 0 24px;line-height:1.6">
-                  Klicken Sie auf die Schaltfläche unten, um Ihr Monalyz-Konto zu aktivieren.
+                  Geben Sie diesen 6-stelligen Code im Registrierungsfenster ein, um Ihren sicheren Bankzugang zu aktivieren.
                 </p>
                 {{ else if eq .Data.preferred_language "es" }}
-                <h1 style="margin:0 0 16px;font-size:24px">Confirme su correo electrónico</h1>
+                <h1 style="margin:0 0 16px;font-size:24px">Su código de confirmación</h1>
+                <p style="margin:0 0 12px;line-height:1.6">
+                  {{ if .Data.display_name }}Hola {{ .Data.display_name }},{{ else }}Hola,{{ end }}
+                </p>
                 <p style="margin:0 0 24px;line-height:1.6">
-                  Pulse el botón siguiente para activar su cuenta Monalyz.
+                  Introduzca este código de 6 dígitos en la pantalla de registro para activar su espacio bancario seguro.
                 </p>
                 {{ else }}
-                <h1 style="margin:0 0 16px;font-size:24px">Confirmez votre adresse e-mail</h1>
+                <h1 style="margin:0 0 16px;font-size:24px">Votre code de confirmation</h1>
+                <p style="margin:0 0 12px;line-height:1.6">
+                  {{ if .Data.display_name }}Bonjour {{ .Data.display_name }},{{ else }}Bonjour,{{ end }}
+                </p>
                 <p style="margin:0 0 24px;line-height:1.6">
-                  Cliquez sur le bouton ci-dessous pour activer votre compte Monalyz.
+                  Saisissez ce code à 6 chiffres sur l’écran d’inscription pour activer votre espace bancaire sécurisé.
                 </p>
                 {{ end }}
-                <p style="margin:0 0 24px">
-                  <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=email"
-                    style="display:inline-block;padding:13px 22px;background:#15324b;color:#ffffff;text-decoration:none;border-radius:12px;font-weight:700">
-                    {{ if eq .Data.preferred_language "en" }}Confirm my email{{ else if eq .Data.preferred_language "de" }}E-Mail-Adresse bestätigen{{ else if eq .Data.preferred_language "es" }}Confirmar mi correo{{ else }}Confirmer mon adresse{{ end }}
-                  </a>
-                </p>
+                <div style="margin:0 0 24px;padding:18px 20px;border:1px solid #cbd5e1;border-radius:14px;background:#f8fafc;text-align:center">
+                  <p style="margin:0 0 8px;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em">
+                    {{ if eq .Data.preferred_language "en" }}Confirmation code{{ else if eq .Data.preferred_language "de" }}Bestätigungscode{{ else if eq .Data.preferred_language "es" }}Código de confirmación{{ else }}Code de confirmation{{ end }}
+                  </p>
+                  <p style="margin:0;color:#0f172a;font-family:Consolas,Monaco,monospace;font-size:32px;font-weight:800;letter-spacing:.28em">{{ .Token }}</p>
+                </div>
                 <p style="margin:0;color:#64748b;font-size:13px;line-height:1.5">
                   {{ if eq .Data.preferred_language "en" }}
-                  If you did not create this account, you can ignore this email. Need help?
+                  This code is personal. Never share it. If you did not create this account, ignore this email. Need help?
                   {{ else if eq .Data.preferred_language "de" }}
-                  Wenn Sie dieses Konto nicht erstellt haben, können Sie diese E-Mail ignorieren. Benötigen Sie Hilfe?
+                  Dieser Code ist persönlich. Geben Sie ihn niemals weiter. Wenn Sie dieses Konto nicht erstellt haben, ignorieren Sie diese E-Mail. Benötigen Sie Hilfe?
                   {{ else if eq .Data.preferred_language "es" }}
-                  Si no ha creado esta cuenta, puede ignorar este mensaje. ¿Necesita ayuda?
+                  Este código es personal. No lo comparta nunca. Si no ha creado esta cuenta, ignore este mensaje. ¿Necesita ayuda?
                   {{ else }}
-                  Si vous n’avez pas créé ce compte, vous pouvez ignorer ce message. Besoin d’aide ?
+                  Ce code est personnel. Ne le communiquez jamais. Si vous n’avez pas créé ce compte, ignorez ce message. Besoin d’aide ?
                   {{ end }}
                   <a href="mailto:support@monalyz.com" style="color:#15324b">support@monalyz.com</a>
                 </p>

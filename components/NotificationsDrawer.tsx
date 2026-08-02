@@ -2,20 +2,24 @@
 
 import React from 'react';
 import { useAppStore } from '@/lib/store';
-import { translations } from '@/lib/i18n';
 import { X, Bell, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { formatLocalizedDateTime } from '@/lib/language';
+import { extraUserMessages, notificationCopy } from '@/lib/user-i18n';
+import { useBranded } from '@/components/brand/BrandProvider';
 
 export default function NotificationsDrawer() {
   const {
     language,
+    role,
     notifications,
     isNotificationsDrawerOpen,
     setIsNotificationsDrawerOpen,
     markNotificationAsRead,
   } = useAppStore();
 
-  const t = translations[language] || translations.fr;
+  const effectiveLanguage = role === 'admin' ? 'fr' : language;
+  const t = useBranded(extraUserMessages[effectiveLanguage]);
 
   if (!isNotificationsDrawerOpen) return null;
 
@@ -35,12 +39,13 @@ export default function NotificationsDrawer() {
               <div className="w-9 h-9 rounded-xl bg-blue-500/20 text-blue-400 border border-blue-500/30 flex items-center justify-center">
                 <Bell className="w-5 h-5" />
               </div>
-              <h3 className="text-base font-extrabold">Notifications</h3>
+              <h3 className="text-base font-extrabold">{t.notifications.title}</h3>
             </div>
             <button
               onClick={() => setIsNotificationsDrawerOpen(false)}
               id="close-notifications-drawer-btn"
               className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition"
+              aria-label={t.common.close}
             >
               <X className="w-5 h-5" />
             </button>
@@ -49,9 +54,13 @@ export default function NotificationsDrawer() {
           {/* List */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50">
             {notifications.length === 0 ? (
-              <p className="text-xs text-slate-500 text-center py-12 font-medium">Aucune notification pour le moment.</p>
+              <p className="text-xs text-slate-500 text-center py-12 font-medium">{t.notifications.empty}</p>
             ) : (
-              notifications.map((n, idx) => (
+              notifications.map((n, idx) => {
+                const localized = role === 'admin'
+                  ? { title: n.title, message: n.message }
+                  : notificationCopy(language, n.messageKey, n.messageParams);
+                return (
                 <div
                   key={`${n.id}_${idx}`}
                   className={`p-3.5 rounded-2xl border transition space-y-1.5 ${
@@ -59,16 +68,18 @@ export default function NotificationsDrawer() {
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-extrabold text-slate-900">{n.title}</span>
-                    <span className="text-[10px] text-slate-500 font-mono font-medium">{n.timestamp}</span>
+                    <span className="text-xs font-extrabold text-slate-900">{localized.title}</span>
+                    <span className="text-[10px] text-slate-500 font-mono font-medium">
+                      {formatLocalizedDateTime(n.createdAt, effectiveLanguage)}
+                    </span>
                   </div>
-                  <p className="text-xs text-slate-700 leading-snug">{n.message}</p>
+                  <p className="text-xs text-slate-700 leading-snug">{localized.message}</p>
                   {n.actionPath && (
                     <a
                       href={n.actionPath}
                       className="inline-flex items-center gap-1 pt-1 text-[10px] font-bold text-blue-700 hover:underline"
                     >
-                      Ouvrir le dossier <ArrowRight className="h-3 w-3" />
+                      {t.notifications.openItem} <ArrowRight className="h-3 w-3" />
                     </a>
                   )}
                   {!n.read && (
@@ -76,11 +87,11 @@ export default function NotificationsDrawer() {
                       onClick={() => markNotificationAsRead(n.id)}
                       className="text-[10px] text-blue-600 font-bold hover:underline pt-1 block"
                     >
-                      Marquer comme lu
+                      {t.notifications.markRead}
                     </button>
                   )}
                 </div>
-              ))
+              )})
             )}
           </div>
         </motion.div>

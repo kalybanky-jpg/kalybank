@@ -1,4 +1,5 @@
 import { Currency, CurrencyRates } from './types';
+import { languageLocale } from './language';
 
 // Default static fallback rates based on recent live baseline
 export const DEFAULT_RATES: CurrencyRates = {
@@ -61,26 +62,11 @@ export function formatCurrency(
 ): string {
   const converted = convertAmount(amountInEUR, targetCurrency, rates);
 
-  const currencySymbols: Record<string, string> = {
-    EUR: '€',
-    USD: '$',
-    CAD: 'CA$',
-    CHF: 'CHF',
-    GBP: '£',
-  };
-
-  const formattedNum = new Intl.NumberFormat(locale === 'fr' ? 'fr-FR' : 'en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+  return new Intl.NumberFormat(languageLocale(locale), {
+    style: 'currency',
+    currency: targetCurrency,
+    currencyDisplay: 'symbol',
   }).format(converted);
-
-  const symbol = currencySymbols[targetCurrency] || targetCurrency;
-
-  if (locale.startsWith('fr')) {
-    return `${formattedNum} ${symbol}`;
-  } else {
-    return `${symbol} ${formattedNum}`;
-  }
 }
 
 export function formatDirectCurrency(
@@ -88,35 +74,14 @@ export function formatDirectCurrency(
   currency: string,
   locale: string = 'fr-FR'
 ): string {
-  const currencySymbols: Record<string, string> = {
-    EUR: '€',
-    USD: '$',
-    CAD: 'CA$',
-    CHF: 'CHF',
-    GBP: '£',
-    MXN: 'MX$',
-    BRL: 'R$',
-    COP: 'COP$',
-    ARS: 'ARS$',
-    XOF: 'CFA',
-    XAF: 'FCFA',
-    MAD: 'DH',
-    ZAR: 'R',
-    EGP: 'E£',
-    NGN: '₦',
-  };
-
-  const symbol = currencySymbols[currency] || currency;
-
-  const formattedNum = new Intl.NumberFormat(locale === 'fr' ? 'fr-FR' : 'en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount);
-
-  if (locale.startsWith('fr')) {
-    return `${formattedNum} ${symbol}`;
-  } else {
-    return `${symbol} ${formattedNum}`;
+  try {
+    return new Intl.NumberFormat(languageLocale(locale), {
+      style: 'currency',
+      currency,
+      currencyDisplay: 'symbol',
+    }).format(amount);
+  } catch {
+    return `${new Intl.NumberFormat(languageLocale(locale)).format(amount)} ${currency}`;
   }
 }
 

@@ -1,27 +1,28 @@
 'use client';
 
-import React, { Suspense, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Mail, ShieldAlert } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { safeInternalPath } from '@/lib/security/navigation';
-import LanguageSelector from '@/components/LanguageSelector';
-import { useAppStore } from '@/lib/store';
 import { publicMessages } from '@/lib/public-i18n';
 import PasswordField from '@/components/auth/PasswordField';
 import BrandLogo from '@/components/brand/BrandLogo';
 
 function AdminLoginContent() {
   const searchParams = useSearchParams();
-  const { language } = useAppStore();
-  const copy = publicMessages[language].adminLogin;
+  const copy = publicMessages.fr.adminLogin;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const displayedError =
     error || copy.errors[searchParams.get('error') ?? ''] || '';
+
+  useEffect(() => {
+    document.documentElement.lang = 'fr';
+  }, []);
 
   const handleAdminLogin = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -55,7 +56,6 @@ function AdminLoginContent() {
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <LanguageSelector dark compact className="absolute right-4 top-4" />
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
         <BrandLogo
           tone="reversed-white"

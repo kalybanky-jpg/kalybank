@@ -2,6 +2,7 @@ node_modules/
 .next/
 .next-audit/
 coverage/
+.playwright-cli/
 .DS_Store
 *.log
 *.tsbuildinfo

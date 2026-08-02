@@ -57,7 +57,22 @@ test("le snapshot contient le cœur du schéma Monalyz", async () => {
   );
   assert.match(
     snapshot,
+    /CREATE TABLE IF NOT EXISTS "public"\."loan_product_settings"/i,
+  );
+  assert.match(snapshot, /"update_loan_product_settings"/i);
+  assert.match(
+    snapshot,
+    /"submit_loan_application"\("p_requested_amount_minor" bigint, "p_currency" "text", "p_duration_months" integer, "p_motive_code" "text"/i,
+  );
+  assert.match(
+    snapshot,
     /CREATE(?: OR REPLACE)? FUNCTION "private"\."is_active_staff"/i,
   );
   assert.match(snapshot, /ENABLE ROW LEVEL SECURITY/i);
+  assert.match(snapshot, /"message_key" "text" NOT NULL/i);
+  assert.match(snapshot, /"message_params" "jsonb" DEFAULT '\{\}'::"jsonb" NOT NULL/i);
+  assert.match(snapshot, /"motive_code" "text" NOT NULL/i);
+  assert.match(snapshot, /"localization_revision" integer DEFAULT 2 NOT NULL/i);
+  assert.match(snapshot, /"supersedes_document_id" "uuid"/i);
+  assert.match(snapshot, /create_official_document_localized_reissue/i);
 });

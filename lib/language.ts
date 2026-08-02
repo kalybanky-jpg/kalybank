@@ -2,6 +2,49 @@ import type { Language } from './types';
 
 export const SUPPORTED_LANGUAGES = ['fr', 'en', 'de', 'es'] as const;
 
+export const LANGUAGE_LOCALES: Record<Language, string> = {
+  fr: 'fr-FR',
+  en: 'en-US',
+  de: 'de-DE',
+  es: 'es-ES',
+};
+
+export function languageLocale(language: Language | string | null | undefined) {
+  return isSupportedLanguage(language) ? LANGUAGE_LOCALES[language] : LANGUAGE_LOCALES.fr;
+}
+
+export function formatLocalizedDate(
+  value: string | Date,
+  language: Language,
+  options: Intl.DateTimeFormatOptions = { dateStyle: 'medium' },
+) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return new Intl.DateTimeFormat(languageLocale(language), options).format(date);
+}
+
+export function formatLocalizedDateTime(value: string | Date, language: Language) {
+  return formatLocalizedDate(value, language, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+}
+
+export function formatLocalizedPercent(value: number, language: Language) {
+  return new Intl.NumberFormat(languageLocale(language), {
+    style: 'percent',
+    maximumFractionDigits: 0,
+  }).format(value / 100);
+}
+
+export function formatLocalizedMonths(value: number, language: Language) {
+  return new Intl.NumberFormat(languageLocale(language), {
+    style: 'unit',
+    unit: 'month',
+    unitDisplay: 'long',
+  }).format(value);
+}
+
 export const LANGUAGE_COOKIE = 'monalyz-language';
 export const LANGUAGE_SOURCE_COOKIE = 'monalyz-language-source';
 

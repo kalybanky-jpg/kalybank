@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   X,
 } from 'lucide-react';
+import { useBrand } from '@/components/brand/BrandProvider';
 
 const DOCUMENT_TYPES: Array<{
   value: OfficialDocumentType;
@@ -38,6 +39,7 @@ function defaultPeriod() {
 }
 
 export default function AdminDocumentsView() {
+  const { brand } = useBrand();
   const {
     accounts,
     pendingTransfers,
@@ -52,7 +54,6 @@ export default function AdminDocumentsView() {
   const [accountId, setAccountId] = useState('');
   const [transferId, setTransferId] = useState('');
   const [loanId, setLoanId] = useState('');
-  const [title, setTitle] = useState('RIB Monalyz');
   const [{ periodStart, periodEnd }, setPeriod] = useState(defaultPeriod);
   const [error, setError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -81,10 +82,6 @@ export default function AdminDocumentsView() {
     setDocumentType(nextType);
     setTransferId('');
     setLoanId('');
-    setTitle(
-      DOCUMENT_TYPES.find((candidate) => candidate.value === nextType)?.label ??
-        'Document bancaire Monalyz',
-    );
   };
 
   const submit = async (event: React.FormEvent) => {
@@ -130,7 +127,6 @@ export default function AdminDocumentsView() {
             ? selectedLoan?.id
             : undefined,
         documentType,
-        title: title.trim(),
         periodStart:
           documentType === 'account_statement' ? periodStart : undefined,
         periodEnd: documentType === 'account_statement' ? periodEnd : undefined,
@@ -158,7 +154,7 @@ export default function AdminDocumentsView() {
             <FileCheck2 className="w-4 h-4" />
             <span>Émission et traçabilité</span>
           </div>
-          <h1 className="text-2xl font-extrabold mt-1">Documents officiels Monalyz</h1>
+          <h1 className="text-2xl font-extrabold mt-1">Documents officiels {brand.bankName}</h1>
           <p className="text-xs text-slate-300 mt-2 max-w-2xl">
             Émettez un PDF depuis un snapshot immuable du registre bancaire. Les
             documents de démonstration portent un filigrane et aucune certification
@@ -393,16 +389,6 @@ export default function AdminDocumentsView() {
               </div>
             )}
 
-            <label className="block text-xs font-bold">
-              Titre
-              <input
-                required
-                minLength={3}
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                className="mt-1 w-full p-3 border rounded-xl"
-              />
-            </label>
             <button
               disabled={isSaving}
               className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold disabled:opacity-50"

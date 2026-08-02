@@ -7,7 +7,7 @@
 
 | Parcours | Entrée | Validation serveur | Sortie |
 | --- | --- | --- | --- |
-| Inscription | `/register` | `/auth/confirm` avec `token_hash` | `/onboarding` |
+| Inscription | `/register` | OTP e-mail à 6 chiffres avec `verifyOtp` | `/onboarding` |
 | Connexion utilisateur | `/login` | Mot de passe Supabase Auth | `/myaccount` ou `/onboarding` |
 | Connexion staff | `/admin-login` | Mot de passe puis rôle SQL actif | `/admin` |
 | Mot de passe oublié | `/reset-pin` | `/auth/confirm` avec type `recovery` | `/reset-pin?mode=update` |
@@ -39,6 +39,13 @@ par défaut. Lorsque l’utilisateur change de langue, l’application synchroni
 la préférence du profil et cette métadonnée Auth. Elle sert uniquement à la
 présentation des messages et jamais à une décision d’autorisation.
 
+Après la création du compte, `/register` affiche directement la saisie du code
+OTP reçu par e-mail. Le code est normalisé à six chiffres, vérifié avec
+`verifyOtp({ email, token, type: 'email' })`, puis la session obtenue ouvre
+`/onboarding`. Un renvoi explicite utilise `auth.resend({ type: 'signup' })`
+avec un délai client de 60 secondes ; les limites Supabase restent la source de
+vérité côté serveur.
+
 ## Configuration Supabase hébergée
 
 Avant le premier déploiement :
@@ -54,9 +61,12 @@ Avant le premier déploiement :
    notification de changement de mot de passe ;
 8. désactiver le suivi et la réécriture des liens chez le fournisseur.
 
-Les modèles utilisent `{{ .SiteURL }}`, `{{ .TokenHash }}` et un type OTP
-constant. La route serveur refuse les types inconnus, les redirections externes
-et toute origine applicative non HTTP(S).
+Le modèle d’inscription utilise exclusivement `{{ .Token }}` et n’embarque
+aucun lien de confirmation. Il personnalise le message avec
+`user_metadata.display_name` et `user_metadata.preferred_language`. Les autres
+parcours qui nécessitent encore un lien sécurisé utilisent `{{ .TokenHash }}` ;
+la route serveur refuse les types inconnus, les redirections externes et toute
+origine applicative non HTTP(S).
 
 ## Cookies et redirections
 

@@ -45,6 +45,35 @@ export function fromMinorUnits(amountMinor: number, currency: string) {
   return amountMinor / 10 ** currencyExponent(currency);
 }
 
+export function calculateLoanMonthlyPayment(
+  principal: number,
+  annualRate: number,
+  durationMonths: number,
+  currency = 'EUR',
+) {
+  if (
+    !Number.isFinite(principal) ||
+    principal <= 0 ||
+    !Number.isFinite(annualRate) ||
+    annualRate < 0 ||
+    !Number.isInteger(durationMonths) ||
+    durationMonths <= 0
+  ) {
+    return 0;
+  }
+
+  const rawPayment =
+    annualRate === 0
+      ? principal / durationMonths
+      : (() => {
+          const monthlyRate = annualRate / 12;
+          const compound = Math.pow(1 + monthlyRate, durationMonths);
+          return (principal * monthlyRate * compound) / (compound - 1);
+        })();
+  const factor = 10 ** currencyExponent(currency);
+  return Math.round(rawPayment * factor) / factor;
+}
+
 export function maskFinancialIdentifier(identifier: string) {
   const compact = identifier.trim().replace(/\s+/g, ' ');
   if (!compact) throw new Error('La référence du bénéficiaire est obligatoire.');

@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, Camera, Check, FileCheck2, LockKeyhole, UploadCloud } from 'lucide-react';
 import BrandLogo from '@/components/brand/BrandLogo';
 import { uploadEvidence } from '@/lib/evidence';
+import { appErrorCode, localizedAppError } from '@/lib/user-i18n';
 import { splitFullName } from '@/lib/identity';
 import { kycTranslations } from '@/lib/kyc-i18n';
 import { isSupportedLanguage } from '@/lib/language';
@@ -281,7 +282,7 @@ export default function OnboardingPage() {
         return { ...current, [key]: URL.createObjectURL(file) };
       });
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : copy.uploadFailed);
+      setError(localizedAppError(language, appErrorCode(caught)));
     }
   };
 
@@ -350,8 +351,8 @@ export default function OnboardingPage() {
         if (submitError) throw submitError;
       }
       window.location.replace('/myaccount?tab=kyc');
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : copy.submitFailed);
+    } catch {
+      setError(localizedAppError(language, 'SAVE_FAILED'));
       setSubmitting(false);
     }
   };

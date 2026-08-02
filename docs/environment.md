@@ -9,6 +9,7 @@
 | `NEXT_PUBLIC_APP_ORIGIN` | Oui | Client Auth | Origine des callbacks e-mail |
 | `APP_ORIGIN` | Oui en production | Routes serveur | Origine canonique anti-redirection |
 | `TRANSACTIONAL_EMAIL_ASSET_BASE_URL` | Non | Worker d’e-mails métier | Base publique des images de marque |
+| `SEND_EMAIL_HOOK_SECRET` | Oui si hook Auth actif | `/api/auth/send-email-hook` | Signature Standard Webhooks du hook Supabase Auth |
 
 `NEXT_PUBLIC_SUPABASE_ANON_KEY` reste accepté comme compatibilité technique,
 mais la clé publiable est la convention documentée.
@@ -17,7 +18,7 @@ mais la clé publiable est la convention documentée.
 Monalyz. Cette clé est destinée au navigateur et reste protégée par RLS ; aucune
 clé secrète ou `service_role` n’est versionnée.
 
-Les secrets SMTP sont accessibles uniquement au serveur et au script
+Les secrets SMTP et `SEND_EMAIL_HOOK_SECRET` sont accessibles uniquement au serveur et au script
 d’administration décrit dans [E-mails transactionnels](transactional-email.md).
 Le profil Resend utilise `.env`; le profil Brevo utilise
 `.env.email.brevo.local`. Ces fichiers restent hors Git.

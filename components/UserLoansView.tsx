@@ -5,10 +5,13 @@ import { useAppStore } from '@/lib/store';
 import { formatDirectCurrency } from '@/lib/currency';
 import { bankingMessages } from '@/lib/banking-i18n';
 import { Calculator, Clock, FileText } from 'lucide-react';
+import { formatLocalizedMonths, formatLocalizedPercent } from '@/lib/language';
+import { loanMotiveLabel } from '@/lib/user-i18n';
+import { useBranded } from '@/components/brand/BrandProvider';
 
 export default function UserLoansView() {
   const { language, loans, setIsLoanModalOpen } = useAppStore();
-  const t = bankingMessages[language];
+  const t = useBranded(bankingMessages[language]);
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
@@ -36,7 +39,9 @@ export default function UserLoansView() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="font-mono text-[10px] text-slate-500">{loan.reference}</p>
-                <p className="font-extrabold text-slate-900 mt-1">{loan.motive}</p>
+                <p className="font-extrabold text-slate-900 mt-1">
+                  {loanMotiveLabel(language, loan.motiveCode)}
+                </p>
               </div>
               <p className="font-extrabold text-indigo-700">
                 {formatDirectCurrency(loan.requestedAmount, loan.currency, language)}
@@ -47,7 +52,7 @@ export default function UserLoansView() {
               <div className="p-3 bg-slate-50 rounded-xl">
                 <p className="text-[10px] text-slate-500">{t.loans.simulatedDuration}</p>
                 <p className="text-xs font-bold text-slate-900">
-                  {loan.durationMonths} {t.loans.months}
+                  {formatLocalizedMonths(loan.durationMonths, language)}
                 </p>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl">
@@ -65,7 +70,7 @@ export default function UserLoansView() {
                   {t.loans.statuses[loan.workflowStatus ?? 'submitted']}
                 </p>
                 <p className="text-[10px] text-indigo-700 mt-1">
-                  {t.loans.progress}: {loan.complianceProgress} %. {t.loans.progressHint}
+                  {t.loans.progress}: {formatLocalizedPercent(loan.complianceProgress, language)}. {t.loans.progressHint}
                 </p>
               </div>
             </div>

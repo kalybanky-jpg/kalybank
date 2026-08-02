@@ -22,16 +22,26 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { formatDirectCurrency } from '@/lib/currency';
+import { formatLocalizedDate, formatLocalizedPercent } from '@/lib/language';
+import {
+  accountTypeLabel,
+  extraUserMessages,
+  ledgerEntryLabel,
+  loanMotiveLabel,
+  userMessages,
+} from '@/lib/user-i18n';
 import UserTransfersView from './UserTransfersView';
 import UserLoansView from './UserLoansView';
 import UserDocumentsView from './UserDocumentsView';
 import UserSettingsView from './UserSettingsView';
 import UserKycStatusView from './UserKycStatusView';
+import UserAccountsView from './UserAccountsView';
+import { useBranded } from '@/components/brand/BrandProvider';
 
 const cardClass =
   'rounded-[14px] border border-[#e4e7f0] bg-white shadow-[0_8px_30px_rgba(25,34,80,0.025)]';
 
-function ComplianceRing({ value }: { value: number }) {
+function ComplianceRing({ value, label, language }: { value: number; label: string; language: 'fr' | 'en' | 'de' | 'es' }) {
   const safeValue = Math.max(0, Math.min(100, Math.round(value)));
   return (
     <div
@@ -39,11 +49,11 @@ function ComplianceRing({ value }: { value: number }) {
       style={{
         background: `conic-gradient(#4a2bf4 ${safeValue * 3.6}deg, #e8ebf4 0deg)`,
       }}
-      aria-label={`${safeValue}% d’avancement`}
+      aria-label={`${label}: ${formatLocalizedPercent(safeValue, language)}`}
     >
       <div className="flex h-[98px] w-[98px] flex-col items-center justify-center rounded-full bg-white">
-        <strong className="text-[25px] leading-none text-[#0a154f]">{safeValue}%</strong>
-        <span className="mt-1 text-[9px] text-[#69729f]">Avancement</span>
+        <strong className="text-[25px] leading-none text-[#0a154f]">{formatLocalizedPercent(safeValue, language)}</strong>
+        <span className="mt-1 text-[9px] text-[#69729f]">{label}</span>
       </div>
     </div>
   );
@@ -64,8 +74,13 @@ export default function UserDashboard() {
     setIsLoanModalOpen,
     setIsStatementsModalOpen,
   } = useAppStore();
+  const messages = useBranded(userMessages[language]);
+  const t = messages.app;
+  const banking = messages.banking;
+  const extra = useBranded(extraUserMessages[language]);
 
   if (activeTab === 'transfers') return <UserTransfersView />;
+  if (activeTab === 'accounts') return <UserAccountsView />;
   if (activeTab === 'loan') return <UserLoansView />;
   if (activeTab === 'documents') return <UserDocumentsView />;
   if (activeTab === 'kyc') return <UserKycStatusView />;
@@ -105,12 +120,12 @@ export default function UserDashboard() {
             <div className="relative flex items-start justify-between">
               <div>
                 <div className="flex items-center gap-2 text-[12px] font-semibold text-white/90">
-                  <span>Solde total</span>
+                  <span>{t.totalBalance}</span>
                   <button
                     type="button"
                     onClick={toggleMaskBalance}
                     className="rounded p-0.5 text-white/78 hover:text-white"
-                    aria-label={isMaskedBalance ? 'Afficher les soldes' : 'Masquer les soldes'}
+                    aria-label={isMaskedBalance ? banking.dashboard.showBalances : banking.dashboard.hideBalances}
                     aria-pressed={!isMaskedBalance}
                   >
                     {isMaskedBalance ? (
@@ -125,7 +140,7 @@ export default function UserDashboard() {
                 </strong>
                 <p className="mt-3 text-[12px]">
                   <span className="font-semibold text-[#26d871]">+ {money(monthlyCredits)}</span>
-                  <span className="ml-5 text-white/72">ce mois-ci</span>
+                  <span className="ml-5 text-white/72">{t.thisMonth}</span>
                 </p>
               </div>
               <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white/15">
@@ -161,7 +176,7 @@ export default function UserDashboard() {
             </svg>
 
             <div className="relative mt-10">
-              <h2 className="mb-3 text-[13px] font-semibold">Compte courant</h2>
+              <h2 className="mb-3 text-[13px] font-semibold">{t.myAccounts}</h2>
               <div className="overflow-hidden rounded-[11px] border border-white/15 bg-black/5 px-3">
                 {currentAccount && (
                   <div className="flex w-full items-center gap-4 py-3.5 text-left">
@@ -172,10 +187,10 @@ export default function UserDashboard() {
                     </span>
                     <span className="min-w-0 flex-1">
                       <strong className="block truncate text-[13px] font-semibold">
-                        {currentAccount.name}
+                        {accountTypeLabel(language, currentAccount.accountType)}
                       </strong>
                       <span className="mt-1 block truncate text-[11px] text-white/65">
-                        {currentAccount.accountNumber || 'Numéro en cours d’attribution'}
+                        {currentAccount.accountNumber || banking.dashboard.accountNumberPending}
                       </span>
                     </span>
                     <strong className="text-[13px] font-semibold">
@@ -187,7 +202,7 @@ export default function UserDashboard() {
                 )}
                 {!currentAccount && (
                   <div className="flex min-h-[72px] items-center justify-center text-[11px] text-white/60">
-                    Aucun compte courant disponible
+                    {banking.dashboard.noAccounts}
                   </div>
                 )}
               </div>
@@ -202,10 +217,12 @@ export default function UserDashboard() {
                 </span>
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-[14px] font-semibold text-[#0a154f]">Prêt personnel</h2>
+                    <h2 className="text-[14px] font-semibold text-[#0a154f]">
+                      {activeLoan ? loanMotiveLabel(language, activeLoan.motiveCode) : t.personalLoan}
+                    </h2>
                     {activeLoan && (
                       <span className="rounded bg-[#e2f8e9] px-2 py-1 text-[9px] font-medium text-[#14954a]">
-                        En cours
+                        {t.inProgress}
                       </span>
                     )}
                   </div>
@@ -216,7 +233,7 @@ export default function UserDashboard() {
                 onClick={() => setActiveTab('loan')}
                 className="text-[10px] font-medium text-[#4b2df1]"
               >
-                Voir tous
+                {t.seeAll}
               </button>
             </div>
 
@@ -225,10 +242,10 @@ export default function UserDashboard() {
                 <div className="relative mt-5 grid grid-cols-4">
                   <div className="absolute left-[10%] right-[10%] top-3 h-px bg-gradient-to-r from-[#11aa50] via-[#11aa50] to-[#e0e4ed]" />
                   {[
-                    ['Demande envoyée', 1],
-                    ['Analyse', 2],
-                    ['Validation', 3],
-                    ['Décaissement', 4],
+                    [t.stepReceived, 1],
+                    [t.stepAnalysis, 2],
+                    [t.stepValidation, 3],
+                    [t.stepDisbursement, 4],
                   ].map(([label, step]) => {
                     const stepNumber = Number(step);
                     const normalizedStep = Math.min(4, Math.max(1, activeLoan.currentStep));
@@ -255,7 +272,7 @@ export default function UserDashboard() {
                             complete ? 'text-[#0aae4f]' : current ? 'text-[#4b2df1]' : 'text-[#69729f]'
                           }`}
                         >
-                          {complete ? 'Terminé ✓' : current ? 'En cours' : 'En attente'}
+                          {complete ? `${t.completed} ✓` : current ? t.inProgress : t.pendingStatus}
                         </span>
                       </div>
                     );
@@ -264,39 +281,41 @@ export default function UserDashboard() {
 
                 <div className="mt-5 grid gap-5 border-b border-[#eef0f5] pb-5 lg:grid-cols-[1fr_1fr]">
                   <dl className="grid grid-cols-[125px_1fr] gap-y-3 text-[10px]">
-                    <dt className="text-[#69729f]">Référence de dossier</dt>
+                    <dt className="text-[#69729f]">{t.dossierRef}</dt>
                     <dd className="font-semibold text-[#0a154f]">{activeLoan.reference}</dd>
-                    <dt className="text-[#69729f]">Date de demande</dt>
-                    <dd className="font-semibold text-[#0a154f]">{activeLoan.requestDate}</dd>
-                    <dt className="text-[#69729f]">Montant demandé</dt>
+                    <dt className="text-[#69729f]">{t.requestDate}</dt>
+                    <dd className="font-semibold text-[#0a154f]">{formatLocalizedDate(activeLoan.requestDate, language)}</dd>
+                    <dt className="text-[#69729f]">{t.requestedAmount}</dt>
                     <dd className="font-semibold text-[#0a154f]">
                       {money(activeLoan.requestedAmount, activeLoan.currency)}
                     </dd>
-                    <dt className="text-[#69729f]">Montant approuvé</dt>
+                    <dt className="text-[#69729f]">{t.approvedAmount}</dt>
                     <dd className="font-semibold text-[#0a154f]">
                       {money(activeLoan.approvedAmount, activeLoan.currency)}
                     </dd>
-                    <dt className="text-[#69729f]">Mode de versement</dt>
-                    <dd className="font-semibold text-[#0a154f]">{activeLoan.disbursementAccount}</dd>
+                    <dt className="text-[#69729f]">{t.disbursementMode}</dt>
+                    <dd className="font-semibold text-[#0a154f]">
+                      {activeLoan.creditedPositionId ? t.directDeposit : extra.common.unavailable}
+                    </dd>
                   </dl>
                   <div className="flex items-center gap-3 rounded-xl bg-[#f4f1ff] px-4 py-3 text-[10px] leading-4 text-[#2f2971]">
                     <Lightbulb className="h-5 w-5 shrink-0 text-[#5a39f4]" strokeWidth={1.8} />
-                    <p>Les fonds seront virés sur votre compte courant dès le décaissement finalisé.</p>
+                    <p>{t.fundsDisbursementNotice}</p>
                   </div>
                 </div>
 
                 <div className="mt-4">
-                  <h3 className="text-[13px] font-semibold text-[#0a154f]">Remboursement</h3>
+                  <h3 className="text-[13px] font-semibold text-[#0a154f]">{t.repayment}</h3>
                   <div className="mt-3 grid gap-3 sm:grid-cols-3">
                     {[
                       {
-                        label: 'Montant emprunté',
+                        label: t.borrowedAmount,
                         value: money(activeLoan.approvedAmount || activeLoan.requestedAmount, activeLoan.currency),
                         icon: CircleDollarSign,
                         colors: 'bg-[#ddf8e5] text-[#0aa74a]',
                       },
                       {
-                        label: 'Reste à rembourser',
+                        label: t.remainingToRepay,
                         value: money(
                           Math.max(
                             0,
@@ -309,8 +328,10 @@ export default function UserDashboard() {
                         colors: 'bg-[#fff0e2] text-[#ff7a1a]',
                       },
                       {
-                        label: 'Prochaine échéance',
-                        value: activeLoan.nextDueDate,
+                        label: t.nextDueDate,
+                        value: activeLoan.nextDueDate
+                          ? formatLocalizedDate(activeLoan.nextDueDate, language)
+                          : extra.common.unavailable,
                         icon: CalendarDays,
                         colors: 'bg-[#e8edff] text-[#315cf4]',
                       },
@@ -335,7 +356,7 @@ export default function UserDashboard() {
                       onClick={() => setActiveTab('loan')}
                       className="rounded-lg border border-[#a99bff] px-10 py-2.5 text-[11px] font-medium text-[#4b2df1]"
                     >
-                      Voir le détail du prêt
+                      {t.loanDetailsBtn}
                     </button>
                   </div>
                 </div>
@@ -343,13 +364,13 @@ export default function UserDashboard() {
             ) : (
               <div className="flex min-h-[260px] flex-col items-center justify-center text-center">
                 <FileText className="h-9 w-9 text-[#b9bfd2]" strokeWidth={1.5} />
-                <p className="mt-3 text-[12px] font-medium text-[#0a154f]">Aucune demande de prêt active</p>
+                <p className="mt-3 text-[12px] font-medium text-[#0a154f]">{banking.loans.noLoans}</p>
                 <button
                   type="button"
                   onClick={() => setIsLoanModalOpen(true)}
                   className="mt-4 rounded-lg bg-[#4b2df1] px-5 py-2.5 text-[10px] font-semibold text-white"
                 >
-                  Faire une demande
+                  {t.applyLoan}
                 </button>
               </div>
             )}
@@ -358,23 +379,23 @@ export default function UserDashboard() {
 
         <div className="space-y-4">
           <section className={`${cardClass} p-5`}>
-            <h2 className="text-[13px] font-semibold text-[#0a154f]">Actions rapides</h2>
+            <h2 className="text-[13px] font-semibold text-[#0a154f]">{t.quickActions}</h2>
             <div className="mt-4 grid grid-cols-3 gap-2">
               {[
                 {
-                  label: 'Faire un virement',
+                  label: t.makeTransfer,
                   icon: SendHorizontal,
                   action: () => setIsTransferModalOpen(true),
                   colors: 'bg-[#eee9ff] text-[#4b2df1]',
                 },
                 {
-                  label: 'Demande de prêt',
+                  label: t.applyLoan,
                   icon: FileText,
                   action: () => setIsLoanModalOpen(true),
                   colors: 'bg-[#fff0e5] text-[#ff7416]',
                 },
                 {
-                  label: 'Mes relevés',
+                  label: t.myStatements,
                   icon: Download,
                   action: () => setIsStatementsModalOpen(true),
                   colors: 'bg-[#e9edff] text-[#315cf4]',
@@ -402,13 +423,13 @@ export default function UserDashboard() {
 
           <section className={`${cardClass} p-5`}>
             <div className="flex items-center justify-between">
-              <h2 className="text-[13px] font-semibold text-[#0a154f]">Dernières transactions</h2>
+              <h2 className="text-[13px] font-semibold text-[#0a154f]">{t.recentTransactions}</h2>
               <button
                 type="button"
                 onClick={() => setIsStatementsModalOpen(true)}
                 className="text-[10px] font-medium text-[#4b2df1]"
               >
-                Relevé complet
+                {banking.accounts.downloadStatement}
               </button>
             </div>
             <div className="mt-3 space-y-1.5">
@@ -431,9 +452,9 @@ export default function UserDashboard() {
                     </span>
                     <span className="min-w-0 flex-1">
                       <strong className="block truncate text-[10px] font-semibold text-[#0a154f]">
-                        {transaction.title}
+                        {ledgerEntryLabel(language, transaction.entryKind, transaction.metadata)}
                       </strong>
-                      <span className="block truncate text-[8px] text-[#69729f]">{transaction.date}</span>
+                      <span className="block truncate text-[8px] text-[#69729f]">{formatLocalizedDate(transaction.date, language)}</span>
                     </span>
                     <strong
                       className={`text-[10px] ${
@@ -448,7 +469,7 @@ export default function UserDashboard() {
               })}
               {!transactions.length && (
                 <p className="py-8 text-center text-[10px] text-[#69729f]">
-                  Aucune transaction récente
+                  {banking.dashboard.noTransactions}
                 </p>
               )}
             </div>
@@ -456,13 +477,13 @@ export default function UserDashboard() {
 
           <section className={`${cardClass} border-[#6c4bff] p-5`}>
             <div className="flex items-center justify-between">
-              <h2 className="text-[13px] font-semibold text-[#0a154f]">Virements en attente</h2>
+              <h2 className="text-[13px] font-semibold text-[#0a154f]">{t.pendingTransfers}</h2>
               <button
                 type="button"
                 onClick={() => setActiveTab('transfers')}
                 className="text-[10px] font-medium text-[#4b2df1]"
               >
-                Voir tout
+                {t.seeEverything}
               </button>
             </div>
             <div className="mt-2 divide-y divide-[#eef0f5]">
@@ -478,7 +499,7 @@ export default function UserDashboard() {
                   </span>
                   <span className="min-w-0 flex-1">
                     <strong className="block truncate text-[10px] font-semibold text-[#0a154f]">
-                      Vers {transfer.recipientName}
+                      {transfer.recipientName}
                     </strong>
                     <span className="block truncate text-[8px] text-[#69729f]">
                       {transfer.recipientAccount}
@@ -489,13 +510,13 @@ export default function UserDashboard() {
                   </strong>
                   <span className="flex items-center gap-1 text-[8px] font-medium text-[#f27a1a]">
                     <Clock3 className="h-3 w-3" />
-                    En attente
+                    {t.pendingStatus}
                   </span>
                 </button>
               ))}
               {!pendingTransfers.length && (
                 <p className="py-6 text-center text-[10px] text-[#69729f]">
-                  Aucun virement en attente
+                  {banking.dashboard.noTransfers}
                 </p>
               )}
             </div>
@@ -504,7 +525,7 @@ export default function UserDashboard() {
           <section className={`${cardClass} p-5`}>
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-[13px] font-semibold text-[#0a154f]">
-                Contrôles de conformité et sécurité
+                {t.securityCompliance}
               </h2>
               <span className={`shrink-0 rounded px-2 py-1 text-[8px] font-medium ${
                 complianceProgress >= 100
@@ -513,22 +534,25 @@ export default function UserDashboard() {
                     ? 'bg-[#ffe7e7] text-[#c52d2d]'
                     : 'bg-[#e2f8e9] text-[#14954a]'
               }`}>
-                {complianceProgress >= 100 ? 'Terminé' : trackedTransfer?.status === 'rejete' ? 'Refusé' : 'En cours'}
+                {complianceProgress >= 100
+                  ? t.completed
+                  : trackedTransfer?.status === 'rejete'
+                    ? banking.transfers.statuses.rejected
+                    : t.inProgress}
               </span>
             </div>
             <div className="mt-4 flex items-center gap-5">
-              <ComplianceRing value={complianceProgress} />
+              <ComplianceRing value={complianceProgress} label={t.progress} language={language} />
               <div className="min-w-0 flex-1">
                 <p className="text-[9px] leading-4 text-[#69729f]">
-                  Les contrôles manuels garantissent la sécurité de votre opération. À 100 %, le
-                  virement est effectué et le débit définitif est enregistré sur votre compte.
+                  {t.complianceNoticeUser}
                 </p>
                 <div className="mt-3 grid gap-x-4 gap-y-1.5 sm:grid-cols-2">
                   {[
-                    ['Double validation interne', complianceChecks.doubleValidation],
-                    ['Escalade hiérarchique', complianceChecks.escalade],
-                    ['Contrôle conformité', complianceChecks.controleConformite],
-                    ['Autorisation finale', complianceChecks.autorisationFinale],
+                    [t.doubleInternalValidation, complianceChecks.doubleValidation],
+                    [t.hierarchicalEscalation, complianceChecks.escalade],
+                    [t.complianceCheck, complianceChecks.controleConformite],
+                    [t.finalAuthorization, complianceChecks.autorisationFinale],
                   ].map(([label, status]) => (
                     <div key={label} className="flex items-center justify-between gap-2 text-[8px]">
                       <span className="flex min-w-0 items-center gap-1.5 text-[#26316b]">
@@ -546,7 +570,7 @@ export default function UserDashboard() {
                         <span className="truncate">{label}</span>
                       </span>
                       <span className={status === 'termine' ? 'text-[#0aae4f]' : status === 'en_cours' ? 'text-[#4b2df1]' : 'text-[#69729f]'}>
-                        {status === 'termine' ? 'Terminé' : status === 'en_cours' ? 'En cours' : 'En attente'}
+                        {status === 'termine' ? t.completed : status === 'en_cours' ? t.inProgress : t.pendingStatus}
                       </span>
                     </div>
                   ))}

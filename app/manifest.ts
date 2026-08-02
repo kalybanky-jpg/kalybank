@@ -1,9 +1,13 @@
 import type { MetadataRoute } from 'next';
+import { getRequestBrandSettings } from '@/lib/server/branding';
 
-export default function manifest(): MetadataRoute.Manifest {
+export const dynamic = 'force-dynamic';
+
+export default async function manifest(): Promise<MetadataRoute.Manifest> {
+  const brand = await getRequestBrandSettings();
   return {
-    name: 'Monalyz',
-    short_name: 'Monalyz',
+    name: brand.bankName,
+    short_name: brand.bankName.slice(0, 30),
     description:
       'Instructions, contrôles et traçabilité d’opérations financières exécutées hors application.',
     start_url: '/',
@@ -12,19 +16,19 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: '#190B21',
     icons: [
       {
-        src: '/brand/monalyz/monalyz-app-icon-192.png',
+        src: brand.appIcon192Url,
         sizes: '192x192',
         type: 'image/png',
         purpose: 'any',
       },
       {
-        src: '/brand/monalyz/monalyz-app-icon-512.png',
+        src: brand.appIcon512Url,
         sizes: '512x512',
         type: 'image/png',
         purpose: 'any',
       },
       {
-        src: '/brand/monalyz/monalyz-maskable-icon-512.png',
+        src: brand.maskableIconUrl,
         sizes: '512x512',
         type: 'image/png',
         purpose: 'maskable',

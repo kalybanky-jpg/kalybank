@@ -20,10 +20,13 @@
     "auth:email:configure:resend": "tsx --env-file=.env scripts/configure-supabase-auth-email.ts resend",
     "auth:email:check:brevo": "tsx --env-file=.env.email.brevo.local scripts/configure-supabase-auth-email.ts brevo --dry-run",
     "auth:email:configure:brevo": "tsx --env-file=.env.email.brevo.local scripts/configure-supabase-auth-email.ts brevo",
-    "demo:provision": "tsx scripts/provision-demo-accounts.ts"
+    "demo:provision": "tsx scripts/provision-demo-accounts.ts",
+    "documents:reissue:check": "tsx --env-file=.env scripts/reissue-localized-official-documents.ts",
+    "documents:reissue:apply": "tsx --env-file=.env scripts/reissue-localized-official-documents.ts --apply"
   },
   "dependencies": {
     "@hookform/resolvers": "5.5.7",
+    "@pdf-lib/fontkit": "^1.1.1",
     "@supabase/ssr": "0.12.3",
     "@supabase/supabase-js": "2.110.9",
     "autoprefixer": "^10.4.21",
@@ -37,6 +40,7 @@
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "sharp": "0.35.0",
+    "standardwebhooks": "1.0.0",
     "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {

@@ -1,5 +1,5 @@
 begin;
-select plan(145);
+select plan(191);
 
 -- Schema and database API contract.
 -- 1
@@ -15,6 +15,11 @@ select has_column(
   'account_type',
   'financial positions expose their account type'
 );
+select has_column('public', 'notifications', 'message_key', 'notifications expose a stable localization key');
+select has_column('public', 'notifications', 'message_params', 'notifications expose structured localization parameters');
+select has_column('public', 'loan_applications', 'motive_code', 'loan applications expose a stable motive code');
+select has_column('public', 'official_documents', 'localization_revision', 'official documents expose their localization revision');
+select has_column('public', 'official_documents', 'supersedes_document_id', 'localized documents retain their replacement chain');
 
 select has_table(
   'private',
@@ -83,6 +88,82 @@ select ok(
   'the legacy multi-review loan RPC is no longer exposed to authenticated clients'
 );
 
+select has_table(
+  'public',
+  'loan_product_settings',
+  'loan product settings exist in the public API schema'
+);
+select has_column(
+  'public',
+  'loan_product_settings',
+  'fixed_annual_rate',
+  'loan product settings expose the server-authoritative fixed annual rate'
+);
+select has_column(
+  'public',
+  'loan_product_settings',
+  'reference_prefix',
+  'loan product settings expose the customizable reference prefix'
+);
+select is(
+  (select count(*) from public.loan_product_settings),
+  5::bigint,
+  'all five supported currencies are seeded'
+);
+select ok(
+  (select relrowsecurity from pg_class where oid = 'public.loan_product_settings'::regclass),
+  'RLS is enabled on loan product settings'
+);
+select ok(
+  has_table_privilege('authenticated', 'public.loan_product_settings', 'select'),
+  'authenticated sessions may read loan product settings'
+);
+select ok(
+  not has_table_privilege('authenticated', 'public.loan_product_settings', 'update'),
+  'authenticated sessions cannot update loan product settings directly'
+);
+select ok(
+  not has_table_privilege('anon', 'public.loan_product_settings', 'select'),
+  'anonymous sessions cannot read loan product settings'
+);
+select ok(
+  has_function_privilege(
+    'authenticated',
+    'public.submit_loan_application(bigint,text,integer,text,jsonb,uuid)',
+    'execute'
+  ),
+  'authenticated sessions can reach the server-authoritative loan submission RPC'
+);
+select is(
+  (
+    select count(*)
+    from pg_proc as procedure
+    join pg_namespace as namespace on namespace.oid = procedure.pronamespace
+    where namespace.nspname = 'public'
+      and procedure.proname = 'submit_loan_application'
+      and pg_get_function_identity_arguments(procedure.oid) =
+        'p_requested_amount_minor bigint, p_currency text, p_duration_months integer, p_indicative_monthly_payment_minor bigint, p_indicative_annual_rate numeric, p_motive_code text, p_document_object_paths jsonb, p_idempotency_key uuid'
+  ),
+  0::bigint,
+  'the client-priced loan submission signature is removed'
+);
+select ok(
+  has_function_privilege(
+    'authenticated',
+    'public.update_loan_product_settings(text,bigint,bigint,integer,integer,integer,numeric,text,boolean)',
+    'execute'
+  ),
+  'authenticated sessions can reach the guarded loan settings RPC'
+);
+select ok(
+  not has_function_privilege(
+    'anon',
+    'public.update_loan_product_settings(text,bigint,bigint,integer,integer,integer,numeric,text,boolean)',
+    'execute'
+  ),
+  'anonymous sessions cannot reach the loan settings RPC'
+);
+
 -- Synthetic identities. The auth trigger creates their public profiles.
 insert into auth.users (id, email)
 values
@@ -95,6 +176,91 @@ insert into public.staff_members (user_id, role)
 values
   ('20000000-0000-0000-0000-000000000001', 'reviewer'),
   ('30000000-0000-0000-0000-000000000001', 'admin');
+
+set local role authenticated;
+select set_config(
+  'request.jwt.claim.sub',
+  '20000000-0000-0000-0000-000000000001',
+  true
+);
+select throws_ok(
+  $test$
+    select public.update_loan_product_settings(
+      'EUR', 100000, 5000000, 12, 84, 6, 0.04, 'TestLoan_', true
+    )
+  $test$,
+  '42501',
+  'BRANCH_MANAGER_PERMISSION_REQUIRED',
+  'a reviewer cannot modify loan product settings'
+);
+
+reset role;
+set local role authenticated;
+select set_config(
+  'request.jwt.claim.sub',
+  '30000000-0000-0000-0000-000000000001',
+  true
+);
+select throws_ok(
+  $test$
+    select public.update_loan_product_settings(
+      'EUR', 100000, 5000000, 12, 84, 5, 0.04, 'TestLoan_', true
+    )
+  $test$,
+  '22023',
+  'INVALID_LOAN_DURATION_STEP',
+  'the settings RPC rejects a step that does not span the configured range'
+);
+select throws_ok(
+  $test$
+    select public.update_loan_product_settings(
+      'EUR', 100000, 5000000, 12, 84, 6, 0.04, 'Loan prefix!', true
+    )
+  $test$,
+  '22023',
+  'INVALID_LOAN_REFERENCE_PREFIX',
+  'the settings RPC rejects an unsafe reference prefix'
+);
+select lives_ok(
+  $test$
+    select public.update_loan_product_settings(
+      'EUR', 100000, 5000000, 12, 84, 6, 0.04, 'TestLoan_', true
+    )
+  $test$,
+  'the branch manager can update loan product settings'
+);
+
+reset role;
+select is(
+  (
+    select jsonb_build_object(
+      'rate', fixed_annual_rate,
+      'prefix', reference_prefix,
+      'updatedBy', updated_by
+    )
+    from public.loan_product_settings
+    where currency = 'EUR'
+  ),
+  jsonb_build_object(
+    'rate', 0.04::numeric,
+    'prefix', 'TestLoan_',
+    'updatedBy', '30000000-0000-0000-0000-000000000001'::uuid
+  ),
+  'the settings RPC persists normalized authoritative values and its actor'
+);
+select is(
+  (
+    select count(*)
+    from public.audit_events
+    where action = 'branch_manager_update_loan_product_settings'
+      and entity_type = 'loan_product_settings'
+      and metadata ->> 'currency' = 'EUR'
+      and metadata #>> '{before,reference_prefix}' = 'Monalyz-'
+      and metadata #>> '{after,reference_prefix}' = 'TestLoan_'
+  ),
+  1::bigint,
+  'loan settings changes retain their complete before and after audit snapshots'
+);
 
 insert into public.financial_positions (
   id,
@@ -732,32 +898,105 @@ select set_config(
   true
 );
 -- 45
+select throws_ok(
+  $test$
+    select public.submit_loan_application(
+      99999,
+      'EUR',
+      24,
+      'personal',
+      '[]'::jsonb,
+      '60000000-0000-0000-0000-000000000011'
+    )
+  $test$,
+  '22023',
+  'LOAN_AMOUNT_OUT_OF_RANGE',
+  'the server rejects loan amounts below the configured minimum'
+);
+select throws_ok(
+  $test$
+    select public.submit_loan_application(
+      100000,
+      'EUR',
+      13,
+      'personal',
+      '[]'::jsonb,
+      '60000000-0000-0000-0000-000000000012'
+    )
+  $test$,
+  '22023',
+  'LOAN_DURATION_STEP_MISMATCH',
+  'the server rejects durations outside the configured step'
+);
+select throws_ok(
+  $test$
+    select public.submit_loan_application(
+      100000,
+      'XOF',
+      12,
+      'personal',
+      '[]'::jsonb,
+      '60000000-0000-0000-0000-000000000013'
+    )
+  $test$,
+  '22023',
+  'LOAN_PRODUCT_UNAVAILABLE',
+  'the server rejects currencies without an active loan product'
+);
 select lives_ok(
   $test$
     select public.submit_loan_application(
-      15000,
+      150000,
       'EUR',
       24,
-      700,
-      0.035,
-      'Projet test',
+      'personal',
       '["loans/test/income.pdf"]'::jsonb,
       '60000000-0000-0000-0000-000000000001'
     )
   $test$,
   'the owner can submit a loan application'
 );
+select is(
+  (
+    select jsonb_build_object(
+      'annualRate', indicative_annual_rate,
+      'monthlyPaymentMinor', indicative_monthly_payment_minor,
+      'customReference', reference ~ '^TestLoan_[0-9]{8}-[A-F0-9]{32}$'
+    )
+    from public.loan_applications
+    where idempotency_key = '60000000-0000-0000-0000-000000000001'
+  ),
+  jsonb_build_object(
+    'annualRate', 0.04::numeric,
+    'monthlyPaymentMinor', 6514::bigint,
+    'customReference', true
+  ),
+  'loan pricing and reference generation use only the persisted product settings'
+);
+select lives_ok(
+  $test$
+    select public.submit_loan_application(
+      150000,
+      'EUR',
+      24,
+      'personal',
+      '["loans/test/income.pdf"]'::jsonb,
+      '60000000-0000-0000-0000-000000000001'
+    )
+  $test$,
+  'a loan submission retry returns the original application idempotently'
+);
 
 reset role;
 -- 46
 select is(
   (
-    select status
+    select jsonb_build_object('status', status, 'motiveCode', motive_code)
     from public.loan_applications
     where idempotency_key = '60000000-0000-0000-0000-000000000001'
   ),
-  'submitted',
-  'a new loan starts submitted'
+  jsonb_build_object('status', 'submitted', 'motiveCode', 'personal'),
+  'a new loan starts submitted with a stable motive code'
 );
 -- 47
 select is(
@@ -1031,7 +1270,7 @@ select is(
     from public.financial_positions
     where id = '40000000-0000-0000-0000-000000000001'
   ),
-  112500::bigint,
+  247500::bigint,
   'loan disbursement credits the requested amount exactly once'
 );
 -- 64
@@ -1082,7 +1321,7 @@ select is(
     from public.financial_positions
     where id = '40000000-0000-0000-0000-000000000001'
   ),
-  112500::bigint,
+  247500::bigint,
   'a repeated disbursement attempt cannot duplicate the credit'
 );
 -- 67
@@ -1112,12 +1351,10 @@ select set_config(
 select lives_ok(
   $test$
     select public.submit_loan_application(
-      7000,
+      100000,
       'EUR',
       12,
-      620,
-      0.035,
-      'Projet refusé',
+      'other',
       '["loans/test/rejected.pdf"]'::jsonb,
       '60000000-0000-0000-0000-000000000002'
     )
@@ -1203,7 +1440,7 @@ select is(
     from public.financial_positions
     where id = '40000000-0000-0000-0000-000000000001'
   ),
-  112500::bigint,
+  247500::bigint,
   'rejecting a loan does not credit the current position'
 );
 -- 74
@@ -2190,7 +2427,7 @@ select is(
         '60000000-0000-0000-0000-000000000001'
     )
       and entry_kind = 'loan_credit'
-      and amount_minor = 15000
+      and amount_minor = 150000
   ),
   1::bigint,
   'a disbursed loan creates exactly one matching credit'
@@ -2482,6 +2719,125 @@ select is(
   0::bigint,
   'the demo administrator receives no client official document'
 );
+
+-- Dynamic bank identity contract.
+select has_table('public', 'brand_settings', 'the public brand singleton exists');
+select has_column('public', 'official_documents', 'brand_name_snapshot', 'official documents snapshot the published bank name');
+select has_column('public', 'official_documents', 'brand_revision_snapshot', 'official documents snapshot the brand revision');
+select has_column('public', 'official_documents', 'brand_logo_path_snapshot', 'official documents snapshot the versioned PDF logo path');
+select is(
+  (select relrowsecurity from pg_class where oid = 'public.brand_settings'::regclass),
+  true,
+  'RLS is enabled on brand settings'
+);
+select ok(
+  has_table_privilege('authenticated', 'public.brand_settings', 'select'),
+  'authenticated sessions can read the published brand'
+);
+select ok(
+  has_table_privilege('anon', 'public.brand_settings', 'select'),
+  'anonymous visitors can read the published brand'
+);
+select ok(
+  not has_table_privilege('authenticated', 'public.brand_settings', 'update'),
+  'authenticated sessions cannot update branding directly'
+);
+select ok(
+  not has_table_privilege('anon', 'public.brand_settings', 'update'),
+  'anonymous visitors cannot update branding directly'
+);
+select is(
+  (
+    select count(*)
+    from pg_policies
+    where schemaname = 'storage'
+      and tablename = 'objects'
+      and cmd = 'INSERT'
+      and 'authenticated' = any(roles)
+      and coalesce(qual, with_check, '') like '%brand-assets%'
+  ),
+  0::bigint,
+  'no direct authenticated upload policy exists for brand assets'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '20000000-0000-0000-0000-000000000001', true);
+select throws_ok(
+  $test$
+    select public.publish_brand_settings(
+      1, 'Reviewer Bank',
+      'releases/reviewer/logo-primary.png', 1200, 320,
+      'releases/reviewer/logo-reversed.png', 1200, 320,
+      'releases/reviewer/logo-email.png', 'releases/reviewer/logo-pdf.png',
+      'releases/reviewer/favicon.ico', 'releases/reviewer/favicon-16.png',
+      'releases/reviewer/favicon-32.png', 'releases/reviewer/favicon-48.png',
+      'releases/reviewer/apple.png', 'releases/reviewer/app-192.png',
+      'releases/reviewer/app-512.png', 'releases/reviewer/maskable.png',
+      'releases/reviewer/social.png'
+    )
+  $test$,
+  '42501',
+  'BRANCH_MANAGER_PERMISSION_REQUIRED',
+  'a non-administrator cannot publish bank identity'
+);
+
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '30000000-0000-0000-0000-000000000001', true);
+select lives_ok(
+  $test$
+    select public.publish_brand_settings(
+      1, 'Kaly Banque',
+      'releases/test/logo-primary.png', 1200, 320,
+      'releases/test/logo-reversed.png', 1200, 320,
+      'releases/test/logo-email.png', 'releases/test/logo-pdf.png',
+      'releases/test/favicon.ico', 'releases/test/favicon-16.png',
+      'releases/test/favicon-32.png', 'releases/test/favicon-48.png',
+      'releases/test/apple.png', 'releases/test/app-192.png',
+      'releases/test/app-512.png', 'releases/test/maskable.png',
+      'releases/test/social.png'
+    )
+  $test$,
+  'the administrator publishes all brand fields atomically'
+);
+reset role;
+
+select is(
+  (select jsonb_build_object('name', bank_name, 'revision', revision, 'actor', updated_by) from public.brand_settings where singleton),
+  jsonb_build_object('name', 'Kaly Banque', 'revision', 2::bigint, 'actor', '30000000-0000-0000-0000-000000000001'::uuid),
+  'publication normalizes the bank name, increments revision and records its actor'
+);
+select is(
+  (select count(*) from public.audit_events where action = 'branch_manager_publish_brand_settings'),
+  1::bigint,
+  'brand publication writes one audit event'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '30000000-0000-0000-0000-000000000001', true);
+select throws_ok(
+  $test$
+    select public.publish_brand_settings(
+      1, 'Stale Bank',
+      'releases/stale/logo-primary.png', 1200, 320,
+      'releases/stale/logo-reversed.png', 1200, 320,
+      'releases/stale/logo-email.png', 'releases/stale/logo-pdf.png',
+      'releases/stale/favicon.ico', 'releases/stale/favicon-16.png',
+      'releases/stale/favicon-32.png', 'releases/stale/favicon-48.png',
+      'releases/stale/apple.png', 'releases/stale/app-192.png',
+      'releases/stale/app-512.png', 'releases/stale/maskable.png',
+      'releases/stale/social.png'
+    )
+  $test$,
+  '40001',
+  'BRAND_REVISION_CONFLICT',
+  'optimistic locking rejects a stale brand publication'
+);
+reset role;
+
+select is((select bank_name from public.brand_settings where singleton), 'Kaly Banque', 'a conflict leaves the current publication unchanged');
+select is((select public from storage.buckets where id = 'brand-assets'), true, 'the brand-assets bucket is publicly readable');
+select is((select file_size_limit from storage.buckets where id = 'brand-assets'), 5242880::bigint, 'the brand-assets bucket enforces the five-megabyte limit');
 
 select * from finish();
 rollback;

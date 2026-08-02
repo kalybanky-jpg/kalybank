@@ -1,8 +1,8 @@
 -- Monalyz DATABASE SCHEMA SNAPSHOT
 -- GENERATED FILE: run `npx bun run db:snapshot`; do not edit manually.
 -- remote-project-ref: qljqldhvbakornnpalua
--- migration-manifest-sha256: a826727e508de70ccf103375bd5fb7898b9ca94bfbf11290dca25ad8de305cb7
--- migrations: 20260728060744_kaly_secure_external_financial_workflows.sql, 20260728061308_add_missing_foreign_key_indexes.sql, 20260728065832_rename_brand_to_monalyz.sql, 20260728092751_simplify_branch_manager_financial_workflows.sql, 20260728094442_add_outbox_claimed_by_index.sql, 20260728150934_add_profile_preferred_language.sql, 20260728151335_grant_profile_preferences_update.sql, 20260728173319_provision_demo_accounts.sql, 20260728183213_fix_demo_provisioner_uuid_literals.sql, 20260729115445_add_official_accounts_and_ledger.sql, 20260729115451_wire_ledger_to_financial_workflows.sql, 20260729115458_add_official_documents_and_demo_fixtures.sql, 20260730123059_automatic_account_numbers.sql, 20260730162101_kyc_workflow_and_internal_account.sql, 20260730170000_sequential_transfer_checks.sql
+-- migration-manifest-sha256: 88cf6ce04d987a5433287a71638e2e43a39512f99ef1ac1a21e9bb68949992d1
+-- migrations: 20260728060744_kaly_secure_external_financial_workflows.sql, 20260728061308_add_missing_foreign_key_indexes.sql, 20260728065832_rename_brand_to_monalyz.sql, 20260728092751_simplify_branch_manager_financial_workflows.sql, 20260728094442_add_outbox_claimed_by_index.sql, 20260728150934_add_profile_preferred_language.sql, 20260728151335_grant_profile_preferences_update.sql, 20260728173319_provision_demo_accounts.sql, 20260728183213_fix_demo_provisioner_uuid_literals.sql, 20260729115445_add_official_accounts_and_ledger.sql, 20260729115451_wire_ledger_to_financial_workflows.sql, 20260729115458_add_official_documents_and_demo_fixtures.sql, 20260730123059_automatic_account_numbers.sql, 20260730162101_kyc_workflow_and_internal_account.sql, 20260730170000_sequential_transfer_checks.sql, 20260731120000_user_localization_contract.sql, 20260801091705_configure_loan_products.sql, 20260801095428_dynamic_brand_settings.sql, 20260801163432_secure_brand_snapshot_function.sql
 -- schema-only: true
 -- production-data-included: false
 -- schemas: public, private
@@ -55,8 +55,9 @@ begin
   for update;
 
   if not found then
-    raise exception 'ACCOUNT_NUMBER_PREFIX_NOT_CONFIGURED'
-      using errcode = '55000';
+    -- Safe operational default: a branch manager may later configure the
+    -- bank's own 5-to-9 digit prefix from Settings.
+    configuration.prefix := '10000';
   end if;
 
   suffix_width := 10 - char_length(configuration.prefix);
@@ -707,6 +708,94 @@ $$;
 ALTER FUNCTION "private"."normalize_iban"("p_iban" "text") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "private"."normalize_notification_localization"() RETURNS "trigger"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare
+  searchable text := lower(coalesce(new.title, '') || ' ' || coalesce(new.message, ''));
+begin
+  if new.message_key is null or new.message_key not in (
+    'generic_info',
+    'transfer_submitted', 'transfer_approved', 'transfer_completed', 'transfer_rejected', 'transfer_failed',
+    'loan_submitted', 'loan_approved', 'loan_disbursed', 'loan_rejected', 'loan_failed',
+    'kyc_submitted', 'kyc_information_requested', 'kyc_resubmitted', 'kyc_approved', 'kyc_rejected',
+    'document_available'
+  ) then
+    new.message_key := case
+      when new.notification_type = 'info' and searchable like '%document%' then 'document_available'
+      when new.notification_type = 'transfer' and searchable ~ '(effectué|exécuté|completed|settlement confirmed|ausgeführt|realizado|ejecutad)' then 'transfer_completed'
+      when new.notification_type = 'transfer' and searchable ~ '(refus|reject|abgelehnt|rechaz)' then 'transfer_rejected'
+      when new.notification_type = 'transfer' and searchable ~ '(échec|échoué|failed|fehlgeschlagen|fallid|no se pudo)' then 'transfer_failed'
+      when new.notification_type = 'transfer' and searchable ~ '(validé|approved|genehmigt|aprob)' then 'transfer_approved'
+      when new.notification_type = 'transfer' then 'transfer_submitted'
+      when new.notification_type = 'loan' and searchable ~ '(décaissé|versé|paid|disbursed|ausgezahlt|abonado|desembols)' then 'loan_disbursed'
+      when new.notification_type = 'loan' and searchable ~ '(refus|reject|abgelehnt|rechaz)' then 'loan_rejected'
+      when new.notification_type = 'loan' and searchable ~ '(échec|échoué|failed|fehlgeschlagen|fallid|no se pudo)' then 'loan_failed'
+      when new.notification_type = 'loan' and searchable ~ '(validé|approved|genehmigt|aprob)' then 'loan_approved'
+      when new.notification_type = 'loan' then 'loan_submitted'
+      when new.notification_type = 'kyc' and searchable ~ '(complément|additional|zusätz|adicional|action requise|required)' then 'kyc_information_requested'
+      when new.notification_type = 'kyc' and searchable ~ '(correction|resubmi|erneut|reenvi)' then 'kyc_resubmitted'
+      when new.notification_type = 'kyc' and searchable ~ '(approuv|confirm|approved|bestätigt|aprob)' then 'kyc_approved'
+      when new.notification_type = 'kyc' and searchable ~ '(rejet|reject|abgelehnt|rechaz)' then 'kyc_rejected'
+      when new.notification_type = 'kyc' then 'kyc_submitted'
+      else 'generic_info'
+    end;
+  end if;
+
+  if new.message_params is null or jsonb_typeof(new.message_params) <> 'object' then
+    new.message_params := '{}'::jsonb;
+  end if;
+
+  -- Known events keep canonical French audit copy. Unknown historical entries
+  -- retain their original audit text and are localized generically by clients.
+  if new.message_key <> 'generic_info' then
+    new.title := case new.message_key
+      when 'transfer_submitted' then 'Virement enregistré'
+      when 'transfer_approved' then 'Virement approuvé'
+      when 'transfer_completed' then 'Virement exécuté'
+      when 'transfer_rejected' then 'Virement refusé'
+      when 'transfer_failed' then 'Virement non exécuté'
+      when 'loan_submitted' then 'Demande de prêt enregistrée'
+      when 'loan_approved' then 'Prêt approuvé'
+      when 'loan_disbursed' then 'Prêt versé'
+      when 'loan_rejected' then 'Demande de prêt refusée'
+      when 'loan_failed' then 'Versement du prêt interrompu'
+      when 'kyc_submitted' then 'Dossier d’identité transmis'
+      when 'kyc_information_requested' then 'Informations complémentaires requises'
+      when 'kyc_resubmitted' then 'Corrections transmises'
+      when 'kyc_approved' then 'Identité vérifiée'
+      when 'kyc_rejected' then 'Vérification d’identité non aboutie'
+      when 'document_available' then 'Nouveau document disponible'
+    end;
+    new.message := case new.message_key
+      when 'transfer_submitted' then 'L’instruction de virement a été transmise pour vérification.'
+      when 'transfer_approved' then 'Le virement a été approuvé pour exécution.'
+      when 'transfer_completed' then 'Le virement a été exécuté avec succès.'
+      when 'transfer_rejected' then 'L’instruction de virement n’a pas été acceptée.'
+      when 'transfer_failed' then 'Le virement n’a pas pu être exécuté.'
+      when 'loan_submitted' then 'La demande de prêt a été transmise pour analyse.'
+      when 'loan_approved' then 'La demande de prêt a été approuvée.'
+      when 'loan_disbursed' then 'Les fonds du prêt ont été crédités sur le compte.'
+      when 'loan_rejected' then 'La demande de prêt n’a pas été acceptée.'
+      when 'loan_failed' then 'Le versement du prêt n’a pas pu être finalisé.'
+      when 'kyc_submitted' then 'Le dossier d’identité a été transmis pour vérification.'
+      when 'kyc_information_requested' then 'Des éléments complémentaires sont nécessaires pour vérifier l’identité.'
+      when 'kyc_resubmitted' then 'Les corrections ont été transmises pour vérification.'
+      when 'kyc_approved' then 'La vérification de l’identité est terminée.'
+      when 'kyc_rejected' then 'Le dossier d’identité n’a pas pu être validé.'
+      when 'document_available' then 'Un nouveau document officiel est disponible dans l’espace client.'
+    end;
+  end if;
+
+  return new;
+end;
+$$;
+
+
+ALTER FUNCTION "private"."normalize_notification_localization"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "private"."prepare_demo_financial_position"() RETURNS "trigger"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
@@ -802,12 +891,8 @@ CREATE OR REPLACE FUNCTION "private"."protect_official_document"() RETURNS "trig
     AS $$
 begin
   if tg_op = 'DELETE' then
-    if pg_catalog.current_setting(
-      'monalyz.allow_official_document_maintenance',
-      true
-    ) is distinct from 'on' then
-      raise exception 'OFFICIAL_DOCUMENT_RETENTION_REQUIRED'
-        using errcode = '55000';
+    if pg_catalog.current_setting('monalyz.allow_official_document_maintenance', true) is distinct from 'on' then
+      raise exception 'OFFICIAL_DOCUMENT_RETENTION_REQUIRED' using errcode = '55000';
     end if;
     return old;
   end if;
@@ -829,11 +914,11 @@ begin
      or new.requested_at <> old.requested_at
      or new.is_demo <> old.is_demo
      or new.idempotency_key <> old.idempotency_key
+     or new.localization_revision <> old.localization_revision
+     or new.supersedes_document_id is distinct from old.supersedes_document_id
      or new.created_at <> old.created_at then
-    raise exception 'OFFICIAL_DOCUMENT_SNAPSHOT_IS_IMMUTABLE'
-      using errcode = '55000';
+    raise exception 'OFFICIAL_DOCUMENT_SNAPSHOT_IS_IMMUTABLE' using errcode = '55000';
   end if;
-
   return new;
 end;
 $$;
@@ -878,6 +963,30 @@ $$;
 
 
 ALTER FUNCTION "private"."set_updated_at"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "private"."snapshot_official_document_brand"() RETURNS "trigger"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+begin
+  select bank_name, revision, pdf_logo_path
+  into
+    new.brand_name_snapshot,
+    new.brand_revision_snapshot,
+    new.brand_logo_path_snapshot
+  from public.brand_settings
+  where singleton = true;
+
+  if new.brand_name_snapshot is null then
+    raise exception 'BRAND_SETTINGS_NOT_FOUND' using errcode = 'P0002';
+  end if;
+  return new;
+end;
+$$;
+
+
+ALTER FUNCTION "private"."snapshot_official_document_brand"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "private"."validate_financial_ledger_entry"() RETURNS "trigger"
@@ -1391,6 +1500,7 @@ CREATE TABLE IF NOT EXISTS "public"."loan_applications" (
     "disbursed_by" "uuid",
     "disbursed_at" timestamp with time zone,
     "internal_disbursement_reference" "text",
+    "motive_code" "text" NOT NULL,
     CONSTRAINT "loan_applications_currency_check" CHECK (("currency" ~ '^[A-Z]{3}$'::"text")),
     CONSTRAINT "loan_applications_disbursement_check" CHECK (((("status" = 'external_settlement_confirmed'::"text") AND ("credited_position_id" IS NOT NULL) AND ("disbursed_by" IS NOT NULL) AND ("disbursed_at" IS NOT NULL)) OR (("status" <> 'external_settlement_confirmed'::"text") AND ("credited_position_id" IS NULL) AND ("disbursed_by" IS NULL) AND ("disbursed_at" IS NULL)))),
     CONSTRAINT "loan_applications_document_object_paths_check" CHECK (("jsonb_typeof"("document_object_paths") = 'array'::"text")),
@@ -1399,6 +1509,7 @@ CREATE TABLE IF NOT EXISTS "public"."loan_applications" (
     CONSTRAINT "loan_applications_indicative_monthly_payment_minor_check" CHECK ((("indicative_monthly_payment_minor" IS NULL) OR ("indicative_monthly_payment_minor" > 0))),
     CONSTRAINT "loan_applications_internal_disbursement_reference_check" CHECK ((("internal_disbursement_reference" IS NULL) OR (("char_length"("internal_disbursement_reference") >= 3) AND ("char_length"("internal_disbursement_reference") <= 160)))),
     CONSTRAINT "loan_applications_motive_check" CHECK ((("char_length"("motive") >= 1) AND ("char_length"("motive") <= 500))),
+    CONSTRAINT "loan_applications_motive_code_check" CHECK (("motive_code" = ANY (ARRAY['personal'::"text", 'real_estate'::"text", 'vehicle'::"text", 'renovation'::"text", 'business_cashflow'::"text", 'other'::"text"]))),
     CONSTRAINT "loan_applications_requested_amount_minor_check" CHECK ((("requested_amount_minor" > 0) AND ("requested_amount_minor" <= '1000000000000000'::bigint))),
     CONSTRAINT "loan_applications_status_check" CHECK (("status" = ANY (ARRAY['submitted'::"text", 'under_review'::"text", 'approved_for_external_funding'::"text", 'external_funding_recorded'::"text", 'external_settlement_confirmed'::"text", 'rejected'::"text", 'cancelled'::"text", 'external_failed'::"text"]))),
     CONSTRAINT "loan_applications_version_check" CHECK (("version" > 0))
@@ -2247,6 +2358,11 @@ CREATE TABLE IF NOT EXISTS "public"."official_documents" (
     "idempotency_key" "uuid" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "localization_revision" integer DEFAULT 2 NOT NULL,
+    "supersedes_document_id" "uuid",
+    "brand_name_snapshot" "text" DEFAULT 'Monalyz'::"text" NOT NULL,
+    "brand_revision_snapshot" bigint DEFAULT 1 NOT NULL,
+    "brand_logo_path_snapshot" "text" DEFAULT '/brand/monalyz/monalyz-wordmark-reversed-white.png'::"text" NOT NULL,
     CONSTRAINT "official_documents_check" CHECK (((("document_type" = ANY (ARRAY['bank_details'::"text", 'account_statement'::"text", 'balance_certificate'::"text"])) AND ("account_id" IS NOT NULL) AND ("transfer_id" IS NULL) AND ("loan_id" IS NULL)) OR (("document_type" = 'transfer_confirmation'::"text") AND ("account_id" IS NOT NULL) AND ("transfer_id" IS NOT NULL) AND ("loan_id" IS NULL)) OR (("document_type" = 'loan_disbursement_confirmation'::"text") AND ("account_id" IS NOT NULL) AND ("transfer_id" IS NULL) AND ("loan_id" IS NOT NULL)) OR (("document_type" = 'loan_decision'::"text") AND ("transfer_id" IS NULL) AND ("loan_id" IS NOT NULL)))),
     CONSTRAINT "official_documents_check1" CHECK (((("document_type" = 'account_statement'::"text") AND ("period_start" IS NOT NULL) AND ("period_end" IS NOT NULL) AND ("period_end" >= "period_start") AND ("period_end" <= ("period_start" + 366))) OR (("document_type" <> 'account_statement'::"text") AND ("period_start" IS NULL) AND ("period_end" IS NULL)))),
     CONSTRAINT "official_documents_check2" CHECK (((("status" = 'pending'::"text") AND ("storage_path" IS NULL) AND ("content_hash" IS NULL) AND ("issued_at" IS NULL) AND ("failure_reason" IS NULL) AND ("revoked_by" IS NULL) AND ("revoked_at" IS NULL) AND ("revocation_reason" IS NULL)) OR (("status" = 'issued'::"text") AND ("storage_path" IS NOT NULL) AND ("content_hash" IS NOT NULL) AND ("issued_at" IS NOT NULL) AND ("failure_reason" IS NULL) AND ("revoked_by" IS NULL) AND ("revoked_at" IS NULL) AND ("revocation_reason" IS NULL)) OR (("status" = 'failed'::"text") AND ("storage_path" IS NULL) AND ("content_hash" IS NULL) AND ("issued_at" IS NULL) AND ("failure_reason" IS NOT NULL) AND ("revoked_by" IS NULL) AND ("revoked_at" IS NULL) AND ("revocation_reason" IS NULL)) OR (("status" = 'revoked'::"text") AND ("storage_path" IS NOT NULL) AND ("content_hash" IS NOT NULL) AND ("issued_at" IS NOT NULL) AND ("failure_reason" IS NULL) AND ("revoked_by" IS NOT NULL) AND ("revoked_at" IS NOT NULL) AND ("revocation_reason" IS NOT NULL)))),
@@ -2255,6 +2371,7 @@ CREATE TABLE IF NOT EXISTS "public"."official_documents" (
     CONSTRAINT "official_documents_document_type_check" CHECK (("document_type" = ANY (ARRAY['bank_details'::"text", 'account_statement'::"text", 'balance_certificate'::"text", 'transfer_confirmation'::"text", 'loan_disbursement_confirmation'::"text", 'loan_decision'::"text"]))),
     CONSTRAINT "official_documents_failure_reason_check" CHECK ((("failure_reason" IS NULL) OR (("char_length"("failure_reason") >= 3) AND ("char_length"("failure_reason") <= 1000)))),
     CONSTRAINT "official_documents_language_check" CHECK (("language" = ANY (ARRAY['fr'::"text", 'en'::"text", 'de'::"text", 'es'::"text"]))),
+    CONSTRAINT "official_documents_localization_revision_check" CHECK (("localization_revision" > 0)),
     CONSTRAINT "official_documents_revocation_reason_check" CHECK ((("revocation_reason" IS NULL) OR (("char_length"("revocation_reason") >= 3) AND ("char_length"("revocation_reason") <= 1000)))),
     CONSTRAINT "official_documents_snapshot_check" CHECK (("jsonb_typeof"("snapshot") = 'object'::"text")),
     CONSTRAINT "official_documents_snapshot_hash_check" CHECK (("snapshot_hash" ~ '^[a-f0-9]{64}$'::"text")),
@@ -2266,6 +2383,18 @@ CREATE TABLE IF NOT EXISTS "public"."official_documents" (
 
 
 ALTER TABLE "public"."official_documents" OWNER TO "postgres";
+
+
+COMMENT ON COLUMN "public"."official_documents"."brand_name_snapshot" IS 'Published bank name captured when the immutable document version is created.';
+
+
+
+COMMENT ON COLUMN "public"."official_documents"."brand_revision_snapshot" IS 'Published brand revision captured when the immutable document version is created.';
+
+
+
+COMMENT ON COLUMN "public"."official_documents"."brand_logo_path_snapshot" IS 'Versioned PDF logo path captured when the immutable document version is created.';
+
 
 
 CREATE OR REPLACE FUNCTION "public"."branch_manager_issue_official_document"("p_owner_id" "uuid", "p_account_id" "uuid", "p_transfer_id" "uuid", "p_loan_id" "uuid", "p_document_type" "text", "p_title" "text", "p_language" "text", "p_period_start" "date", "p_period_end" "date", "p_idempotency_key" "uuid") RETURNS "public"."official_documents"
@@ -3216,6 +3345,79 @@ $$;
 ALTER FUNCTION "public"."complete_transactional_email"("p_email_id" "uuid", "p_claim_token" "uuid", "p_succeeded" boolean, "p_provider_message_id" "text", "p_error" "text") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."create_official_document_localized_reissue"("p_source_document_id" "uuid", "p_idempotency_key" "uuid") RETURNS "public"."official_documents"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare
+  worker_role text := coalesce((select auth.jwt() ->> 'role'), '');
+  source_row public.official_documents;
+  replacement_row public.official_documents;
+  replacement_id uuid := gen_random_uuid();
+  replacement_title text;
+  replacement_snapshot jsonb;
+  replacement_version integer;
+begin
+  if worker_role <> 'service_role' then
+    raise exception 'OFFICIAL_DOCUMENT_WORKER_PERMISSION_REQUIRED' using errcode = '42501';
+  end if;
+
+  select * into replacement_row from public.official_documents
+  where supersedes_document_id = p_source_document_id;
+  if found then return replacement_row; end if;
+
+  select * into source_row from public.official_documents
+  where id = p_source_document_id for update;
+  if not found then raise exception 'OFFICIAL_DOCUMENT_NOT_FOUND' using errcode = 'P0002'; end if;
+  if source_row.status <> 'issued' or source_row.localization_revision >= 2 then
+    raise exception 'OFFICIAL_DOCUMENT_NOT_REISSUABLE' using errcode = '55000';
+  end if;
+
+  replacement_title := case source_row.language
+    when 'en' then case source_row.document_type when 'bank_details' then 'Bank account details' when 'account_statement' then 'Account statement' when 'balance_certificate' then 'Balance certificate' when 'transfer_confirmation' then 'Transfer confirmation' when 'loan_disbursement_confirmation' then 'Loan disbursement confirmation' else 'Loan decision' end
+    when 'de' then case source_row.document_type when 'bank_details' then 'Bankverbindung' when 'account_statement' then 'Kontoauszug' when 'balance_certificate' then 'Saldenbestätigung' when 'transfer_confirmation' then 'Überweisungsbestätigung' when 'loan_disbursement_confirmation' then 'Bestätigung der Kreditauszahlung' else 'Kreditentscheidung' end
+    when 'es' then case source_row.document_type when 'bank_details' then 'Datos bancarios' when 'account_statement' then 'Estado de cuenta' when 'balance_certificate' then 'Certificado de saldo' when 'transfer_confirmation' then 'Confirmación de transferencia' when 'loan_disbursement_confirmation' then 'Confirmación de desembolso del préstamo' else 'Decisión de préstamo' end
+    else case source_row.document_type when 'bank_details' then 'Relevé d’identité bancaire' when 'account_statement' then 'Relevé de compte' when 'balance_certificate' then 'Attestation de solde' when 'transfer_confirmation' then 'Confirmation de virement' when 'loan_disbursement_confirmation' then 'Confirmation de versement du prêt' else 'Décision de prêt' end
+  end;
+  replacement_snapshot := source_row.snapshot || jsonb_build_object(
+    'schemaVersion', 2, 'title', replacement_title, 'language', source_row.language
+  );
+  select coalesce(max(version), 0) + 1 into replacement_version
+  from public.official_documents
+  where owner_id = source_row.owner_id
+    and document_type = source_row.document_type
+    and account_id is not distinct from source_row.account_id
+    and transfer_id is not distinct from source_row.transfer_id
+    and loan_id is not distinct from source_row.loan_id;
+
+  insert into public.official_documents (
+    id, owner_id, account_id, transfer_id, loan_id, document_number,
+    document_type, title, language, period_start, period_end, version, status,
+    snapshot, snapshot_hash, issued_by, is_demo, idempotency_key,
+    localization_revision, supersedes_document_id
+  ) values (
+    replacement_id, source_row.owner_id, source_row.account_id, source_row.transfer_id,
+    source_row.loan_id, 'MON-' || to_char(now(), 'YYYY') || '-' || upper(replace(replacement_id::text, '-', '')),
+    source_row.document_type, replacement_title, source_row.language,
+    source_row.period_start, source_row.period_end, replacement_version, 'pending',
+    replacement_snapshot,
+    encode(extensions.digest(convert_to(replacement_snapshot::text, 'UTF8'), 'sha256'), 'hex'),
+    source_row.issued_by, source_row.is_demo, p_idempotency_key, 2, source_row.id
+  ) returning * into replacement_row;
+
+  insert into public.audit_events (actor_id, action, entity_type, entity_id, metadata)
+  values (
+    source_row.issued_by, 'official_document_localization_reissue_created', 'official_document', replacement_row.id,
+    jsonb_build_object('supersedes_document_id', source_row.id, 'localization_revision', 2)
+  );
+  return replacement_row;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."create_official_document_localized_reissue"("p_source_document_id" "uuid", "p_idempotency_key" "uuid") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."current_app_role"() RETURNS "text"
     LANGUAGE "sql" STABLE SECURITY DEFINER
     SET "search_path" TO ''
@@ -3433,6 +3635,46 @@ $$;
 
 
 ALTER FUNCTION "public"."decide_kyc_application"("p_kyc_id" "uuid", "p_decision" "text", "p_reason_code" "text", "p_note" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."finalize_official_document_localized_reissue"("p_replacement_document_id" "uuid") RETURNS "public"."official_documents"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare
+  worker_role text := coalesce((select auth.jwt() ->> 'role'), '');
+  replacement_row public.official_documents;
+  source_row public.official_documents;
+begin
+  if worker_role <> 'service_role' then
+    raise exception 'OFFICIAL_DOCUMENT_WORKER_PERMISSION_REQUIRED' using errcode = '42501';
+  end if;
+  select * into replacement_row from public.official_documents
+  where id = p_replacement_document_id for update;
+  if not found or replacement_row.supersedes_document_id is null or replacement_row.status <> 'issued' then
+    raise exception 'OFFICIAL_DOCUMENT_REISSUE_NOT_FINALIZABLE' using errcode = '55000';
+  end if;
+  select * into source_row from public.official_documents
+  where id = replacement_row.supersedes_document_id for update;
+  if source_row.status = 'revoked' then return source_row; end if;
+  if source_row.status <> 'issued' then
+    raise exception 'OFFICIAL_DOCUMENT_SOURCE_NOT_ISSUED' using errcode = '55000';
+  end if;
+  update public.official_documents set
+    status = 'revoked', revoked_by = source_row.issued_by, revoked_at = now(),
+    revocation_reason = 'Remplacé par une version localisée vérifiée.'
+  where id = source_row.id returning * into source_row;
+  insert into public.audit_events (actor_id, action, entity_type, entity_id, metadata)
+  values (
+    source_row.issued_by, 'official_document_localization_reissue_finalized', 'official_document', source_row.id,
+    jsonb_build_object('replacement_document_id', replacement_row.id, 'replacement_content_hash', replacement_row.content_hash)
+  );
+  return source_row;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."finalize_official_document_localized_reissue"("p_replacement_document_id" "uuid") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."get_account_number_configuration"() RETURNS TABLE("prefix" "text", "prefix_length" integer, "capacity" integer, "updated_at" timestamp with time zone)
@@ -3996,6 +4238,165 @@ $$;
 
 
 ALTER FUNCTION "public"."provision_demo_accounts"("p_admin_user_id" "uuid", "p_client_user_id" "uuid", "p_environment" "text") OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."brand_settings" (
+    "singleton" boolean DEFAULT true NOT NULL,
+    "bank_name" "text" NOT NULL,
+    "primary_logo_path" "text" NOT NULL,
+    "primary_logo_width" integer NOT NULL,
+    "primary_logo_height" integer NOT NULL,
+    "reversed_logo_path" "text" NOT NULL,
+    "reversed_logo_width" integer NOT NULL,
+    "reversed_logo_height" integer NOT NULL,
+    "email_logo_path" "text" NOT NULL,
+    "pdf_logo_path" "text" NOT NULL,
+    "favicon_ico_path" "text" NOT NULL,
+    "favicon_16_path" "text" NOT NULL,
+    "favicon_32_path" "text" NOT NULL,
+    "favicon_48_path" "text" NOT NULL,
+    "apple_touch_icon_path" "text" NOT NULL,
+    "app_icon_192_path" "text" NOT NULL,
+    "app_icon_512_path" "text" NOT NULL,
+    "maskable_icon_path" "text" NOT NULL,
+    "social_card_path" "text" NOT NULL,
+    "revision" bigint DEFAULT 1 NOT NULL,
+    "updated_by" "uuid",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "brand_settings_asset_paths_check" CHECK (((("char_length"("primary_logo_path") >= 3) AND ("char_length"("primary_logo_path") <= 500)) AND (("char_length"("reversed_logo_path") >= 3) AND ("char_length"("reversed_logo_path") <= 500)) AND (("char_length"("email_logo_path") >= 3) AND ("char_length"("email_logo_path") <= 500)) AND (("char_length"("pdf_logo_path") >= 3) AND ("char_length"("pdf_logo_path") <= 500)) AND (("char_length"("favicon_ico_path") >= 3) AND ("char_length"("favicon_ico_path") <= 500)) AND (("char_length"("favicon_16_path") >= 3) AND ("char_length"("favicon_16_path") <= 500)) AND (("char_length"("favicon_32_path") >= 3) AND ("char_length"("favicon_32_path") <= 500)) AND (("char_length"("favicon_48_path") >= 3) AND ("char_length"("favicon_48_path") <= 500)) AND (("char_length"("apple_touch_icon_path") >= 3) AND ("char_length"("apple_touch_icon_path") <= 500)) AND (("char_length"("app_icon_192_path") >= 3) AND ("char_length"("app_icon_192_path") <= 500)) AND (("char_length"("app_icon_512_path") >= 3) AND ("char_length"("app_icon_512_path") <= 500)) AND (("char_length"("maskable_icon_path") >= 3) AND ("char_length"("maskable_icon_path") <= 500)) AND (("char_length"("social_card_path") >= 3) AND ("char_length"("social_card_path") <= 500)))),
+    CONSTRAINT "brand_settings_bank_name_check" CHECK (((("char_length"("bank_name") >= 2) AND ("char_length"("bank_name") <= 80)) AND ("bank_name" = "btrim"("bank_name")) AND ("bank_name" !~ '[\x00-\x1F\x7F]'::"text"))),
+    CONSTRAINT "brand_settings_primary_dimensions_check" CHECK (((("primary_logo_width" >= 1) AND ("primary_logo_width" <= 4096)) AND (("primary_logo_height" >= 1) AND ("primary_logo_height" <= 4096)) AND ((("primary_logo_width")::bigint * ("primary_logo_height")::bigint) <= 20000000))),
+    CONSTRAINT "brand_settings_reversed_dimensions_check" CHECK (((("reversed_logo_width" >= 1) AND ("reversed_logo_width" <= 4096)) AND (("reversed_logo_height" >= 1) AND ("reversed_logo_height" <= 4096)) AND ((("reversed_logo_width")::bigint * ("reversed_logo_height")::bigint) <= 20000000))),
+    CONSTRAINT "brand_settings_revision_check" CHECK (("revision" > 0)),
+    CONSTRAINT "brand_settings_singleton_check" CHECK ("singleton")
+);
+
+
+ALTER TABLE "public"."brand_settings" OWNER TO "postgres";
+
+
+COMMENT ON TABLE "public"."brand_settings" IS 'Singleton containing the currently published, public bank identity.';
+
+
+
+COMMENT ON COLUMN "public"."brand_settings"."revision" IS 'Monotonic optimistic-lock revision incremented by each atomic publication.';
+
+
+
+CREATE OR REPLACE FUNCTION "public"."publish_brand_settings"("p_expected_revision" bigint, "p_bank_name" "text", "p_primary_logo_path" "text", "p_primary_logo_width" integer, "p_primary_logo_height" integer, "p_reversed_logo_path" "text", "p_reversed_logo_width" integer, "p_reversed_logo_height" integer, "p_email_logo_path" "text", "p_pdf_logo_path" "text", "p_favicon_ico_path" "text", "p_favicon_16_path" "text", "p_favicon_32_path" "text", "p_favicon_48_path" "text", "p_apple_touch_icon_path" "text", "p_app_icon_192_path" "text", "p_app_icon_512_path" "text", "p_maskable_icon_path" "text", "p_social_card_path" "text") RETURNS "public"."brand_settings"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare
+  caller_id uuid := private.ensure_branch_manager();
+  normalized_name text := btrim(coalesce(p_bank_name, ''));
+  previous_settings public.brand_settings;
+  published_settings public.brand_settings;
+begin
+  select *
+  into previous_settings
+  from public.brand_settings
+  where singleton = true
+  for update;
+
+  if previous_settings.singleton is null then
+    raise exception 'BRAND_SETTINGS_NOT_FOUND' using errcode = 'P0002';
+  end if;
+  if p_expected_revision is null
+     or previous_settings.revision <> p_expected_revision then
+    raise exception 'BRAND_REVISION_CONFLICT' using errcode = '40001';
+  end if;
+  if char_length(normalized_name) not between 2 and 80
+     or normalized_name ~ '[\x00-\x1F\x7F]' then
+    raise exception 'INVALID_BRAND_NAME' using errcode = '22023';
+  end if;
+  if p_primary_logo_width is null
+     or p_primary_logo_height is null
+     or p_primary_logo_width not between 1 and 4096
+     or p_primary_logo_height not between 1 and 4096
+     or p_primary_logo_width::bigint * p_primary_logo_height::bigint > 20000000
+     or p_reversed_logo_width is null
+     or p_reversed_logo_height is null
+     or p_reversed_logo_width not between 1 and 4096
+     or p_reversed_logo_height not between 1 and 4096
+     or p_reversed_logo_width::bigint * p_reversed_logo_height::bigint > 20000000 then
+    raise exception 'INVALID_BRAND_LOGO_DIMENSIONS' using errcode = '22023';
+  end if;
+  if exists (
+    select 1
+    from unnest(array[
+      p_primary_logo_path, p_reversed_logo_path, p_email_logo_path,
+      p_pdf_logo_path, p_favicon_ico_path, p_favicon_16_path,
+      p_favicon_32_path, p_favicon_48_path, p_apple_touch_icon_path,
+      p_app_icon_192_path, p_app_icon_512_path, p_maskable_icon_path,
+      p_social_card_path
+    ]) path
+    where path is null or char_length(path) not between 3 and 500
+  ) then
+    raise exception 'INVALID_BRAND_ASSET_PATH' using errcode = '22023';
+  end if;
+
+  update public.brand_settings
+  set
+    bank_name = normalized_name,
+    primary_logo_path = p_primary_logo_path,
+    primary_logo_width = p_primary_logo_width,
+    primary_logo_height = p_primary_logo_height,
+    reversed_logo_path = p_reversed_logo_path,
+    reversed_logo_width = p_reversed_logo_width,
+    reversed_logo_height = p_reversed_logo_height,
+    email_logo_path = p_email_logo_path,
+    pdf_logo_path = p_pdf_logo_path,
+    favicon_ico_path = p_favicon_ico_path,
+    favicon_16_path = p_favicon_16_path,
+    favicon_32_path = p_favicon_32_path,
+    favicon_48_path = p_favicon_48_path,
+    apple_touch_icon_path = p_apple_touch_icon_path,
+    app_icon_192_path = p_app_icon_192_path,
+    app_icon_512_path = p_app_icon_512_path,
+    maskable_icon_path = p_maskable_icon_path,
+    social_card_path = p_social_card_path,
+    revision = revision + 1,
+    updated_by = caller_id
+  where singleton = true
+  returning * into published_settings;
+
+  insert into public.audit_events (
+    actor_id,
+    action,
+    entity_type,
+    entity_id,
+    metadata
+  ) values (
+    caller_id,
+    'branch_manager_publish_brand_settings',
+    'brand_settings',
+    null,
+    jsonb_build_object(
+      'before', jsonb_build_object(
+        'bankName', previous_settings.bank_name,
+        'revision', previous_settings.revision,
+        'primaryLogoPath', previous_settings.primary_logo_path,
+        'reversedLogoPath', previous_settings.reversed_logo_path,
+        'faviconPath', previous_settings.favicon_32_path
+      ),
+      'after', jsonb_build_object(
+        'bankName', published_settings.bank_name,
+        'revision', published_settings.revision,
+        'primaryLogoPath', published_settings.primary_logo_path,
+        'reversedLogoPath', published_settings.reversed_logo_path,
+        'faviconPath', published_settings.favicon_32_path
+      )
+    )
+  );
+
+  return published_settings;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."publish_brand_settings"("p_expected_revision" bigint, "p_bank_name" "text", "p_primary_logo_path" "text", "p_primary_logo_width" integer, "p_primary_logo_height" integer, "p_reversed_logo_path" "text", "p_reversed_logo_width" integer, "p_reversed_logo_height" integer, "p_email_logo_path" "text", "p_pdf_logo_path" "text", "p_favicon_ico_path" "text", "p_favicon_16_path" "text", "p_favicon_32_path" "text", "p_favicon_48_path" "text", "p_apple_touch_icon_path" "text", "p_app_icon_192_path" "text", "p_app_icon_512_path" "text", "p_maskable_icon_path" "text", "p_social_card_path" "text") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."record_financial_position"("p_owner_id" "uuid", "p_label" "text", "p_currency" "text", "p_amount_minor" bigint, "p_as_of" timestamp with time zone, "p_external_identifier_masked" "text", "p_reason" "text") RETURNS "public"."financial_positions"
@@ -4831,23 +5232,105 @@ $$;
 ALTER FUNCTION "public"."submit_kyc_application"("p_first_name" "text", "p_last_name" "text", "p_date_of_birth" "date", "p_place_of_birth" "text", "p_nationality" "text", "p_address" "jsonb", "p_occupation" "text", "p_income_range" "text", "p_fatca" boolean, "p_pep" boolean, "p_document_type" "text", "p_document_number" "text", "p_issuing_country" "text", "p_document_expires_on" "date", "p_document_object_paths" "jsonb", "p_idempotency_key" "uuid") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."submit_loan_application"("p_requested_amount_minor" bigint, "p_currency" "text", "p_duration_months" integer, "p_indicative_monthly_payment_minor" bigint, "p_indicative_annual_rate" numeric, "p_motive" "text", "p_document_object_paths" "jsonb", "p_idempotency_key" "uuid") RETURNS "public"."loan_applications"
+CREATE OR REPLACE FUNCTION "public"."submit_loan_application"("p_requested_amount_minor" bigint, "p_currency" "text", "p_duration_months" integer, "p_motive_code" "text", "p_document_object_paths" "jsonb", "p_idempotency_key" "uuid") RETURNS "public"."loan_applications"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
 declare
   caller_id uuid := private.ensure_active_user();
   loan_row public.loan_applications;
+  product_settings public.loan_product_settings;
   new_loan_id uuid := gen_random_uuid();
+  normalized_currency text := upper(trim(coalesce(p_currency, '')));
   generated_reference text;
+  canonical_motive text;
+  monthly_rate numeric;
+  compound_factor numeric;
+  calculated_monthly_payment_minor bigint;
 begin
+  if p_idempotency_key is null then
+    raise exception 'INVALID_IDEMPOTENCY_KEY' using errcode = '22023';
+  end if;
+
+  select *
+  into loan_row
+  from public.loan_applications
+  where owner_id = caller_id
+    and idempotency_key = p_idempotency_key;
+
+  if loan_row.id is not null then
+    return loan_row;
+  end if;
+
+  if p_motive_code is null
+    or p_motive_code not in (
+      'personal',
+      'real_estate',
+      'vehicle',
+      'renovation',
+      'business_cashflow',
+      'other'
+    )
+  then
+    raise exception 'INVALID_LOAN_MOTIVE_CODE' using errcode = '22023';
+  end if;
   if p_document_object_paths is null
-     or jsonb_typeof(p_document_object_paths) <> 'array' then
+    or jsonb_typeof(p_document_object_paths) <> 'array'
+  then
     raise exception 'INVALID_LOAN_DOCUMENTS' using errcode = '22023';
   end if;
 
-  generated_reference :=
-    'Monalyz-'
+  select *
+  into product_settings
+  from public.loan_product_settings
+  where currency = normalized_currency;
+
+  if product_settings.currency is null or not product_settings.is_active then
+    raise exception 'LOAN_PRODUCT_UNAVAILABLE' using errcode = '22023';
+  end if;
+  if p_requested_amount_minor is null
+    or p_requested_amount_minor < product_settings.minimum_amount_minor
+    or p_requested_amount_minor > product_settings.maximum_amount_minor
+  then
+    raise exception 'LOAN_AMOUNT_OUT_OF_RANGE' using errcode = '22023';
+  end if;
+  if p_duration_months is null
+    or p_duration_months < product_settings.minimum_duration_months
+    or p_duration_months > product_settings.maximum_duration_months
+  then
+    raise exception 'LOAN_DURATION_OUT_OF_RANGE' using errcode = '22023';
+  end if;
+  if (
+    (p_duration_months - product_settings.minimum_duration_months)
+    % product_settings.duration_step_months
+  ) <> 0
+  then
+    raise exception 'LOAN_DURATION_STEP_MISMATCH' using errcode = '22023';
+  end if;
+
+  if product_settings.fixed_annual_rate = 0 then
+    calculated_monthly_payment_minor :=
+      round(p_requested_amount_minor::numeric / p_duration_months)::bigint;
+  else
+    monthly_rate := product_settings.fixed_annual_rate / 12;
+    compound_factor := power(1 + monthly_rate, p_duration_months);
+    calculated_monthly_payment_minor := round(
+      p_requested_amount_minor::numeric
+      * monthly_rate
+      * compound_factor
+      / (compound_factor - 1)
+    )::bigint;
+  end if;
+
+  canonical_motive := case p_motive_code
+    when 'personal' then 'Projet personnel'
+    when 'real_estate' then 'Projet immobilier'
+    when 'vehicle' then 'Achat d’un véhicule'
+    when 'renovation' then 'Travaux et rénovation'
+    when 'business_cashflow' then 'Trésorerie professionnelle'
+    else 'Autre'
+  end;
+  generated_reference := product_settings.reference_prefix
     || to_char(now(), 'YYYYMMDD')
     || '-'
     || upper(replace(new_loan_id::text, '-', ''));
@@ -4863,28 +5346,31 @@ begin
     indicative_monthly_payment_minor,
     indicative_annual_rate,
     motive,
+    motive_code,
     document_object_paths
-  )
-  values (
+  ) values (
     new_loan_id,
     caller_id,
     p_idempotency_key,
     generated_reference,
     p_requested_amount_minor,
-    upper(p_currency),
+    normalized_currency,
     p_duration_months,
-    p_indicative_monthly_payment_minor,
-    p_indicative_annual_rate,
-    trim(p_motive),
+    calculated_monthly_payment_minor,
+    product_settings.fixed_annual_rate,
+    canonical_motive,
+    p_motive_code,
     p_document_object_paths
   )
   on conflict (owner_id, idempotency_key) do nothing
   returning * into loan_row;
 
   if loan_row.id is null then
-    select * into loan_row
+    select *
+    into loan_row
     from public.loan_applications
-    where owner_id = caller_id and idempotency_key = p_idempotency_key;
+    where owner_id = caller_id
+      and idempotency_key = p_idempotency_key;
     return loan_row;
   end if;
 
@@ -4894,26 +5380,31 @@ begin
     array['dual_review', 'escalation', 'compliance', 'final_authorization']
   ) as check_kind;
 
-  insert into public.loan_events (
-    loan_id, actor_id, event_type, to_status
-  )
+  insert into public.loan_events (loan_id, actor_id, event_type, to_status)
   values (loan_row.id, caller_id, 'submitted', 'submitted');
 
   insert into public.notifications (
-    recipient_id, title, message, notification_type
-  )
-  values (
+    recipient_id,
+    title,
+    message,
+    notification_type,
+    message_key,
+    message_params
+  ) values (
     caller_id,
-    'Demande enregistrée',
-    'Votre demande a été enregistrée pour étude. La simulation n’est ni une offre de crédit ni une promesse de versement.',
-    'loan'
+    'Demande de prêt enregistrée',
+    'La demande de prêt a été transmise pour analyse.',
+    'loan',
+    'loan_submitted',
+    jsonb_build_object('reference', loan_row.reference)
   );
+
   return loan_row;
 end;
 $$;
 
 
-ALTER FUNCTION "public"."submit_loan_application"("p_requested_amount_minor" bigint, "p_currency" "text", "p_duration_months" integer, "p_indicative_monthly_payment_minor" bigint, "p_indicative_annual_rate" numeric, "p_motive" "text", "p_document_object_paths" "jsonb", "p_idempotency_key" "uuid") OWNER TO "postgres";
+ALTER FUNCTION "public"."submit_loan_application"("p_requested_amount_minor" bigint, "p_currency" "text", "p_duration_months" integer, "p_motive_code" "text", "p_document_object_paths" "jsonb", "p_idempotency_key" "uuid") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."submit_transfer_intent"("p_source_position_id" "uuid", "p_recipient_name" "text", "p_recipient_account_masked" "text", "p_beneficiary_details" "jsonb", "p_transfer_type" "text", "p_amount_minor" bigint, "p_currency" "text", "p_target_amount_minor" bigint, "p_target_currency" "text", "p_quote_rate" numeric, "p_quote_as_of" timestamp with time zone, "p_motive" "text", "p_idempotency_key" "uuid") RETURNS "public"."transfer_intents"
@@ -5450,6 +5941,140 @@ $$;
 ALTER FUNCTION "public"."update_kyc_review_checklist"("p_kyc_id" "uuid", "p_document_quality" "text", "p_data_consistency" "text", "p_selfie_match" "text", "p_adulthood" "text", "p_fatca" "text", "p_pep" "text", "p_internal_comments" "text") OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "public"."loan_product_settings" (
+    "currency" "text" NOT NULL,
+    "minimum_amount_minor" bigint NOT NULL,
+    "maximum_amount_minor" bigint NOT NULL,
+    "minimum_duration_months" integer NOT NULL,
+    "maximum_duration_months" integer NOT NULL,
+    "duration_step_months" integer NOT NULL,
+    "fixed_annual_rate" numeric(8,5) NOT NULL,
+    "reference_prefix" "text" NOT NULL,
+    "is_active" boolean DEFAULT true NOT NULL,
+    "updated_by" "uuid",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "loan_product_settings_amount_range_check" CHECK ((("minimum_amount_minor" > 0) AND ("minimum_amount_minor" < "maximum_amount_minor") AND ("maximum_amount_minor" <= '1000000000000000'::bigint))),
+    CONSTRAINT "loan_product_settings_currency_check" CHECK (("currency" = ANY (ARRAY['EUR'::"text", 'USD'::"text", 'CAD'::"text", 'CHF'::"text", 'GBP'::"text"]))),
+    CONSTRAINT "loan_product_settings_duration_range_check" CHECK ((("minimum_duration_months" > 0) AND ("minimum_duration_months" <= "maximum_duration_months") AND ("maximum_duration_months" <= 600) AND ("duration_step_months" > 0) AND ((("maximum_duration_months" - "minimum_duration_months") % "duration_step_months") = 0))),
+    CONSTRAINT "loan_product_settings_fixed_annual_rate_check" CHECK ((("fixed_annual_rate" >= (0)::numeric) AND ("fixed_annual_rate" <= (1)::numeric))),
+    CONSTRAINT "loan_product_settings_reference_prefix_check" CHECK (("reference_prefix" ~ '^[A-Za-z0-9_-]{1,24}$'::"text"))
+);
+
+
+ALTER TABLE "public"."loan_product_settings" OWNER TO "postgres";
+
+
+COMMENT ON TABLE "public"."loan_product_settings" IS 'Server-authoritative loan limits, fixed annual rate, and reference prefix by currency.';
+
+
+
+COMMENT ON COLUMN "public"."loan_product_settings"."fixed_annual_rate" IS 'Annual rate represented as a decimal; 0.035 means 3.5 percent.';
+
+
+
+CREATE OR REPLACE FUNCTION "public"."update_loan_product_settings"("p_currency" "text", "p_minimum_amount_minor" bigint, "p_maximum_amount_minor" bigint, "p_minimum_duration_months" integer, "p_maximum_duration_months" integer, "p_duration_step_months" integer, "p_fixed_annual_rate" numeric, "p_reference_prefix" "text", "p_is_active" boolean) RETURNS "public"."loan_product_settings"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $_$
+declare
+  caller_id uuid := private.ensure_branch_manager();
+  normalized_currency text := upper(trim(coalesce(p_currency, '')));
+  normalized_prefix text := trim(coalesce(p_reference_prefix, ''));
+  previous_settings public.loan_product_settings;
+  updated_settings public.loan_product_settings;
+begin
+  if normalized_currency not in ('EUR', 'USD', 'CAD', 'CHF', 'GBP') then
+    raise exception 'INVALID_LOAN_PRODUCT_CURRENCY' using errcode = '22023';
+  end if;
+  if p_minimum_amount_minor is null
+    or p_maximum_amount_minor is null
+    or p_minimum_amount_minor <= 0
+    or p_minimum_amount_minor >= p_maximum_amount_minor
+    or p_maximum_amount_minor > 1000000000000000
+  then
+    raise exception 'INVALID_LOAN_AMOUNT_RANGE' using errcode = '22023';
+  end if;
+  if p_minimum_duration_months is null
+    or p_maximum_duration_months is null
+    or p_minimum_duration_months <= 0
+    or p_minimum_duration_months > p_maximum_duration_months
+    or p_maximum_duration_months > 600
+  then
+    raise exception 'INVALID_LOAN_DURATION_RANGE' using errcode = '22023';
+  end if;
+  if p_duration_step_months is null
+    or p_duration_step_months <= 0
+    or (
+      (p_maximum_duration_months - p_minimum_duration_months)
+      % p_duration_step_months
+    ) <> 0
+  then
+    raise exception 'INVALID_LOAN_DURATION_STEP' using errcode = '22023';
+  end if;
+  if p_fixed_annual_rate is null
+    or p_fixed_annual_rate < 0
+    or p_fixed_annual_rate > 1
+  then
+    raise exception 'INVALID_LOAN_ANNUAL_RATE' using errcode = '22023';
+  end if;
+  if normalized_prefix !~ '^[A-Za-z0-9_-]{1,24}$' then
+    raise exception 'INVALID_LOAN_REFERENCE_PREFIX' using errcode = '22023';
+  end if;
+  if p_is_active is null then
+    raise exception 'INVALID_LOAN_PRODUCT_STATUS' using errcode = '22023';
+  end if;
+
+  select *
+  into previous_settings
+  from public.loan_product_settings
+  where currency = normalized_currency
+  for update;
+
+  if previous_settings.currency is null then
+    raise exception 'LOAN_PRODUCT_NOT_FOUND' using errcode = 'P0002';
+  end if;
+
+  update public.loan_product_settings
+  set
+    minimum_amount_minor = p_minimum_amount_minor,
+    maximum_amount_minor = p_maximum_amount_minor,
+    minimum_duration_months = p_minimum_duration_months,
+    maximum_duration_months = p_maximum_duration_months,
+    duration_step_months = p_duration_step_months,
+    fixed_annual_rate = p_fixed_annual_rate,
+    reference_prefix = normalized_prefix,
+    is_active = p_is_active,
+    updated_by = caller_id
+  where currency = normalized_currency
+  returning * into updated_settings;
+
+  insert into public.audit_events (
+    actor_id,
+    action,
+    entity_type,
+    entity_id,
+    metadata
+  ) values (
+    caller_id,
+    'branch_manager_update_loan_product_settings',
+    'loan_product_settings',
+    null,
+    jsonb_build_object(
+      'currency', normalized_currency,
+      'before', to_jsonb(previous_settings),
+      'after', to_jsonb(updated_settings)
+    )
+  );
+
+  return updated_settings;
+end;
+$_$;
+
+
+ALTER FUNCTION "public"."update_loan_product_settings"("p_currency" "text", "p_minimum_amount_minor" bigint, "p_maximum_amount_minor" bigint, "p_minimum_duration_months" integer, "p_maximum_duration_months" integer, "p_duration_step_months" integer, "p_fixed_annual_rate" numeric, "p_reference_prefix" "text", "p_is_active" boolean) OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "private"."account_number_configuration" (
     "singleton" boolean DEFAULT true NOT NULL,
     "prefix" "text" NOT NULL,
@@ -5670,8 +6295,12 @@ CREATE TABLE IF NOT EXISTS "public"."notifications" (
     "read_at" timestamp with time zone,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "action_path" "text",
+    "message_key" "text" NOT NULL,
+    "message_params" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
     CONSTRAINT "notifications_action_path_check" CHECK ((("action_path" IS NULL) OR ((("char_length"("action_path") >= 1) AND ("char_length"("action_path") <= 500)) AND ("action_path" ~~ '/%'::"text") AND ("action_path" !~~ '//%'::"text")))),
     CONSTRAINT "notifications_message_check" CHECK ((("char_length"("message") >= 1) AND ("char_length"("message") <= 1000))),
+    CONSTRAINT "notifications_message_key_check" CHECK (("message_key" = ANY (ARRAY['generic_info'::"text", 'transfer_submitted'::"text", 'transfer_approved'::"text", 'transfer_completed'::"text", 'transfer_rejected'::"text", 'transfer_failed'::"text", 'loan_submitted'::"text", 'loan_approved'::"text", 'loan_disbursed'::"text", 'loan_rejected'::"text", 'loan_failed'::"text", 'kyc_submitted'::"text", 'kyc_information_requested'::"text", 'kyc_resubmitted'::"text", 'kyc_approved'::"text", 'kyc_rejected'::"text", 'document_available'::"text"]))),
+    CONSTRAINT "notifications_message_params_check" CHECK (("jsonb_typeof"("message_params") = 'object'::"text")),
     CONSTRAINT "notifications_notification_type_check" CHECK (("notification_type" = ANY (ARRAY['info'::"text", 'success'::"text", 'alert'::"text", 'transfer'::"text", 'loan'::"text", 'kyc'::"text"]))),
     CONSTRAINT "notifications_title_check" CHECK ((("char_length"("title") >= 1) AND ("char_length"("title") <= 160)))
 );
@@ -5762,6 +6391,11 @@ ALTER TABLE ONLY "public"."audit_events"
 
 
 
+ALTER TABLE ONLY "public"."brand_settings"
+    ADD CONSTRAINT "brand_settings_pkey" PRIMARY KEY ("singleton");
+
+
+
 ALTER TABLE ONLY "public"."external_loan_fundings"
     ADD CONSTRAINT "external_loan_fundings_pkey" PRIMARY KEY ("loan_id");
 
@@ -5842,6 +6476,11 @@ ALTER TABLE ONLY "public"."loan_events"
 
 
 
+ALTER TABLE ONLY "public"."loan_product_settings"
+    ADD CONSTRAINT "loan_product_settings_pkey" PRIMARY KEY ("currency");
+
+
+
 ALTER TABLE ONLY "public"."loan_review_checks"
     ADD CONSTRAINT "loan_review_checks_loan_id_check_kind_key" UNIQUE ("loan_id", "check_kind");
 
@@ -5869,6 +6508,11 @@ ALTER TABLE ONLY "public"."official_documents"
 
 ALTER TABLE ONLY "public"."official_documents"
     ADD CONSTRAINT "official_documents_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."official_documents"
+    ADD CONSTRAINT "official_documents_supersedes_document_id_key" UNIQUE ("supersedes_document_id");
 
 
 
@@ -6142,6 +6786,10 @@ CREATE INDEX "transfer_review_checks_transfer_idx" ON "public"."transfer_review_
 
 
 
+CREATE OR REPLACE TRIGGER "brand_settings_set_updated_at" BEFORE UPDATE ON "public"."brand_settings" FOR EACH ROW EXECUTE FUNCTION "private"."set_updated_at"();
+
+
+
 CREATE OR REPLACE TRIGGER "financial_ledger_entries_prevent_delete" BEFORE DELETE ON "public"."financial_ledger_entries" FOR EACH ROW EXECUTE FUNCTION "private"."prevent_financial_ledger_mutation"();
 
 
@@ -6190,11 +6838,23 @@ CREATE OR REPLACE TRIGGER "loan_enqueue_transactional_email" AFTER INSERT OR UPD
 
 
 
+CREATE OR REPLACE TRIGGER "loan_product_settings_set_updated_at" BEFORE UPDATE ON "public"."loan_product_settings" FOR EACH ROW EXECUTE FUNCTION "private"."set_updated_at"();
+
+
+
 CREATE OR REPLACE TRIGGER "loan_review_checks_set_updated_at" BEFORE UPDATE ON "public"."loan_review_checks" FOR EACH ROW EXECUTE FUNCTION "private"."set_updated_at"();
 
 
 
 CREATE OR REPLACE TRIGGER "loan_validate_disbursement_target" BEFORE INSERT OR UPDATE OF "status", "credited_position_id", "disbursed_by", "disbursed_at" ON "public"."loan_applications" FOR EACH ROW EXECUTE FUNCTION "private"."validate_loan_disbursement_target"();
+
+
+
+CREATE OR REPLACE TRIGGER "notifications_normalize_localization" BEFORE INSERT OR UPDATE OF "title", "message", "notification_type", "message_key", "message_params" ON "public"."notifications" FOR EACH ROW EXECUTE FUNCTION "private"."normalize_notification_localization"();
+
+
+
+CREATE OR REPLACE TRIGGER "official_documents_brand_snapshot" BEFORE INSERT ON "public"."official_documents" FOR EACH ROW EXECUTE FUNCTION "private"."snapshot_official_document_brand"();
 
 
 
@@ -6250,6 +6910,11 @@ ALTER TABLE ONLY "private"."account_number_configuration"
 
 ALTER TABLE ONLY "public"."audit_events"
     ADD CONSTRAINT "audit_events_actor_id_fkey" FOREIGN KEY ("actor_id") REFERENCES "auth"."users"("id");
+
+
+
+ALTER TABLE ONLY "public"."brand_settings"
+    ADD CONSTRAINT "brand_settings_updated_by_fkey" FOREIGN KEY ("updated_by") REFERENCES "public"."staff_members"("user_id") ON DELETE SET NULL;
 
 
 
@@ -6383,6 +7048,11 @@ ALTER TABLE ONLY "public"."loan_events"
 
 
 
+ALTER TABLE ONLY "public"."loan_product_settings"
+    ADD CONSTRAINT "loan_product_settings_updated_by_fkey" FOREIGN KEY ("updated_by") REFERENCES "public"."staff_members"("user_id") ON DELETE SET NULL;
+
+
+
 ALTER TABLE ONLY "public"."loan_review_checks"
     ADD CONSTRAINT "loan_review_checks_loan_id_fkey" FOREIGN KEY ("loan_id") REFERENCES "public"."loan_applications"("id") ON DELETE CASCADE;
 
@@ -6420,6 +7090,11 @@ ALTER TABLE ONLY "public"."official_documents"
 
 ALTER TABLE ONLY "public"."official_documents"
     ADD CONSTRAINT "official_documents_revoked_by_fkey" FOREIGN KEY ("revoked_by") REFERENCES "public"."staff_members"("user_id") ON DELETE RESTRICT;
+
+
+
+ALTER TABLE ONLY "public"."official_documents"
+    ADD CONSTRAINT "official_documents_supersedes_document_id_fkey" FOREIGN KEY ("supersedes_document_id") REFERENCES "public"."official_documents"("id") ON DELETE RESTRICT;
 
 
 
@@ -6487,6 +7162,13 @@ ALTER TABLE "public"."audit_events" ENABLE ROW LEVEL SECURITY;
 
 
 CREATE POLICY "audit_events_staff_select" ON "public"."audit_events" FOR SELECT TO "authenticated" USING (( SELECT "private"."is_active_staff"(ARRAY['supervisor'::"text", 'admin'::"text"]) AS "is_active_staff"));
+
+
+
+ALTER TABLE "public"."brand_settings" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "brand_settings_public_select" ON "public"."brand_settings" FOR SELECT TO "authenticated", "anon" USING (true);
 
 
 
@@ -6565,6 +7247,13 @@ ALTER TABLE "public"."loan_events" ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "loan_events_select_related" ON "public"."loan_events" FOR SELECT TO "authenticated" USING ((EXISTS ( SELECT 1
    FROM "public"."loan_applications" "l"
   WHERE (("l"."id" = "loan_events"."loan_id") AND (("l"."owner_id" = ( SELECT "auth"."uid"() AS "uid")) OR ( SELECT "private"."is_active_staff"(NULL::"text"[]) AS "is_active_staff"))))));
+
+
+
+ALTER TABLE "public"."loan_product_settings" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "loan_product_settings_authenticated_select" ON "public"."loan_product_settings" FOR SELECT TO "authenticated" USING (true);
 
 
 
@@ -6685,6 +7374,10 @@ REVOKE ALL ON FUNCTION "private"."normalize_iban"("p_iban" "text") FROM PUBLIC;
 
 
 
+REVOKE ALL ON FUNCTION "private"."normalize_notification_localization"() FROM PUBLIC;
+
+
+
 REVOKE ALL ON FUNCTION "private"."prepare_demo_financial_position"() FROM PUBLIC;
 
 
@@ -6694,6 +7387,9 @@ REVOKE ALL ON FUNCTION "private"."prevent_financial_ledger_mutation"() FROM PUBL
 
 
 REVOKE ALL ON FUNCTION "private"."protect_official_document"() FROM PUBLIC;
+
+
+REVOKE ALL ON FUNCTION "private"."snapshot_official_document_brand"() FROM PUBLIC;
 
 
 
@@ -6829,6 +7525,11 @@ GRANT ALL ON FUNCTION "public"."complete_transactional_email"("p_email_id" "uuid
 
 
 
+REVOKE ALL ON FUNCTION "public"."create_official_document_localized_reissue"("p_source_document_id" "uuid", "p_idempotency_key" "uuid") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."create_official_document_localized_reissue"("p_source_document_id" "uuid", "p_idempotency_key" "uuid") TO "service_role";
+
+
+
 REVOKE ALL ON FUNCTION "public"."current_app_role"() FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."current_app_role"() TO "authenticated";
 
@@ -6836,6 +7537,11 @@ GRANT ALL ON FUNCTION "public"."current_app_role"() TO "authenticated";
 
 REVOKE ALL ON FUNCTION "public"."decide_kyc_application"("p_kyc_id" "uuid", "p_decision" "text", "p_reason_code" "text", "p_note" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."decide_kyc_application"("p_kyc_id" "uuid", "p_decision" "text", "p_reason_code" "text", "p_note" "text") TO "authenticated";
+
+
+
+REVOKE ALL ON FUNCTION "public"."finalize_official_document_localized_reissue"("p_replacement_document_id" "uuid") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."finalize_official_document_localized_reissue"("p_replacement_document_id" "uuid") TO "service_role";
 
 
 
@@ -6851,6 +7557,18 @@ GRANT ALL ON FUNCTION "public"."mark_notification_read"("p_notification_id" "uui
 
 REVOKE ALL ON FUNCTION "public"."provision_demo_accounts"("p_admin_user_id" "uuid", "p_client_user_id" "uuid", "p_environment" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."provision_demo_accounts"("p_admin_user_id" "uuid", "p_client_user_id" "uuid", "p_environment" "text") TO "service_role";
+
+
+
+GRANT SELECT ON TABLE "public"."brand_settings" TO "anon";
+GRANT SELECT ON TABLE "public"."brand_settings" TO "authenticated";
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."brand_settings" TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."publish_brand_settings"("p_expected_revision" bigint, "p_bank_name" "text", "p_primary_logo_path" "text", "p_primary_logo_width" integer, "p_primary_logo_height" integer, "p_reversed_logo_path" "text", "p_reversed_logo_width" integer, "p_reversed_logo_height" integer, "p_email_logo_path" "text", "p_pdf_logo_path" "text", "p_favicon_ico_path" "text", "p_favicon_16_path" "text", "p_favicon_32_path" "text", "p_favicon_48_path" "text", "p_apple_touch_icon_path" "text", "p_app_icon_192_path" "text", "p_app_icon_512_path" "text", "p_maskable_icon_path" "text", "p_social_card_path" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."publish_brand_settings"("p_expected_revision" bigint, "p_bank_name" "text", "p_primary_logo_path" "text", "p_primary_logo_width" integer, "p_primary_logo_height" integer, "p_reversed_logo_path" "text", "p_reversed_logo_width" integer, "p_reversed_logo_height" integer, "p_email_logo_path" "text", "p_pdf_logo_path" "text", "p_favicon_ico_path" "text", "p_favicon_16_path" "text", "p_favicon_32_path" "text", "p_favicon_48_path" "text", "p_apple_touch_icon_path" "text", "p_app_icon_192_path" "text", "p_app_icon_512_path" "text", "p_maskable_icon_path" "text", "p_social_card_path" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."publish_brand_settings"("p_expected_revision" bigint, "p_bank_name" "text", "p_primary_logo_path" "text", "p_primary_logo_width" integer, "p_primary_logo_height" integer, "p_reversed_logo_path" "text", "p_reversed_logo_width" integer, "p_reversed_logo_height" integer, "p_email_logo_path" "text", "p_pdf_logo_path" "text", "p_favicon_ico_path" "text", "p_favicon_16_path" "text", "p_favicon_32_path" "text", "p_favicon_48_path" "text", "p_apple_touch_icon_path" "text", "p_app_icon_192_path" "text", "p_app_icon_512_path" "text", "p_maskable_icon_path" "text", "p_social_card_path" "text") TO "service_role";
 
 
 
@@ -6926,8 +7644,9 @@ GRANT ALL ON FUNCTION "public"."submit_kyc_application"("p_first_name" "text", "
 
 
 
-REVOKE ALL ON FUNCTION "public"."submit_loan_application"("p_requested_amount_minor" bigint, "p_currency" "text", "p_duration_months" integer, "p_indicative_monthly_payment_minor" bigint, "p_indicative_annual_rate" numeric, "p_motive" "text", "p_document_object_paths" "jsonb", "p_idempotency_key" "uuid") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."submit_loan_application"("p_requested_amount_minor" bigint, "p_currency" "text", "p_duration_months" integer, "p_indicative_monthly_payment_minor" bigint, "p_indicative_annual_rate" numeric, "p_motive" "text", "p_document_object_paths" "jsonb", "p_idempotency_key" "uuid") TO "authenticated";
+REVOKE ALL ON FUNCTION "public"."submit_loan_application"("p_requested_amount_minor" bigint, "p_currency" "text", "p_duration_months" integer, "p_motive_code" "text", "p_document_object_paths" "jsonb", "p_idempotency_key" "uuid") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."submit_loan_application"("p_requested_amount_minor" bigint, "p_currency" "text", "p_duration_months" integer, "p_motive_code" "text", "p_document_object_paths" "jsonb", "p_idempotency_key" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."submit_loan_application"("p_requested_amount_minor" bigint, "p_currency" "text", "p_duration_months" integer, "p_motive_code" "text", "p_document_object_paths" "jsonb", "p_idempotency_key" "uuid") TO "service_role";
 
 
 
@@ -6951,6 +7670,16 @@ GRANT SELECT ON TABLE "public"."kyc_review_checklists" TO "authenticated";
 
 REVOKE ALL ON FUNCTION "public"."update_kyc_review_checklist"("p_kyc_id" "uuid", "p_document_quality" "text", "p_data_consistency" "text", "p_selfie_match" "text", "p_adulthood" "text", "p_fatca" "text", "p_pep" "text", "p_internal_comments" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."update_kyc_review_checklist"("p_kyc_id" "uuid", "p_document_quality" "text", "p_data_consistency" "text", "p_selfie_match" "text", "p_adulthood" "text", "p_fatca" "text", "p_pep" "text", "p_internal_comments" "text") TO "authenticated";
+
+
+
+GRANT SELECT ON TABLE "public"."loan_product_settings" TO "authenticated";
+
+
+
+REVOKE ALL ON FUNCTION "public"."update_loan_product_settings"("p_currency" "text", "p_minimum_amount_minor" bigint, "p_maximum_amount_minor" bigint, "p_minimum_duration_months" integer, "p_maximum_duration_months" integer, "p_duration_step_months" integer, "p_fixed_annual_rate" numeric, "p_reference_prefix" "text", "p_is_active" boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."update_loan_product_settings"("p_currency" "text", "p_minimum_amount_minor" bigint, "p_maximum_amount_minor" bigint, "p_minimum_duration_months" integer, "p_maximum_duration_months" integer, "p_duration_step_months" integer, "p_fixed_annual_rate" numeric, "p_reference_prefix" "text", "p_is_active" boolean) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."update_loan_product_settings"("p_currency" "text", "p_minimum_amount_minor" bigint, "p_maximum_amount_minor" bigint, "p_minimum_duration_months" integer, "p_maximum_duration_months" integer, "p_duration_step_months" integer, "p_fixed_annual_rate" numeric, "p_reference_prefix" "text", "p_is_active" boolean) TO "service_role";
 
 
 

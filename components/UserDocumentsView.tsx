@@ -9,6 +9,9 @@ import {
   FileText,
   ShieldCheck,
 } from 'lucide-react';
+import { formatLocalizedDateTime } from '@/lib/language';
+import { officialDocumentTitle } from '@/lib/user-i18n';
+import { useBranded } from '@/components/brand/BrandProvider';
 
 const messages: Record<
   Language,
@@ -30,7 +33,7 @@ const messages: Record<
     eyebrow: 'Documents bancaires',
     title: 'Relevés, coordonnées et attestations',
     subtitle:
-      'Téléchargez les documents officiels émis par Monalyz depuis les données validées par le personnel de la banque.',
+      'Téléchargez les documents officiels émis par {bankName} depuis les données validées par le personnel de la banque.',
     available: 'Documents disponibles',
     empty: 'Aucun document officiel n’a encore été émis.',
     download: 'Télécharger le PDF',
@@ -52,7 +55,7 @@ const messages: Record<
     eyebrow: 'Bank documents',
     title: 'Statements, bank details and certificates',
     subtitle:
-      'Download official Monalyz documents issued from data validated by bank staff.',
+      'Download official {bankName} documents issued from data validated by bank staff.',
     available: 'Available documents',
     empty: 'No official document has been issued yet.',
     download: 'Download PDF',
@@ -74,7 +77,7 @@ const messages: Record<
     eyebrow: 'Bankdokumente',
     title: 'Auszüge, Bankverbindung und Bescheinigungen',
     subtitle:
-      'Laden Sie offizielle Monalyz-Dokumente aus den vom Bankpersonal bestätigten Daten herunter.',
+      'Laden Sie offizielle {bankName}-Dokumente aus den vom Bankpersonal bestätigten Daten herunter.',
     available: 'Verfügbare Dokumente',
     empty: 'Es wurde noch kein offizielles Dokument ausgestellt.',
     download: 'PDF herunterladen',
@@ -96,7 +99,7 @@ const messages: Record<
     eyebrow: 'Documentos bancarios',
     title: 'Extractos, datos bancarios y certificados',
     subtitle:
-      'Descargue documentos oficiales de Monalyz emitidos a partir de datos validados por el personal del banco.',
+      'Descargue documentos oficiales de {bankName} emitidos a partir de datos validados por el personal del banco.',
     available: 'Documentos disponibles',
     empty: 'Todavía no se ha emitido ningún documento oficial.',
     download: 'Descargar PDF',
@@ -118,7 +121,7 @@ const messages: Record<
 
 export default function UserDocumentsView() {
   const { language, officialDocuments } = useAppStore();
-  const t = messages[language];
+  const t = useBranded(messages[language]);
 
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-6">
@@ -147,7 +150,7 @@ export default function UserDocumentsView() {
                 </div>
                 <div className="min-w-0">
                   <p className="font-extrabold text-sm text-slate-900 truncate">
-                    {document.title}
+                    {officialDocumentTitle(language, document.documentType)}
                   </p>
                   <p className="text-[11px] text-slate-500 mt-1">
                     {t.types[document.documentType]} · {document.documentNumber} · v
@@ -155,7 +158,7 @@ export default function UserDocumentsView() {
                   </p>
                   <p className="text-[10px] text-slate-400 mt-1">
                     {document.issuedAt
-                      ? new Date(document.issuedAt).toLocaleString(language)
+                      ? formatLocalizedDateTime(document.issuedAt, language)
                       : t.pending}
                     {document.isDemo ? ` · ${t.demo}` : ''}
                   </p>

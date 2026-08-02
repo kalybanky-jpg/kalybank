@@ -18,7 +18,9 @@ import type {
   KYCApplication,
   KYCReviewChecklist,
   Language,
+  LedgerEntryKind,
   LoanApplication,
+  LoanProductSettings,
   OfficialDocument,
   OfficialDocumentType,
   PendingTransfer,
@@ -26,6 +28,7 @@ import type {
   Transaction,
   UserRole,
 } from './types';
+import { normalizeLoanMotiveCode } from './user-i18n';
 import { DEFAULT_RATES, fetchLiveCurrencyRates } from './currency';
 import {
   currencyExponent,
@@ -55,6 +58,7 @@ interface AppState {
   language: Language;
   setLanguage: (language: Language) => Promise<void>;
   role: UserRole;
+  currentUserDisplayName: string | null;
   activeTab: string;
   setActiveTab: (tab: string) => void;
   currency: Currency;
@@ -68,6 +72,8 @@ interface AppState {
   refreshData: () => Promise<void>;
   accountNumberConfiguration: AccountNumberConfiguration | null;
   updateAccountNumberPrefix: (prefix: string) => Promise<void>;
+  loanProductSettings: LoanProductSettings[];
+  updateLoanProductSettings: (settings: LoanProductSettings) => Promise<void>;
 
   accounts: BankAccount[];
   transactions: Transaction[];
@@ -172,7 +178,6 @@ interface AppState {
     transferId?: string;
     loanId?: string;
     documentType: OfficialDocumentType;
-    title: string;
     periodStart?: string;
     periodEnd?: string;
   }) => Promise<void>;
@@ -210,7 +215,7 @@ interface LedgerEntryRow {
   id: string;
   owner_id: string;
   account_id: string;
-  entry_kind: string;
+  entry_kind: LedgerEntryKind;
   amount_minor: number;
   balance_after_minor: number;
   currency: Currency;
@@ -218,6 +223,7 @@ interface LedgerEntryRow {
   internal_reference: string;
   value_date: string;
   booked_at: string;
+  metadata: Record<string, unknown> | null;
 }
 
 interface OfficialDocumentRow {
@@ -239,6 +245,8 @@ interface OfficialDocumentRow {
   issued_at: string | null;
   revoked_at: string | null;
   is_demo: boolean;
+  localization_revision: number;
+  supersedes_document_id: string | null;
 }
 
 interface TransferRow {
@@ -266,12 +274,27 @@ interface LoanRow {
   duration_months: number;
   indicative_monthly_payment_minor: number | null;
   motive: string;
+  motive_code: string | null;
   submitted_at: string;
   status: NonNullable<LoanApplication['workflowStatus']>;
   loan_review_checks?: ReviewRow[];
   owner_id: string;
   credited_position_id: string | null;
   disbursed_at: string | null;
+}
+
+interface LoanProductSettingsRow {
+  currency: Currency;
+  minimum_amount_minor: number;
+  maximum_amount_minor: number;
+  minimum_duration_months: number;
+  maximum_duration_months: number;
+  duration_step_months: number;
+  fixed_annual_rate: number;
+  reference_prefix: string;
+  is_active: boolean;
+  updated_at: string;
+  updated_by: string | null;
 }
 
 interface KycRow {
@@ -309,7 +332,7 @@ interface KycRow {
   }[] | null;
 }
 
-function friendlyDate(value: string) {
+function friendlyAdminDate(value: string) {
   return new Intl.DateTimeFormat('fr-FR', {
     dateStyle: 'medium',
     timeStyle: 'short',
@@ -412,6 +435,7 @@ export function AppProvider({
   const [language, setLanguageState] = useState<Language>(initialLanguage);
   const languageSourceRef = useRef<LanguageSource>(initialLanguageSource);
   const [role, setRole] = useState<UserRole>('user');
+  const [currentUserDisplayName, setCurrentUserDisplayName] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState(() => {
     if (typeof window === 'undefined') return 'dashboard';
     return new URLSearchParams(window.location.search).get('tab') ?? 'dashboard';
@@ -423,6 +447,7 @@ export function AppProvider({
   const [lastError, setLastError] = useState<string | null>(null);
   const [accountNumberConfiguration, setAccountNumberConfiguration] =
     useState<AccountNumberConfiguration | null>(null);
+  const [loanProductSettings, setLoanProductSettings] = useState<LoanProductSettings[]>([]);
 
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -521,6 +546,8 @@ export function AppProvider({
     setActivityLogs([]);
     setKycApplications([]);
     setAccountNumberConfiguration(null);
+    setLoanProductSettings([]);
+    setCurrentUserDisplayName(null);
     setRole('user');
   }, []);
 
@@ -562,6 +589,7 @@ export function AppProvider({
         positionsResult,
         transfersResult,
         loansResult,
+        loanSettingsResult,
         ledgerResult,
         officialDocumentsResult,
         notificationResult,
@@ -579,6 +607,7 @@ export function AppProvider({
           .from('loan_applications')
           .select('*,loan_review_checks(check_kind,status)')
           .order('submitted_at', { ascending: false }),
+        supabase.from('loan_product_settings').select('*').order('currency'),
         supabase
           .from('financial_ledger_entries')
           .select('*')
@@ -601,6 +630,7 @@ export function AppProvider({
         positionsResult,
         transfersResult,
         loansResult,
+        loanSettingsResult,
         ledgerResult,
         officialDocumentsResult,
         notificationResult,
@@ -608,6 +638,22 @@ export function AppProvider({
         auditResult,
       ].find((result) => result.error)?.error;
       if (firstError) throw firstError;
+
+      setLoanProductSettings(
+        ((loanSettingsResult.data ?? []) as LoanProductSettingsRow[]).map((settings) => ({
+          currency: settings.currency,
+          minimumAmount: fromMinorUnits(settings.minimum_amount_minor, settings.currency),
+          maximumAmount: fromMinorUnits(settings.maximum_amount_minor, settings.currency),
+          minimumDurationMonths: settings.minimum_duration_months,
+          maximumDurationMonths: settings.maximum_duration_months,
+          durationStepMonths: settings.duration_step_months,
+          fixedAnnualRate: Number(settings.fixed_annual_rate),
+          referencePrefix: settings.reference_prefix,
+          isActive: settings.is_active,
+          updatedAt: settings.updated_at,
+          updatedBy: settings.updated_by ?? undefined,
+        })),
+      );
 
       const isAdmin = roleResult.data === 'admin';
       setRole(isAdmin ? 'admin' : 'user');
@@ -635,7 +681,12 @@ export function AppProvider({
       const ownProfile = (profileResult.data ?? []).find(
         (profile) => profile.user_id === user.id,
       );
-      if (isSupportedLanguage(ownProfile?.preferred_language)) {
+      setCurrentUserDisplayName(
+        ownProfile?.display_name?.trim() || ownProfile?.email?.split('@')[0] || null,
+      );
+      if (isAdmin) {
+        applyLanguage('fr', 'profile', false);
+      } else if (isSupportedLanguage(ownProfile?.preferred_language)) {
         applyLanguage(ownProfile.preferred_language, 'profile', false);
       }
 
@@ -649,9 +700,7 @@ export function AppProvider({
         ]),
       );
 
-      const positionRows = ((positionsResult.data ?? []) as PositionRow[]).filter(
-        (position) => position.account_type === 'current',
-      );
+      const positionRows = (positionsResult.data ?? []) as PositionRow[];
       const currentAccountIds = new Set(positionRows.map((position) => position.id));
       setAccounts(
         positionRows.map((position) => ({
@@ -678,6 +727,7 @@ export function AppProvider({
           ),
           currency: position.currency as Currency,
           type: 'courant',
+          accountType: position.account_type,
           positionKind: position.position_kind,
           asOf: position.as_of,
         })),
@@ -702,7 +752,7 @@ export function AppProvider({
             transfer.target_currency,
           ),
           targetCurrency: transfer.target_currency,
-          date: friendlyDate(transfer.submitted_at),
+          date: transfer.submitted_at,
           status: mapTransferStatus(transfer.status),
           workflowStatus: transfer.status,
           complianceStep: Math.min(4, completed + 1),
@@ -738,7 +788,7 @@ export function AppProvider({
           reference: loan.reference,
           clientName: profileEmails.get(loan.owner_id)?.split('@')[0] ?? 'Utilisateur',
           clientEmail: profileEmails.get(loan.owner_id) ?? '',
-          requestDate: friendlyDate(loan.submitted_at),
+          requestDate: loan.submitted_at,
           requestedAmount: amount,
           approvedAmount:
             loan.status === 'approved_for_external_funding' ||
@@ -752,15 +802,15 @@ export function AppProvider({
           workflowStatus: loan.status,
           currentStep: Math.min(6, completed + 1),
           complianceProgress: loanProgress(loan.status, completed),
-          nextDueDate: 'Non applicable avant contractualisation externe',
-          disbursementAccount:
-            creditedPosition?.label ?? 'Compte courant non encore crédité',
+          nextDueDate: undefined,
+          disbursementAccount: creditedPosition?.account_number ?? undefined,
           creditedPositionId: loan.credited_position_id ?? undefined,
           durationMonths: loan.duration_months,
           monthlyPayment: loan.indicative_monthly_payment_minor
             ? fromMinorUnits(loan.indicative_monthly_payment_minor, loan.currency)
             : 0,
           motive: loan.motive,
+          motiveCode: normalizeLoanMotiveCode(loan.motive_code ?? loan.motive),
           complianceChecks: checks,
         };
       });
@@ -773,7 +823,9 @@ export function AppProvider({
             id: entry.id,
             accountId: entry.account_id,
             title: entry.description,
-            date: friendlyDate(entry.value_date ?? entry.booked_at),
+            entryKind: entry.entry_kind,
+            metadata: entry.metadata ?? {},
+            date: entry.value_date ?? entry.booked_at,
             amount: fromMinorUnits(entry.amount_minor, entry.currency),
             currency: entry.currency,
             balanceAfter: fromMinorUnits(entry.balance_after_minor, entry.currency),
@@ -801,6 +853,8 @@ export function AppProvider({
             periodStart: document.period_start ?? undefined,
             periodEnd: document.period_end ?? undefined,
             version: document.version,
+            localizationRevision: document.localization_revision ?? 1,
+            supersedesDocumentId: document.supersedes_document_id ?? undefined,
             status: document.status,
             contentHash: document.content_hash ?? undefined,
             storagePath: document.storage_path ?? undefined,
@@ -816,7 +870,13 @@ export function AppProvider({
           id: notification.id,
           title: notification.title,
           message: notification.message,
-          timestamp: friendlyDate(notification.created_at),
+          timestamp: notification.created_at,
+          createdAt: notification.created_at,
+          messageKey: notification.message_key ?? 'generic_info',
+          messageParams:
+            notification.message_params && typeof notification.message_params === 'object'
+              ? notification.message_params
+              : {},
           read: Boolean(notification.read_at),
           type:
             notification.notification_type === 'kyc'
@@ -867,11 +927,11 @@ export function AppProvider({
             documentExpiresOn: kyc.document_expires_on ?? undefined,
             status: mapKycStatus(kyc.status),
             workflowStatus: kyc.status,
-            submittedAt: friendlyDate(kyc.submitted_at),
+            submittedAt: kyc.submitted_at,
             rejectionReason: kyc.review_note ?? undefined,
             correctionReasonCode: kyc.correction_reason_code ?? undefined,
             correctionDueAt: kyc.correction_due_at
-              ? friendlyDate(kyc.correction_due_at)
+              ? kyc.correction_due_at
               : undefined,
             requestedItems: kyc.requested_items ?? [],
             checklist: kyc.kyc_review_checklists?.[0]
@@ -894,16 +954,15 @@ export function AppProvider({
       setActivityLogs(
         (auditResult.data ?? []).map((event) => ({
           id: String(event.id),
-          timestamp: friendlyDate(event.created_at),
+          timestamp: friendlyAdminDate(event.created_at),
           description: `${event.action} — ${event.entity_type}`,
           type: event.action.includes('failed') || event.action.includes('reject')
             ? 'alert'
             : 'info',
         })),
       );
-    } catch (caughtError) {
-      const message =
-        caughtError instanceof Error ? caughtError.message : 'Chargement des données impossible.';
+    } catch {
+      const message = 'Chargement des données impossible. Veuillez réessayer.';
       setLastError(message);
       clearBusinessData();
     } finally {
@@ -978,8 +1037,9 @@ export function AppProvider({
       setLastError(null);
       const { error } = await operation();
       if (error) {
-        setLastError(error.message);
-        throw new Error(error.message);
+        const message = 'L’opération n’a pas pu être effectuée. Vérifiez les informations puis réessayez.';
+        setLastError(message);
+        throw new Error(message);
       }
       await refreshData();
       void dispatchTransactionalEmails();
@@ -1034,12 +1094,7 @@ export function AppProvider({
         p_requested_amount_minor: toMinorUnits(loan.requestedAmount, loan.currency),
         p_currency: loan.currency,
         p_duration_months: loan.durationMonths,
-        p_indicative_monthly_payment_minor: toMinorUnits(
-          loan.monthlyPayment,
-          loan.currency,
-        ),
-        p_indicative_annual_rate: 0.035,
-        p_motive: loan.motive,
+        p_motive_code: loan.motiveCode,
         p_document_object_paths: [],
         p_idempotency_key: idempotencyKey,
       });
@@ -1055,9 +1110,8 @@ export function AppProvider({
       await refreshData();
       void dispatchTransactionalEmails();
       return reference;
-    } catch (caughtError) {
-      const message =
-        caughtError instanceof Error ? caughtError.message : 'Dépôt de la demande impossible.';
+    } catch {
+      const message = 'La demande n’a pas pu être déposée.';
       setLastError(message);
       throw new Error(message);
     }
@@ -1308,6 +1362,65 @@ export function AppProvider({
     });
   };
 
+  const updateLoanProductSettings: AppState['updateLoanProductSettings'] = async (
+    settings,
+  ) => {
+    if (
+      !Number.isFinite(settings.minimumAmount) ||
+      !Number.isFinite(settings.maximumAmount) ||
+      settings.minimumAmount <= 0 ||
+      settings.minimumAmount >= settings.maximumAmount
+    ) {
+      throw new Error('Les montants minimum et maximum sont invalides.');
+    }
+    if (
+      !Number.isInteger(settings.minimumDurationMonths) ||
+      !Number.isInteger(settings.maximumDurationMonths) ||
+      !Number.isInteger(settings.durationStepMonths) ||
+      settings.minimumDurationMonths <= 0 ||
+      settings.maximumDurationMonths < settings.minimumDurationMonths ||
+      settings.durationStepMonths <= 0 ||
+      (settings.maximumDurationMonths - settings.minimumDurationMonths) %
+        settings.durationStepMonths !==
+        0
+    ) {
+      throw new Error('Les durées et leur pas sont invalides.');
+    }
+    if (
+      !Number.isFinite(settings.fixedAnnualRate) ||
+      settings.fixedAnnualRate < 0 ||
+      settings.fixedAnnualRate > 1
+    ) {
+      throw new Error('Le TAEG doit être compris entre 0 % et 100 %.');
+    }
+
+    const normalizedPrefix = settings.referencePrefix.trim();
+    if (!/^[A-Za-z0-9_-]{1,24}$/.test(normalizedPrefix)) {
+      throw new Error(
+        'Le préfixe doit contenir 1 à 24 lettres, chiffres, tirets ou tirets bas.',
+      );
+    }
+
+    setLastError(null);
+    const { error } = await createClient().rpc('update_loan_product_settings', {
+      p_currency: settings.currency,
+      p_minimum_amount_minor: toMinorUnits(settings.minimumAmount, settings.currency),
+      p_maximum_amount_minor: toMinorUnits(settings.maximumAmount, settings.currency),
+      p_minimum_duration_months: settings.minimumDurationMonths,
+      p_maximum_duration_months: settings.maximumDurationMonths,
+      p_duration_step_months: settings.durationStepMonths,
+      p_fixed_annual_rate: settings.fixedAnnualRate,
+      p_reference_prefix: normalizedPrefix,
+      p_is_active: settings.isActive,
+    });
+    if (error) {
+      const message = 'La configuration du prêt n’a pas pu être enregistrée.';
+      setLastError(message);
+      throw new Error(message);
+    }
+    await refreshData();
+  };
+
   const issueOfficialDocument: AppState['issueOfficialDocument'] = async (
     document,
   ) => {
@@ -1327,6 +1440,7 @@ export function AppProvider({
     language,
     setLanguage,
     role,
+    currentUserDisplayName,
     activeTab,
     setActiveTab,
     currency,
@@ -1340,6 +1454,8 @@ export function AppProvider({
     refreshData,
     accountNumberConfiguration,
     updateAccountNumberPrefix,
+    loanProductSettings,
+    updateLoanProductSettings,
     accounts,
     transactions,
     officialDocuments,

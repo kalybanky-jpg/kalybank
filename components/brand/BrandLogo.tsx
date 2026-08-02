@@ -1,4 +1,6 @@
-import Image from 'next/image';
+'use client';
+
+import { useBrand } from './BrandProvider';
 
 export type BrandLogoKind = 'wordmark' | 'mark';
 export type BrandLogoTone = 'primary' | 'monochrome-dark' | 'reversed-white';
@@ -23,17 +25,29 @@ export default function BrandLogo({
   priority = false,
   className,
 }: BrandLogoProps) {
-  const { width, height } = dimensions[kind];
-  const assetName = kind === 'wordmark' ? 'wordmark' : 'mark-m';
+  const { brand } = useBrand();
+  const isReversed = tone === 'reversed-white';
+  const dynamicDimensions = isReversed
+    ? { width: brand.reversedLogoWidth, height: brand.reversedLogoHeight }
+    : { width: brand.primaryLogoWidth, height: brand.primaryLogoHeight };
+  const { width, height } = kind === 'mark' ? dimensions.mark : dynamicDimensions;
+  const src = kind === 'mark'
+    ? brand.appIcon512Url
+    : isReversed
+      ? brand.reversedLogoUrl
+      : brand.primaryLogoUrl;
 
   return (
-    <Image
-      src={`/brand/monalyz/monalyz-${assetName}-${tone}.svg`}
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
       width={width}
       height={height}
-      alt={decorative ? '' : 'Monalyz'}
+      alt={decorative ? '' : brand.bankName}
       aria-hidden={decorative || undefined}
-      priority={priority}
+      fetchPriority={priority ? 'high' : undefined}
+      loading={priority ? 'eager' : 'lazy'}
+      decoding="async"
       className={className}
     />
   );

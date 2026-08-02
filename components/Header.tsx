@@ -2,11 +2,13 @@
 
 import React, { useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { Bell, ChevronDown, LogOut, Menu } from 'lucide-react';
+import { Bell, ChevronDown, Languages, LogOut, Menu } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { createClient } from '@/lib/supabase/client';
 import { bankingMessages } from '@/lib/banking-i18n';
+import { extraUserMessages, interpolate, localizedAppError } from '@/lib/user-i18n';
 import LanguageSelector from './LanguageSelector';
+import { useBrand, useBranded } from '@/components/brand/BrandProvider';
 
 interface HeaderProps {
   onToggleMobileMenu: () => void;
@@ -16,14 +18,22 @@ export default function Header({ onToggleMobileMenu }: HeaderProps) {
   const {
     language,
     role,
+    currentUserDisplayName,
     notifications,
     setIsNotificationsDrawerOpen,
     lastError,
   } = useAppStore();
-  const t = bankingMessages[language];
+  const effectiveLanguage = role === 'admin' ? 'fr' : language;
+  const { brand } = useBrand();
+  const t = useBranded(bankingMessages[effectiveLanguage]);
+  const userCopy = useBranded(extraUserMessages[effectiveLanguage]);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const unreadCount = notifications.filter((notification) => !notification.read).length;
   const isAdmin = role === 'admin';
+  const displayName = currentUserDisplayName || '';
+  const initials = displayName
+    ? displayName.split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('')
+    : 'CL';
 
   const signOut = async () => {
     await createClient().auth.signOut();
@@ -44,21 +54,27 @@ export default function Header({ onToggleMobileMenu }: HeaderProps) {
           </button>
           <div className="min-w-0">
             <h1 className="truncate text-[23px] font-bold tracking-[-0.035em] text-[#0a154f] sm:text-[28px]">
-              {isAdmin ? 'Tableau de bord administrateur' : 'Bonjour, Thomas 👋'}
+              {isAdmin
+                ? 'Tableau de bord administrateur'
+                : displayName
+                  ? interpolate(userCopy.shell.greeting, { name: displayName })
+                  : userCopy.shell.greetingFallback}
             </h1>
             <p className="mt-0.5 truncate text-[12px] text-[#59649a] sm:text-[13px]">
               {isAdmin
                 ? 'Superviser les prêts, virements et conformité en temps réel.'
-                : 'Bienvenue sur votre espace bancaire en ligne.'}
+                : userCopy.shell.welcome}
             </p>
           </div>
         </div>
 
         <div className="flex shrink-0 items-center gap-2 sm:gap-4">
-          <div className="hidden items-center gap-2 rounded-xl border border-[#e1e5ef] bg-white/80 px-3 py-1.5 shadow-[0_4px_18px_rgba(31,42,94,0.02)] sm:flex">
-            <span aria-hidden="true" className="text-lg">🇫🇷</span>
-            <LanguageSelector compact className="header-language" />
-          </div>
+          {!isAdmin && (
+            <div className="hidden items-center gap-2 rounded-xl border border-[#e1e5ef] bg-white/80 px-3 py-1.5 shadow-[0_4px_18px_rgba(31,42,94,0.02)] sm:flex">
+              <Languages aria-hidden="true" className="h-4 w-4 text-[#4f35f1]" />
+              <LanguageSelector compact className="header-language" />
+            </div>
+          )}
 
           <button
             type="button"
@@ -83,11 +99,11 @@ export default function Header({ onToggleMobileMenu }: HeaderProps) {
               aria-expanded={isProfileOpen}
             >
               <span className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#9f765e] to-[#31251f] text-[11px] font-bold text-white shadow-sm">
-                {isAdmin ? 'AM' : 'TM'}
+                {isAdmin ? 'AM' : initials}
               </span>
               <span className="hidden leading-tight xl:block">
                 <strong className="block text-[12px] text-[#0a154f]">
-                  {isAdmin ? 'Admin Martin' : 'Thomas Martin'}
+                  {isAdmin ? `Administration ${brand.bankName}` : displayName || t.header.userSession}
                 </strong>
                 {isAdmin && (
                   <span className="mt-0.5 block text-[10px] text-[#69729f]">Administrateur</span>
@@ -124,7 +140,7 @@ export default function Header({ onToggleMobileMenu }: HeaderProps) {
 
       {lastError && (
         <p role="alert" className="mt-3 rounded-lg bg-rose-50 px-3 py-1.5 text-[11px] text-rose-700">
-          {lastError}
+          {isAdmin ? lastError : localizedAppError(language, 'UNKNOWN_ERROR')}
         </p>
       )}
     </header>

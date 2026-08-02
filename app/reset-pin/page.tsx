@@ -11,11 +11,12 @@ import { useAppStore } from '@/lib/store';
 import { publicMessages } from '@/lib/public-i18n';
 import PasswordField from '@/components/auth/PasswordField';
 import BrandLogo from '@/components/brand/BrandLogo';
+import { useBranded } from '@/components/brand/BrandProvider';
 
 function ResetPasswordContent() {
   const searchParams = useSearchParams();
   const { language } = useAppStore();
-  const copy = publicMessages[language].resetPassword;
+  const copy = useBranded(publicMessages[language].resetPassword);
   const isUpdateMode = searchParams.get('mode') === 'update';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

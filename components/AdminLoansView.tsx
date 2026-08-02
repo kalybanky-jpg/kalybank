@@ -14,6 +14,7 @@ import {
   X,
   XCircle,
 } from 'lucide-react';
+import { useBrand } from '@/components/brand/BrandProvider';
 
 const STATUS_LABELS: Record<string, string> = {
   submitted: 'À valider par le chef d’agence',
@@ -27,8 +28,8 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export default function AdminLoansView() {
+  const { brand } = useBrand();
   const {
-    language,
     accounts,
     loans,
     approveLoan,
@@ -106,7 +107,7 @@ export default function AdminLoansView() {
         <p className="text-xs sm:text-sm text-slate-300 mt-2 max-w-3xl">
           L&apos;étude, les contrôles et le décaissement réel sont effectués en
           interne par le personnel de la banque. Le chef d&apos;agence valide la
-          demande, puis enregistre le décaissement dans Monalyz pour créditer la
+          demande, puis enregistre le décaissement dans {brand.bankName} pour créditer la
           position courante de l&apos;utilisateur.
         </p>
       </header>
@@ -154,7 +155,7 @@ export default function AdminLoansView() {
                         {formatDirectCurrency(
                           loan.requestedAmount,
                           loan.currency,
-                          language,
+                          'fr',
                         )}
                       </p>
                       <p className="text-[10px] text-slate-500">
@@ -223,7 +224,7 @@ export default function AdminLoansView() {
                   {formatDirectCurrency(
                     selected.requestedAmount,
                     selected.currency,
-                    language,
+                          'fr',
                   )}
                 </p>
               </div>
@@ -242,7 +243,7 @@ export default function AdminLoansView() {
                 <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900">
                   En validant, vous confirmez en qualité de chef d&apos;agence que
                   l&apos;étude et les contrôles requis ont déjà été réalisés hors de
-                  Monalyz par le personnel compétent.
+                  {brand.bankName} par le personnel compétent.
                 </div>
                 <label className="block text-xs font-bold">
                   Note interne ou motif de refus

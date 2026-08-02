@@ -3,9 +3,13 @@
 import React from 'react';
 import { useAppStore } from '@/lib/store';
 import { Headphones, X } from 'lucide-react';
+import { extraUserMessages } from '@/lib/user-i18n';
+import { useBranded } from '@/components/brand/BrandProvider';
 
 export default function ContactModal() {
-  const { isContactModalOpen, setIsContactModalOpen } = useAppStore();
+  const { language, role, isContactModalOpen, setIsContactModalOpen } = useAppStore();
+  const effectiveLanguage = role === 'admin' ? 'fr' : language;
+  const t = useBranded(extraUserMessages[effectiveLanguage]);
   const supportEmail =
     process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? 'support@monalyz.com';
 
@@ -18,17 +22,16 @@ export default function ContactModal() {
           <div className="flex gap-3">
             <Headphones className="w-7 h-7 text-blue-600" />
             <div>
-              <h2 className="font-extrabold text-slate-900">Assistance Monalyz</h2>
-              <p className="text-xs text-slate-500">Support par e-mail</p>
+              <h2 className="font-extrabold text-slate-900">{t.contact.title}</h2>
+              <p className="text-xs text-slate-500">{t.contact.subtitle}</p>
             </div>
           </div>
-          <button type="button" onClick={() => setIsContactModalOpen(false)} aria-label="Fermer">
+          <button type="button" onClick={() => setIsContactModalOpen(false)} aria-label={t.common.close}>
             <X className="w-5 h-5 text-slate-500" />
           </button>
         </header>
         <p className="text-sm text-slate-700">
-          Pour toute demande, écrivez à notre équipe support. Votre logiciel de
-          messagerie s&apos;ouvrira avec l&apos;adresse Monalyz préremplie.
+          {t.contact.description}
         </p>
         <a
           href={`mailto:${supportEmail}`}

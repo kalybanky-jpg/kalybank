@@ -5,6 +5,9 @@ import { useAppStore } from '@/lib/store';
 import { formatDirectCurrency } from '@/lib/currency';
 import { accountNumberLabel, bankingMessages } from '@/lib/banking-i18n';
 import { Clock, FileDown, WalletCards } from 'lucide-react';
+import { formatLocalizedDateTime } from '@/lib/language';
+import { accountTypeLabel, ledgerEntryLabel } from '@/lib/user-i18n';
+import { useBranded } from '@/components/brand/BrandProvider';
 
 export default function UserAccountsView() {
   const {
@@ -14,7 +17,7 @@ export default function UserAccountsView() {
     isMaskedBalance,
     setIsStatementsModalOpen,
   } = useAppStore();
-  const t = bankingMessages[language];
+  const t = useBranded(bankingMessages[language]);
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
@@ -32,7 +35,9 @@ export default function UserAccountsView() {
       <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {accounts.map((account) => (
           <article key={account.id} className="bg-white rounded-3xl border border-slate-200 p-6">
-            <p className="text-sm font-extrabold text-slate-900">{account.name}</p>
+            <p className="text-sm font-extrabold text-slate-900">
+              {accountTypeLabel(language, account.accountType)}
+            </p>
             <p className="text-2xl font-black text-slate-900 mt-2">
               {isMaskedBalance
                 ? '••••••'
@@ -59,7 +64,7 @@ export default function UserAccountsView() {
                 <dt className="text-slate-500">{t.accounts.lastUpdate}</dt>
                 <dd className="font-bold text-slate-800">
                   {account.asOf
-                    ? new Date(account.asOf).toLocaleString(language)
+                    ? formatLocalizedDateTime(account.asOf, language)
                     : t.common.unavailable}
                 </dd>
               </div>
@@ -101,8 +106,12 @@ export default function UserAccountsView() {
           {transactions.map((transaction) => (
             <div key={transaction.id} className="p-3 bg-slate-50 rounded-xl flex justify-between gap-4">
               <div>
-                <p className="text-xs font-bold text-slate-900">{transaction.title}</p>
-                <p className="text-[10px] text-slate-500">{transaction.date}</p>
+                <p className="text-xs font-bold text-slate-900">
+                  {ledgerEntryLabel(language, transaction.entryKind, transaction.metadata)}
+                </p>
+                <p className="text-[10px] text-slate-500">
+                  {formatLocalizedDateTime(transaction.date, language)}
+                </p>
               </div>
               <Clock className="w-4 h-4 text-emerald-600" />
             </div>

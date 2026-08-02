@@ -38,8 +38,6 @@ export interface SupabaseAuthEmailConfig {
 
 const PLACEHOLDER_PATTERN =
   /(?:replace[-_ ]?me|your[-_ ]|your-domain|votre[-_ ]|example\.(?:com|net|org)|<[^>]+>)/i;
-const WORDMARK_MARKER =
-  "{{ .SiteURL }}/brand/monalyz/monalyz-wordmark-email-360.png";
 const LANGUAGE_MARKER = ".Data.preferred_language";
 
 function localizedSubject(
@@ -161,21 +159,25 @@ export function buildSupabaseAuthEmailConfig(
   assertSenderName(senderName);
   assertTemplate("confirmation", templates.confirmation, [
     "{{ .SiteURL }}",
-    WORDMARK_MARKER,
-    "{{ .TokenHash }}",
-    "type=email",
+    "{{ .Token }}",
+    ".Data.display_name",
     LANGUAGE_MARKER,
   ]);
+  for (const forbiddenMarker of ["{{ .ConfirmationURL }}", "{{ .TokenHash }}", "type=email"]) {
+    if (templates.confirmation.includes(forbiddenMarker)) {
+      throw new Error(
+        `Le modèle confirmation contient encore ${forbiddenMarker} au lieu d’un OTP.`,
+      );
+    }
+  }
   assertTemplate("recovery", templates.recovery, [
     "{{ .SiteURL }}",
-    WORDMARK_MARKER,
     "{{ .TokenHash }}",
     "type=recovery",
     LANGUAGE_MARKER,
   ]);
   assertTemplate("password_changed_notification", templates.passwordChanged, [
     "{{ .SiteURL }}",
-    WORDMARK_MARKER,
     "{{ .Email }}",
     LANGUAGE_MARKER,
   ]);
@@ -212,25 +214,25 @@ export function buildSupabaseAuthEmailConfig(
       smtp_max_frequency: maxFrequency,
       rate_limit_email_sent: rateLimit,
       mailer_subjects_confirmation: localizedSubject(
-        "Confirmez votre adresse e-mail",
-        "Confirm your email address",
-        "Bestätigen Sie Ihre E-Mail-Adresse",
-        "Confirme su correo electrónico",
+        "Votre code de confirmation",
+        "Your confirmation code",
+        "Ihr Bestätigungscode",
+        "Su código de confirmación",
       ),
       mailer_templates_confirmation_content: templates.confirmation,
       mailer_subjects_recovery: localizedSubject(
-        "Réinitialisez votre mot de passe Monalyz",
-        "Reset your Monalyz password",
-        "Setzen Sie Ihr Monalyz-Passwort zurück",
-        "Restablezca su contraseña de Monalyz",
+        "Réinitialisez votre mot de passe bancaire",
+        "Reset your banking password",
+        "Setzen Sie Ihr Bankpasswort zurück",
+        "Restablezca su contraseña bancaria",
       ),
       mailer_templates_recovery_content: templates.recovery,
       mailer_notifications_password_changed_enabled: true,
       mailer_subjects_password_changed_notification: localizedSubject(
-        "Votre mot de passe Monalyz a été modifié",
-        "Your Monalyz password has been changed",
-        "Ihr Monalyz-Passwort wurde geändert",
-        "Su contraseña de Monalyz ha sido modificada",
+        "Votre mot de passe bancaire a été modifié",
+        "Your banking password has been changed",
+        "Ihr Bankpasswort wurde geändert",
+        "Su contraseña bancaria ha sido modificada",
       ),
       mailer_templates_password_changed_notification_content:
         templates.passwordChanged,

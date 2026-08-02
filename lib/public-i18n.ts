@@ -40,6 +40,19 @@ interface PublicMessages {
     genericError: string;
     checkEmailTitle: string;
     checkEmailBody: string;
+    otpLabel: string;
+    otpPlaceholder: string;
+    otpHint: string;
+    otpSubmit: string;
+    otpSubmitting: string;
+    otpInvalidError: string;
+    otpVerificationError: string;
+    resendPrompt: string;
+    resendAction: string;
+    resending: string;
+    resendCooldown: string;
+    resendSuccess: string;
+    resendError: string;
     backToLogin: string;
   };
   adminLogin: {
@@ -87,7 +100,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
     login: {
       title: 'Connexion à votre espace',
       subtitle:
-        'Accédez à vos comptes, soldes, virements et prêts Monalyz en toute sécurité.',
+        'Accédez à vos comptes, soldes, virements et prêts {bankName} en toute sécurité.',
       email: 'Adresse e-mail',
       password: 'Mot de passe',
       emailPlaceholder: 'vous@exemple.com',
@@ -97,7 +110,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
       forgotPassword: 'Mot de passe oublié ?',
       submit: 'Se connecter',
       submitting: 'Connexion…',
-      newUser: 'Nouveau sur Monalyz ?',
+      newUser: 'Nouveau sur {bankName} ?',
       register: 'Ouvrir mon espace bancaire',
       genericError: 'Connexion impossible. Vérifiez vos identifiants.',
       errors: {
@@ -108,9 +121,9 @@ export const publicMessages: Record<Language, PublicMessages> = {
       },
     },
     register: {
-      title: 'Ouvrir votre espace Monalyz',
+      title: 'Ouvrir votre espace {bankName}',
       subtitle:
-        'Renseignez vos informations pour créer votre accès sécurisé aux services bancaires Monalyz.',
+        'Renseignez vos informations pour créer votre accès sécurisé aux services bancaires {bankName}.',
       displayName: 'Nom complet',
       email: 'Adresse e-mail personnelle',
       password: 'Mot de passe',
@@ -129,9 +142,22 @@ export const publicMessages: Record<Language, PublicMessages> = {
         'Le mot de passe doit comporter au moins 10 caractères, dont une lettre et un chiffre.',
       passwordMismatchError: 'Les mots de passe ne correspondent pas.',
       genericError: 'Création du compte impossible.',
-      checkEmailTitle: 'Vérifiez votre adresse e-mail',
+      checkEmailTitle: 'Saisissez votre code de confirmation',
       checkEmailBody:
-        'Le lien sécurisé vous ramènera vers le dépôt de votre dossier d’identité.',
+        'Un code à 6 chiffres a été envoyé à {email}. Saisissez-le ci-dessous pour confirmer votre adresse et poursuivre votre inscription.',
+      otpLabel: 'Code reçu par e-mail',
+      otpPlaceholder: '000000',
+      otpHint: 'Ce code est personnel. Ne le communiquez jamais à un tiers.',
+      otpSubmit: 'Confirmer mon adresse',
+      otpSubmitting: 'Vérification…',
+      otpInvalidError: 'Saisissez le code à 6 chiffres reçu par e-mail.',
+      otpVerificationError: 'Ce code est invalide ou expiré. Vérifiez-le ou demandez un nouveau code.',
+      resendPrompt: 'Vous n’avez pas reçu le code ?',
+      resendAction: 'Renvoyer le code',
+      resending: 'Envoi…',
+      resendCooldown: 'Nouvel envoi possible dans {seconds} s',
+      resendSuccess: 'Un nouveau code vient de vous être envoyé.',
+      resendError: 'Le code n’a pas pu être renvoyé. Réessayez dans quelques instants.',
       backToLogin: 'Revenir à la connexion',
     },
     adminLogin: {
@@ -185,7 +211,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
     login: {
       title: 'Sign in to your account',
       subtitle:
-        'Securely access your Monalyz accounts, balances, transfers and loans.',
+        'Securely access your {bankName} accounts, balances, transfers and loans.',
       email: 'Email address',
       password: 'Password',
       emailPlaceholder: 'you@example.com',
@@ -195,7 +221,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
       forgotPassword: 'Forgot your password?',
       submit: 'Sign in',
       submitting: 'Signing in…',
-      newUser: 'New to Monalyz?',
+      newUser: 'New to {bankName}?',
       register: 'Open my online banking',
       genericError: 'Unable to sign in. Check your credentials.',
       errors: {
@@ -206,9 +232,9 @@ export const publicMessages: Record<Language, PublicMessages> = {
       },
     },
     register: {
-      title: 'Open your Monalyz account',
+      title: 'Open your {bankName} account',
       subtitle:
-        'Enter your details to create secure access to Monalyz banking services.',
+        'Enter your details to create secure access to {bankName} banking services.',
       displayName: 'Full name',
       email: 'Personal email address',
       password: 'Password',
@@ -227,9 +253,22 @@ export const publicMessages: Record<Language, PublicMessages> = {
         'The password must contain at least 10 characters, including a letter and a number.',
       passwordMismatchError: 'The passwords do not match.',
       genericError: 'Unable to create the account.',
-      checkEmailTitle: 'Check your email address',
+      checkEmailTitle: 'Enter your confirmation code',
       checkEmailBody:
-        'The secure link will return you to the identity-document submission.',
+        'A 6-digit code was sent to {email}. Enter it below to confirm your address and continue registration.',
+      otpLabel: 'Code received by email',
+      otpPlaceholder: '000000',
+      otpHint: 'This code is personal. Never share it with anyone.',
+      otpSubmit: 'Confirm my address',
+      otpSubmitting: 'Verifying…',
+      otpInvalidError: 'Enter the 6-digit code received by email.',
+      otpVerificationError: 'This code is invalid or expired. Check it or request a new code.',
+      resendPrompt: 'Didn’t receive the code?',
+      resendAction: 'Resend code',
+      resending: 'Sending…',
+      resendCooldown: 'You can resend a code in {seconds}s',
+      resendSuccess: 'A new code has just been sent to you.',
+      resendError: 'The code could not be resent. Try again in a moment.',
       backToLogin: 'Back to sign in',
     },
     adminLogin: {
@@ -283,7 +322,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
     login: {
       title: 'Bei Ihrem Bereich anmelden',
       subtitle:
-        'Greifen Sie sicher auf Ihre Monalyz-Konten, Salden, Überweisungen und Kredite zu.',
+        'Greifen Sie sicher auf Ihre {bankName}-Konten, Salden, Überweisungen und Kredite zu.',
       email: 'E-Mail-Adresse',
       password: 'Passwort',
       emailPlaceholder: 'sie@beispiel.de',
@@ -293,7 +332,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
       forgotPassword: 'Passwort vergessen?',
       submit: 'Anmelden',
       submitting: 'Anmeldung…',
-      newUser: 'Neu bei Monalyz?',
+      newUser: 'Neu bei {bankName}?',
       register: 'Online-Banking eröffnen',
       genericError: 'Anmeldung nicht möglich. Prüfen Sie Ihre Zugangsdaten.',
       errors: {
@@ -305,9 +344,9 @@ export const publicMessages: Record<Language, PublicMessages> = {
       },
     },
     register: {
-      title: 'Ihren Monalyz-Zugang eröffnen',
+      title: 'Ihren {bankName}-Zugang eröffnen',
       subtitle:
-        'Geben Sie Ihre Daten ein, um einen sicheren Zugang zu den Bankdienstleistungen von Monalyz einzurichten.',
+        'Geben Sie Ihre Daten ein, um einen sicheren Zugang zu den Bankdienstleistungen von {bankName} einzurichten.',
       displayName: 'Vollständiger Name',
       email: 'Persönliche E-Mail-Adresse',
       password: 'Passwort',
@@ -326,9 +365,22 @@ export const publicMessages: Record<Language, PublicMessages> = {
         'Das Passwort muss mindestens 10 Zeichen sowie einen Buchstaben und eine Zahl enthalten.',
       passwordMismatchError: 'Die Passwörter stimmen nicht überein.',
       genericError: 'Das Konto konnte nicht erstellt werden.',
-      checkEmailTitle: 'Prüfen Sie Ihre E-Mail-Adresse',
+      checkEmailTitle: 'Bestätigungscode eingeben',
       checkEmailBody:
-        'Der sichere Link führt Sie zur Übermittlung Ihrer Identitätsunterlagen zurück.',
+        'Ein 6-stelliger Code wurde an {email} gesendet. Geben Sie ihn unten ein, um Ihre Adresse zu bestätigen und die Registrierung fortzusetzen.',
+      otpLabel: 'Per E-Mail erhaltener Code',
+      otpPlaceholder: '000000',
+      otpHint: 'Dieser Code ist persönlich. Geben Sie ihn niemals an Dritte weiter.',
+      otpSubmit: 'E-Mail-Adresse bestätigen',
+      otpSubmitting: 'Wird geprüft…',
+      otpInvalidError: 'Geben Sie den 6-stelligen Code aus der E-Mail ein.',
+      otpVerificationError: 'Dieser Code ist ungültig oder abgelaufen. Prüfen Sie ihn oder fordern Sie einen neuen Code an.',
+      resendPrompt: 'Keinen Code erhalten?',
+      resendAction: 'Code erneut senden',
+      resending: 'Wird gesendet…',
+      resendCooldown: 'Neuer Code in {seconds} Sek. möglich',
+      resendSuccess: 'Ein neuer Code wurde Ihnen soeben gesendet.',
+      resendError: 'Der Code konnte nicht erneut gesendet werden. Versuchen Sie es später noch einmal.',
       backToLogin: 'Zurück zur Anmeldung',
     },
     adminLogin: {
@@ -382,7 +434,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
     login: {
       title: 'Acceda a su espacio',
       subtitle:
-        'Acceda de forma segura a sus cuentas, saldos, transferencias y préstamos Monalyz.',
+        'Acceda de forma segura a sus cuentas, saldos, transferencias y préstamos {bankName}.',
       email: 'Correo electrónico',
       password: 'Contraseña',
       emailPlaceholder: 'usted@ejemplo.com',
@@ -392,7 +444,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
       forgotPassword: '¿Olvidó su contraseña?',
       submit: 'Iniciar sesión',
       submitting: 'Conectando…',
-      newUser: '¿Es nuevo en Monalyz?',
+      newUser: '¿Es nuevo en {bankName}?',
       register: 'Abrir mi banca en línea',
       genericError: 'No se pudo iniciar sesión. Compruebe sus credenciales.',
       errors: {
@@ -403,9 +455,9 @@ export const publicMessages: Record<Language, PublicMessages> = {
       },
     },
     register: {
-      title: 'Abra su espacio Monalyz',
+      title: 'Abra su espacio {bankName}',
       subtitle:
-        'Introduzca sus datos para crear un acceso seguro a los servicios bancarios de Monalyz.',
+        'Introduzca sus datos para crear un acceso seguro a los servicios bancarios de {bankName}.',
       displayName: 'Nombre completo',
       email: 'Correo electrónico personal',
       password: 'Contraseña',
@@ -424,9 +476,22 @@ export const publicMessages: Record<Language, PublicMessages> = {
         'La contraseña debe tener al menos 10 caracteres, incluida una letra y un número.',
       passwordMismatchError: 'Las contraseñas no coinciden.',
       genericError: 'No se pudo crear la cuenta.',
-      checkEmailTitle: 'Compruebe su correo electrónico',
+      checkEmailTitle: 'Introduzca su código de confirmación',
       checkEmailBody:
-        'El enlace seguro le devolverá al envío de sus documentos de identidad.',
+        'Se ha enviado un código de 6 dígitos a {email}. Introdúzcalo para confirmar su dirección y continuar el registro.',
+      otpLabel: 'Código recibido por correo',
+      otpPlaceholder: '000000',
+      otpHint: 'Este código es personal. No lo comparta nunca con nadie.',
+      otpSubmit: 'Confirmar mi dirección',
+      otpSubmitting: 'Verificando…',
+      otpInvalidError: 'Introduzca el código de 6 dígitos recibido por correo.',
+      otpVerificationError: 'Este código no es válido o ha caducado. Compruébelo o solicite uno nuevo.',
+      resendPrompt: '¿No ha recibido el código?',
+      resendAction: 'Reenviar el código',
+      resending: 'Enviando…',
+      resendCooldown: 'Podrá reenviar un código en {seconds} s',
+      resendSuccess: 'Se le acaba de enviar un nuevo código.',
+      resendError: 'No se pudo reenviar el código. Inténtelo de nuevo en unos instantes.',
       backToLogin: 'Volver al inicio de sesión',
     },
     adminLogin: {

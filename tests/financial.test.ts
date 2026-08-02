@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  calculateLoanMonthlyPayment,
   currencyExponent,
   fromMinorUnits,
   isTerminalWorkflowStatus,
@@ -9,6 +10,14 @@ import {
   toMinorUnits,
   transferProgress,
 } from '../lib/domain/financial';
+
+test('loan monthly payments use the configured fixed annual rate', () => {
+  assert.equal(calculateLoanMonthlyPayment(8000, 0.035, 36), 234.42);
+  assert.equal(calculateLoanMonthlyPayment(12000, 0, 24), 500);
+  assert.equal(calculateLoanMonthlyPayment(0, 0.035, 36), 0);
+  assert.equal(calculateLoanMonthlyPayment(8000, -0.01, 36), 0);
+  assert.equal(calculateLoanMonthlyPayment(8000, 0.035, 0), 0);
+});
 
 test('currency exponents and minor-unit conversion remain exact for supported currencies', () => {
   assert.equal(currencyExponent('EUR'), 2);

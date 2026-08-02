@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import type { KYCApplication, KYCReviewChecklist, KYCReviewState } from '@/lib/types';
+import { useBrand } from '@/components/brand/BrandProvider';
 
 const STATUS_LABELS: Record<string, string> = {
   submitted: 'Soumis', under_review: 'En vérification', approved: 'Approuvé',
@@ -37,6 +38,7 @@ const EMPTY_CHECKLIST: KYCReviewChecklist = {
 };
 
 export default function AdminKycManagement() {
+  const { brand } = useBrand();
   const {
     kycApplications, beginKYCReview, updateKYCChecklist,
     requestKYCInformation, approveKYCApplication, rejectKYCApplication,
@@ -92,7 +94,7 @@ export default function AdminKycManagement() {
           <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-600"><ShieldCheck className="h-5 w-5" /></span>
           <div>
             <h1 className="text-xl font-extrabold text-slate-900">Contrôle structuré des identités</h1>
-            <p className="text-xs text-slate-500">L’approbation crée automatiquement un compte actif avec son numéro interne. IBAN, BIC et agence restent gérés hors Monalyz.</p>
+            <p className="text-xs text-slate-500">L’approbation crée automatiquement un compte actif avec son numéro interne. IBAN, BIC et agence restent gérés hors {brand.bankName}.</p>
           </div>
         </div>
       </header>

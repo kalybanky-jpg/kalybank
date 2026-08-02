@@ -12,11 +12,12 @@ import { useAppStore } from '@/lib/store';
 import { publicMessages } from '@/lib/public-i18n';
 import PasswordField from '@/components/auth/PasswordField';
 import BrandLogo from '@/components/brand/BrandLogo';
+import { useBranded } from '@/components/brand/BrandProvider';
 
 function LoginContent() {
   const searchParams = useSearchParams();
   const { language } = useAppStore();
-  const copy = publicMessages[language].login;
+  const copy = useBranded(publicMessages[language].login);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');

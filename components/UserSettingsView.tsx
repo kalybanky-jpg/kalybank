@@ -5,6 +5,8 @@ import { useAppStore } from '@/lib/store';
 import type { Currency, Language } from '@/lib/types';
 import { Save, Settings, ShieldCheck } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { extraUserMessages, localizedAppError } from '@/lib/user-i18n';
+import { useBranded } from '@/components/brand/BrandProvider';
 
 export default function UserSettingsView() {
   const {
@@ -21,6 +23,7 @@ export default function UserSettingsView() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const t = useBranded(extraUserMessages[language]);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -29,14 +32,14 @@ export default function UserSettingsView() {
         .select('display_name,phone')
         .single();
       if (profileError) {
-        setError(profileError.message);
+        setError(localizedAppError(language, 'NETWORK_ERROR'));
         return;
       }
       setDisplayName(data.display_name ?? '');
       setPhone(data.phone ?? '');
     };
     void loadProfile();
-  }, []);
+  }, [language]);
 
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -49,7 +52,7 @@ export default function UserSettingsView() {
         data: { user },
         error: userError,
       } = await supabase.auth.getUser();
-      if (userError || !user) throw userError ?? new Error('Session expirée.');
+      if (userError || !user) throw userError ?? new Error('AUTH_REQUIRED');
       const { error: updateError } = await supabase
         .from('profiles')
         .update({
@@ -61,9 +64,9 @@ export default function UserSettingsView() {
         .eq('user_id', user.id);
       if (updateError) throw updateError;
       await refreshData();
-      setMessage('Préférences enregistrées.');
-    } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : 'Enregistrement impossible.');
+      setMessage(t.settings.saved);
+    } catch {
+      setError(localizedAppError(language, 'SAVE_FAILED'));
     } finally {
       setIsSaving(false);
     }
@@ -74,9 +77,9 @@ export default function UserSettingsView() {
       <header className="bg-slate-900 text-white rounded-3xl p-6">
         <div className="flex items-center gap-2 text-blue-300 text-xs font-bold uppercase">
           <Settings className="w-4 h-4" />
-          <span>Préférences</span>
+          <span>{t.settings.eyebrow}</span>
         </div>
-        <h1 className="text-2xl font-extrabold mt-1">Paramètres du compte Monalyz</h1>
+        <h1 className="text-2xl font-extrabold mt-1">{t.settings.title}</h1>
       </header>
 
       <form onSubmit={save} className="bg-white rounded-3xl border border-slate-200 p-6 space-y-5">
@@ -85,24 +88,20 @@ export default function UserSettingsView() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <label className="text-xs font-bold text-slate-700">
-            Nom affiché
+            {t.settings.displayName}
             <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} className="mt-1.5 w-full p-3 border rounded-xl" />
           </label>
           <label className="text-xs font-bold text-slate-700">
-            Téléphone
+            {t.settings.phone}
             <input type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} className="mt-1.5 w-full p-3 border rounded-xl" />
           </label>
           <label className="text-xs font-bold text-slate-700">
-            Langue d&apos;interface
+            {t.settings.interfaceLanguage}
             <select
               value={language}
               onChange={(event) => {
-                void setLanguage(event.target.value as Language).catch((caughtError) => {
-                  setError(
-                    caughtError instanceof Error
-                      ? caughtError.message
-                      : 'Mise à jour de la langue impossible.',
-                  );
+                void setLanguage(event.target.value as Language).catch(() => {
+                  setError(t.settings.languageFailed);
                 });
               }}
               className="mt-1.5 w-full p-3 border rounded-xl"
@@ -114,7 +113,7 @@ export default function UserSettingsView() {
             </select>
           </label>
           <label className="text-xs font-bold text-slate-700">
-            Devise de simulation préférée
+            {t.settings.preferredCurrency}
             <select value={currency} onChange={(event) => setCurrency(event.target.value as Currency)} className="mt-1.5 w-full p-3 border rounded-xl">
               {['EUR', 'USD', 'CAD', 'CHF', 'GBP'].map((item) => (
                 <option key={item} value={item}>{item}</option>
@@ -125,8 +124,8 @@ export default function UserSettingsView() {
 
         <label className="flex items-center justify-between gap-4 p-4 bg-slate-50 rounded-2xl">
           <span>
-            <strong className="block text-xs text-slate-900">Masquer les montants</strong>
-            <span className="text-[11px] text-slate-500">Préférence locale de confidentialité visuelle</span>
+            <strong className="block text-xs text-slate-900">{t.settings.hideAmounts}</strong>
+            <span className="text-[11px] text-slate-500">{t.settings.hideAmountsHint}</span>
           </span>
           <input type="checkbox" checked={isMaskedBalance} onChange={toggleMaskBalance} />
         </label>
@@ -134,14 +133,13 @@ export default function UserSettingsView() {
         <div className="p-4 bg-blue-50 border border-blue-200 rounded-2xl flex gap-3">
           <ShieldCheck className="w-5 h-5 text-blue-700 shrink-0" />
           <p className="text-xs text-blue-900">
-            La configuration Supabase est définie par le déploiement et ne peut pas
-            être remplacée depuis le navigateur.
+            {t.settings.deploymentNotice}
           </p>
         </div>
 
         <button disabled={isSaving} className="px-5 py-3 bg-blue-600 text-white rounded-xl font-bold text-xs disabled:opacity-50 flex items-center gap-2">
           <Save className="w-4 h-4" />
-          {isSaving ? 'Enregistrement…' : 'Enregistrer'}
+          {isSaving ? t.common.saving : t.common.save}
         </button>
       </form>
     </div>

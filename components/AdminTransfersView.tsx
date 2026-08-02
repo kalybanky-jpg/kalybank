@@ -5,6 +5,7 @@ import { useAppStore } from '@/lib/store';
 import { formatDirectCurrency } from '@/lib/currency';
 import type { PendingTransfer } from '@/lib/types';
 import { CheckCircle2, Clock, Search, Send, X, XCircle } from 'lucide-react';
+import { useBrand } from '@/components/brand/BrandProvider';
 
 const STATUS_LABELS: Record<string, string> = {
   submitted: 'À valider par le chef d’agence',
@@ -18,8 +19,8 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export default function AdminTransfersView() {
+  const { brand } = useBrand();
   const {
-    language,
     pendingTransfers,
     reviewTransferCheck,
     rejectTransfer,
@@ -94,7 +95,7 @@ export default function AdminTransfersView() {
           Demandes de virement
         </h1>
         <p className="text-xs sm:text-sm text-slate-300 mt-2 max-w-3xl">
-          Les contrôles et l&apos;exécution financière sont réalisés hors de Monalyz
+          Les contrôles et l&apos;exécution financière sont réalisés hors de {brand.bankName}
           par le personnel de la banque. Le chef d&apos;agence valide le dossier, puis
           confirme ici que le virement a effectivement été exécuté.
         </p>
@@ -139,7 +140,7 @@ export default function AdminTransfersView() {
                       </p>
                     </td>
                     <td className="py-4 px-2 text-right font-extrabold text-blue-700">
-                      {formatDirectCurrency(transfer.amount, transfer.currency, language)}
+                  {formatDirectCurrency(transfer.amount, transfer.currency, 'fr')}
                     </td>
                     <td className="py-4 px-2">
                       <span
@@ -200,7 +201,7 @@ export default function AdminTransfersView() {
               <div className="rounded-xl bg-slate-50 p-3">
                 <p className="text-slate-500">Montant</p>
                 <p className="font-bold text-slate-900">
-                  {formatDirectCurrency(selected.amount, selected.currency, language)}
+                {formatDirectCurrency(selected.amount, selected.currency, 'fr')}
                 </p>
               </div>
             </div>

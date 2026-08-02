@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import type { AppErrorCode } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -50,6 +51,10 @@ function noStoreJson(body: unknown, status = 200) {
   });
 }
 
+function errorJson(code: AppErrorCode, status: number) {
+  return noStoreJson({ error: { code } }, status);
+}
+
 function originAllowed(request: NextRequest) {
   const origin = request.headers.get('origin');
   const canonicalOrigin =
@@ -65,14 +70,14 @@ function originAllowed(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!originAllowed(request)) return noStoreJson({ error: 'Origine refusée.' }, 403);
+  if (!originAllowed(request)) return errorJson('PERMISSION_DENIED', 403);
 
   const supabase = await createClient();
   const {
     data: { user },
     error: authError,
   } = await supabase.auth.getUser();
-  if (authError || !user) return noStoreJson({ error: 'Authentification requise.' }, 401);
+  if (authError || !user) return errorJson('AUTH_REQUIRED', 401);
 
   const formData = await request.formData();
   const bucket = formData.get('bucket');
@@ -86,19 +91,16 @@ export async function POST(request: NextRequest) {
     !/^[a-z0-9_-]{1,64}$/.test(kind) ||
     !(file instanceof File)
   ) {
-    return noStoreJson({ error: 'Requête de justificatif invalide.' }, 400);
+    return errorJson('INVALID_REQUEST', 400);
   }
   if (file.size <= 0 || file.size > MAX_BYTES) {
-    return noStoreJson({ error: 'Le fichier doit faire entre 1 octet et 10 Mo.' }, 413);
+    return errorJson('INVALID_REQUEST', 413);
   }
 
   const bytes = new Uint8Array(await file.arrayBuffer());
   const detected = SIGNATURES.find((signature) => signature.matches(bytes));
   if (!detected || detected.mime !== file.type) {
-    return noStoreJson(
-      { error: 'Le contenu du fichier ne correspond pas à un PDF, PNG ou JPEG valide.' },
-      415,
-    );
+    return errorJson('INVALID_REQUEST', 415);
   }
 
   if (bucket === 'kyc-evidence') {
@@ -109,10 +111,10 @@ export async function POST(request: NextRequest) {
       'proof_of_address',
     ]);
     if (!allowedKinds.has(kind)) {
-      return noStoreJson({ error: 'Type de pièce KYC invalide.' }, 400);
+      return errorJson('INVALID_REQUEST', 400);
     }
     if (kind === 'selfie' && detected.mime !== 'image/jpeg') {
-      return noStoreJson({ error: 'Le selfie doit être une photo JPEG.' }, 415);
+      return errorJson('INVALID_REQUEST', 415);
     }
 
     const { data: existingKyc, error: kycError } = await supabase
@@ -122,16 +124,13 @@ export async function POST(request: NextRequest) {
       .order('submitted_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (kycError) return noStoreJson({ error: kycError.message }, 400);
+    if (kycError) return errorJson('SAVE_FAILED', 400);
     if (
       existingKyc &&
       (!['needs_information', 'rejected'].includes(existingKyc.status) ||
         !existingKyc.requested_items?.includes(kind))
     ) {
-      return noStoreJson(
-        { error: 'Cette pièce ne fait pas partie des corrections demandées.' },
-        403,
-      );
+      return errorJson('PERMISSION_DENIED', 403);
     }
   }
 
@@ -144,7 +143,7 @@ export async function POST(request: NextRequest) {
     cacheControl: '3600',
     upsert: bucket === 'kyc-evidence',
   });
-  if (uploadError) return noStoreJson({ error: uploadError.message }, 400);
+  if (uploadError) return errorJson('UPLOAD_FAILED', 400);
 
   if (bucket === 'kyc-evidence') {
     const stalePaths = ['pdf', 'png', 'jpg']
@@ -157,14 +156,14 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  if (!originAllowed(request)) return noStoreJson({ error: 'Origine refusée.' }, 403);
+  if (!originAllowed(request)) return errorJson('PERMISSION_DENIED', 403);
 
   const supabase = await createClient();
   const {
     data: { user },
     error: authError,
   } = await supabase.auth.getUser();
-  if (authError || !user) return noStoreJson({ error: 'Authentification requise.' }, 401);
+  if (authError || !user) return errorJson('AUTH_REQUIRED', 401);
 
   const payload = (await request.json()) as { bucket?: unknown; paths?: unknown };
   if (
@@ -180,12 +179,12 @@ export async function DELETE(request: NextRequest) {
         !path.startsWith(`${user.id}/`),
     )
   ) {
-    return noStoreJson({ error: 'Suppression invalide.' }, 400);
+    return errorJson('INVALID_REQUEST', 400);
   }
 
   const { error } = await supabase.storage
     .from(payload.bucket)
     .remove(payload.paths as string[]);
-  if (error) return noStoreJson({ error: error.message }, 400);
+  if (error) return errorJson('SAVE_FAILED', 400);
   return noStoreJson({ deleted: payload.paths.length });
 }

@@ -24,8 +24,12 @@ centralisés dans le
 ## Configuration versionnée
 
 [`netlify.toml`](../netlify.toml) fixe la commande de build, le dossier publié,
-les versions de runtime et le dossier des fonctions. La fonction exporte sa
-cadence `config.schedule = '* * * * *'` depuis
+les versions de runtime, le dossier des fonctions et l’adaptateur Next.js
+officiel `@netlify/plugin-nextjs` 5.15.13. L’adaptateur est volontairement
+versionné : il rend aussi les déploiements par archive/API reproductibles,
+sans dépendre de l’installation automatique réservée aux sites reliés à un
+fournisseur Git. La fonction exporte sa cadence `config.schedule = '* * * * *'`
+depuis
 `netlify/functions/transactional-email-worker.ts`, conformément au contrat
 typé de `@netlify/functions` 5.3.0. Aucun de ces fichiers ne contient de secret.
 Les variables `NEXT_PUBLIC_*` requises doivent exister au build ; les secrets

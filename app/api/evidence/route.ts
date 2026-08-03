@@ -4,7 +4,22 @@ import {
   hasProtectedKycEvidencePath,
   hasReferencedEvidencePath,
 } from '@/lib/domain/evidence';
-import { isSameOriginMutation, noStoreJson } from '@/lib/server/api';
+import {
+  createPrivilegedClient,
+  isSameOriginMutation,
+  noStoreJson,
+} from '@/lib/server/api';
+import {
+  EVIDENCE_BUCKETS,
+  MAX_EVIDENCE_UPLOAD_BYTES,
+  STAGING_BUCKET,
+  canStageEvidenceForRole,
+  detectEvidenceType,
+  hasExpectedPartialContentHeaders,
+  isExpectedEvidenceStagingPath,
+  stagingPathExtension,
+  type EvidenceBucket,
+} from '@/lib/server/staged-upload';
 import { jsonStringValues } from '@/lib/supabase/json';
 import { createClient } from '@/lib/supabase/server';
 import type { AppErrorCode } from '@/lib/types';
@@ -12,44 +27,48 @@ import type { AppErrorCode } from '@/lib/types';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const MAX_BYTES = 10 * 1024 * 1024;
-const BUCKETS = new Set([
-  'kyc-evidence',
-  'loan-evidence',
-  'external-execution-evidence',
-]);
+const BUCKETS = new Set<string>(EVIDENCE_BUCKETS);
+const SIGNATURE_PREFIX_BYTES = 4_096;
 
-const SIGNATURES = [
-  {
-    mime: 'application/pdf',
-    extension: 'pdf',
-    matches: (bytes: Uint8Array) =>
-      bytes.length >= 5 &&
-      bytes[0] === 0x25 &&
-      bytes[1] === 0x50 &&
-      bytes[2] === 0x44 &&
-      bytes[3] === 0x46 &&
-      bytes[4] === 0x2d,
-  },
-  {
-    mime: 'image/png',
-    extension: 'png',
-    matches: (bytes: Uint8Array) =>
-      bytes.length >= 8 &&
-      [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].every(
-        (value, index) => bytes[index] === value,
-      ),
-  },
-  {
-    mime: 'image/jpeg',
-    extension: 'jpg',
-    matches: (bytes: Uint8Array) =>
-      bytes.length >= 3 &&
-      bytes[0] === 0xff &&
-      bytes[1] === 0xd8 &&
-      bytes[2] === 0xff,
-  },
-];
+async function readStoredSignature(
+  worker: ReturnType<typeof createPrivilegedClient>,
+  bucket: EvidenceBucket,
+  path: string,
+  size: number,
+) {
+  const { data, error } = await worker.storage
+    .from(bucket)
+    .createSignedUrl(path, 30);
+  if (error || !data?.signedUrl) return null;
+
+  const expectedBytes = Math.min(size, SIGNATURE_PREFIX_BYTES);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5_000);
+  try {
+    const response = await fetch(data.signedUrl, {
+      cache: 'no-store',
+      headers: { Range: `bytes=0-${expectedBytes - 1}` },
+      signal: controller.signal,
+    });
+    if (
+      !hasExpectedPartialContentHeaders(
+        response.status,
+        response.headers,
+        expectedBytes,
+        size,
+      )
+    ) {
+      await response.body?.cancel();
+      return null;
+    }
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    return bytes.length === expectedBytes ? bytes : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 function errorJson(code: AppErrorCode, status: number) {
   return noStoreJson({ error: { code } }, status);
@@ -65,33 +84,41 @@ export async function POST(request: NextRequest) {
   } = await supabase.auth.getUser();
   if (authError || !user) return errorJson('AUTH_REQUIRED', 401);
 
-  let formData: FormData;
+  let payload: { bucket?: unknown; kind?: unknown; stagingPath?: unknown };
   try {
-    formData = await request.formData();
+    payload = (await request.json()) as {
+      bucket?: unknown;
+      kind?: unknown;
+      stagingPath?: unknown;
+    };
   } catch {
     return errorJson('INVALID_REQUEST', 400);
   }
-  const bucket = formData.get('bucket');
-  const kind = formData.get('kind');
-  const file = formData.get('file');
 
   if (
-    typeof bucket !== 'string' ||
-    !BUCKETS.has(bucket) ||
-    typeof kind !== 'string' ||
-    !/^[a-z0-9_-]{1,64}$/.test(kind) ||
-    !(file instanceof File)
+    typeof payload.bucket !== 'string' ||
+    !BUCKETS.has(payload.bucket) ||
+    typeof payload.kind !== 'string' ||
+    !/^[a-z0-9_-]{1,64}$/.test(payload.kind) ||
+    typeof payload.stagingPath !== 'string' ||
+    payload.stagingPath.length > 500
   ) {
     return errorJson('INVALID_REQUEST', 400);
   }
-  if (file.size <= 0 || file.size > MAX_BYTES) {
-    return errorJson('INVALID_REQUEST', 413);
+  const bucket = payload.bucket as EvidenceBucket;
+  const kind = payload.kind;
+  const stagingPath = payload.stagingPath;
+  if (!isExpectedEvidenceStagingPath(stagingPath, user.id, bucket, kind)) {
+    return errorJson('INVALID_REQUEST', 400);
   }
 
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  const detected = SIGNATURES.find((signature) => signature.matches(bytes));
-  if (!detected || detected.mime !== file.type) {
-    return errorJson('INVALID_REQUEST', 415);
+  if (bucket === 'external-execution-evidence') {
+    const { data: role, error: roleError } = await supabase.rpc(
+      'current_app_role',
+    );
+    if (roleError || !canStageEvidenceForRole(bucket, role)) {
+      return errorJson('PERMISSION_DENIED', 403);
+    }
   }
 
   if (bucket === 'kyc-evidence') {
@@ -104,10 +131,6 @@ export async function POST(request: NextRequest) {
     if (!allowedKinds.has(kind)) {
       return errorJson('INVALID_REQUEST', 400);
     }
-    if (kind === 'selfie' && detected.mime !== 'image/jpeg') {
-      return errorJson('INVALID_REQUEST', 415);
-    }
-
     const { data: existingKyc, error: kycError } = await supabase
       .from('kyc_applications')
       .select('status,requested_items')
@@ -125,20 +148,94 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const path = evidenceObjectPath(
-    user.id,
-    kind,
-    detected.extension,
-    crypto.randomUUID(),
-  );
-  const { error: uploadError } = await supabase.storage.from(bucket).upload(path, bytes, {
-    contentType: detected.mime,
-    cacheControl: '3600',
-    upsert: false,
-  });
-  if (uploadError) return errorJson('UPLOAD_FAILED', 400);
+  let worker: ReturnType<typeof createPrivilegedClient>;
+  try {
+    worker = createPrivilegedClient(
+      'SUPABASE_SECRET_KEY est requise pour finaliser un téléversement.',
+    );
+  } catch {
+    return errorJson('CONFIGURATION_UNAVAILABLE', 503);
+  }
 
-  return noStoreJson({ path }, 201);
+  let destinationPath: string | null = null;
+  let finalized = false;
+  try {
+    const extension = stagingPathExtension(stagingPath);
+    if (!extension) return errorJson('INVALID_REQUEST', 400);
+    destinationPath = evidenceObjectPath(
+      user.id,
+      kind,
+      extension,
+      crypto.randomUUID(),
+    );
+    const { error: moveError } = await worker.storage
+      .from(STAGING_BUCKET)
+      .move(stagingPath, destinationPath, { destinationBucket: bucket });
+    if (moveError) return errorJson('UPLOAD_FAILED', 400);
+
+    const { data: stored, error: infoError } = await worker.storage
+      .from(bucket)
+      .info(destinationPath);
+    const storedSize = stored?.size;
+    if (
+      infoError ||
+      !Number.isSafeInteger(storedSize) ||
+      !storedSize ||
+      storedSize > MAX_EVIDENCE_UPLOAD_BYTES
+    ) {
+      return errorJson('INVALID_REQUEST', 413);
+    }
+
+    const signature = await readStoredSignature(
+      worker,
+      bucket,
+      destinationPath,
+      storedSize,
+    );
+    const detected = signature ? detectEvidenceType(signature) : null;
+    if (
+      !detected ||
+      extension !== detected.extension ||
+      stored.contentType !== detected.mimeType ||
+      (bucket === 'kyc-evidence' &&
+        kind === 'selfie' &&
+        detected.mimeType !== 'image/jpeg')
+    ) {
+      return errorJson('INVALID_REQUEST', 415);
+    }
+
+    finalized = true;
+    return noStoreJson({ path: destinationPath }, 201);
+  } finally {
+    try {
+      const { error } = await worker.storage
+        .from(STAGING_BUCKET)
+        .remove([stagingPath]);
+      if (error) {
+        console.warn(
+          JSON.stringify({ event: 'staging_evidence_cleanup_failed' }),
+        );
+      }
+    } catch {
+      console.warn(JSON.stringify({ event: 'staging_evidence_cleanup_failed' }));
+    }
+    if (destinationPath && !finalized) {
+      try {
+        const { error } = await worker.storage
+          .from(bucket)
+          .remove([destinationPath]);
+        if (error) {
+          console.warn(
+            JSON.stringify({ event: 'invalid_evidence_cleanup_failed' }),
+          );
+        }
+      } catch {
+        console.warn(
+          JSON.stringify({ event: 'invalid_evidence_cleanup_failed' }),
+        );
+      }
+    }
+  }
 }
 
 export async function DELETE(request: NextRequest) {

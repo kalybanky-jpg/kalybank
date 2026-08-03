@@ -15,6 +15,9 @@
 8. [Modèle de données](data-model.md) pour les comptes, le grand livre, les
    documents, machines d’état et invariants.
 9. [Tests](testing.md) avant toute modification métier.
+10. [Déploiement Netlify](deployment.md) puis
+    [runbook de mise en production](runbooks/netlify-production-release.md)
+    pour préparer, publier, recetter et revenir en arrière.
 
 ## Carte documentaire
 
@@ -31,6 +34,7 @@
 | [API](api.md) | Frontend et backend |
 | [Tests](testing.md) | Contributeurs |
 | [Déploiement](deployment.md) | Opérateurs |
+| [Mise en production Netlify](runbooks/netlify-production-release.md) | Release manager et opérateurs |
 | [Incident de confirmation ou document](runbooks/external-evidence-incident.md) | Opérateurs |
 | [ADR-0001 — remplacé](adr/0001-external-financial-execution.md) | Historique |
 | [ADR-0002 — registre bancaire interne](adr/0002-internal-official-banking-register.md) | Tous |

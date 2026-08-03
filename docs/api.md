@@ -1,24 +1,81 @@
 # API et RPC
 
-> Surface serveur volontairement étroite : routes de fichiers/PDF et RPC
-> Supabase authentifiées. Aucune route n’appelle une API bancaire.
+> Surface serveur volontairement étroite : routes de fichiers/PDF, health
+> check minimal et RPC Supabase authentifiées. Aucune route n’appelle une API
+> bancaire.
 
-## Route HTTP
+## Routes HTTP
+
+### `POST /api/upload-intents`
+
+Crée une capacité d’upload signée vers le bucket privé `upload-staging`. La
+requête est un petit JSON ; aucun octet du fichier ne traverse la route.
+
+Pour une preuve :
+
+```json
+{
+  "purpose": "evidence",
+  "mimeType": "application/pdf",
+  "size": 7340032,
+  "metadata": {
+    "bucket": "loan-evidence",
+    "kind": "income_statement"
+  }
+}
+```
+
+Pour un asset de marque, `purpose` vaut `branding` et `metadata.kind` vaut
+`primaryLogo`, `reversedLogo` ou `favicon`. La route exige une session et une
+origine canonique identique. Elle contrôle le rôle pour la marque et les preuves
+d’exécution interne, puis lie le chemin temporaire à l’UUID de l’utilisateur,
+au but et aux métadonnées attendues.
+
+Réponse `201` :
+
+```json
+{
+  "path": "<user-id>/evidence/loan-evidence/income_statement/<uuid>.pdf",
+  "token": "<signed-upload-token>"
+}
+```
+
+Le navigateur transmet ensuite le fichier directement à Supabase avec
+`uploadToSignedUrl`. `DELETE /api/upload-intents` supprime en best effort de un
+à dix chemins temporaires appartenant à la session lorsque la finalisation
+échoue ou est abandonnée.
 
 ### `POST /api/evidence`
 
-Reçoit un `multipart/form-data` contenant :
+Finalise une preuve déjà envoyée directement dans `upload-staging`. Le corps
+reste un petit JSON :
 
-- `bucket` : `kyc-evidence`, `loan-evidence` ou `external-execution-evidence` ;
-- `kind` : identifiant ASCII `[a-z0-9_-]`, 64 caractères maximum ;
-- `file` : PDF, PNG ou JPEG de 1 octet à 10 Mo.
+```json
+{
+  "bucket": "loan-evidence",
+  "kind": "income_statement",
+  "stagingPath": "<user-id>/evidence/loan-evidence/income_statement/<uuid>.pdf"
+}
+```
 
-La route exige une session, une origine canonique identique et une concordance
-entre MIME déclaré et signature binaire. Réponse réussie :
+La route exige une session, une origine canonique identique et un chemin signé
+appartenant à l’utilisateur. Elle déplace l’objet de Storage vers le bucket
+final, relit sa taille, puis ne récupère qu’au plus ses 4 premiers Kio avec une requête
+`Range` pour vérifier le PDF, PNG ou JPEG par signature binaire. Une erreur de
+taille, de MIME ou de signature supprime la destination invalide. Réponse
+réussie :
 
 ```json
 { "path": "<user-id>/<kind>/<uuid>.<extension>" }
 ```
+
+La préparation client commune accepte une source raster jusqu’à 25 Mio et
+compresse progressivement les JPEG, PNG et WebP supérieurs à 3,5 Mo, avec un
+plus grand côté de 3 200 px maximum. La taille préparée est ensuite contrôlée
+impérativement. Ce parcours
+de preuve accepte uniquement PDF, PNG ou JPEG de 1 octet à 10 Mio ; un selfie
+KYC doit être JPEG. Les PDF restent byte-identiques. Aucun gros payload ne
+traverse Netlify.
 
 ### `DELETE /api/evidence`
 
@@ -70,10 +127,49 @@ supprime jamais l’artefact produit par une requête concurrente. Réponse réu
 
 ### `GET /api/official-documents/:documentId`
 
-Télécharge un PDF `issued` après authentification et application de la RLS sur
-`official_documents` et Storage. La réponse est privée, non mise en cache,
-forcée en téléchargement et protégée par `nosniff`. Un document non finalisé
-retourne `409`; une ligne ou un objet inaccessible retourne `404`.
+Autorise un PDF `issued` après authentification et application de la RLS sur
+`official_documents` et Storage, puis répond `307` vers une URL Storage signée
+pendant 60 secondes. La réponse est privée, non mise en cache, forcée en
+téléchargement et protégée par `nosniff` et `no-referrer`. Le PDF ne traverse
+pas la fonction Netlify. Un document non finalisé retourne `409`; une ligne ou
+un objet inaccessible retourne `404`.
+
+### `PUT /api/admin/branding`
+
+Publie le nom et les assets de marque depuis des chemins `upload-staging`. Les
+PNG ou WebP concernés ont déjà été compressés dans le navigateur ; le SVG
+reste inchangé. Chaque source est limitée à 5 Mio et son chemin doit lier
+l’administrateur, le but `branding` et le type d’asset. La route relit les
+sources privées, valide leurs signatures, génère les logos, favicons, icônes et
+cartes sociales puis publie atomiquement une nouvelle révision. Le corps JSON
+ne contient aucun fichier :
+
+```json
+{
+  "bankName": "Monalyz",
+  "expectedRevision": 4,
+  "primaryLogoPath": "<staging-path|null>",
+  "reversedLogoPath": "<staging-path|null>",
+  "faviconPath": "<staging-path|null>"
+}
+```
+
+La route exige une session administrateur et une origine identique. Un conflit
+de révision retourne `409` ; les objets temporaires et les assets partiellement
+générés sont nettoyés en best effort.
+
+### `GET /api/health`
+
+Vérifie que la configuration serveur permet une lecture minimale de
+`brand_settings`, avec un délai de trois secondes. Réponse saine :
+
+```json
+{ "status": "ok" }
+```
+
+Une configuration ou une base indisponible retourne `503` et
+`{ "status": "unavailable" }`, sans détail interne. Toutes les réponses sont
+`no-store`.
 
 ### `GET /auth/callback`
 
@@ -111,6 +207,12 @@ d’agence actif peut traiter le lot global. Les échecs suivent un backoff
 exponentiel borné à 30 minutes. Les RPC `claim` et `complete` refusent les JWT
 autres que `service_role`; chaque complétion doit en plus présenter le
 `claim_token` opaque renvoyé lors de la réclamation.
+
+La cadence de production ne dépend pas de cette route interactive : la
+fonction Netlify privée `transactional-email-worker` réclame cinq jobs au
+maximum chaque minute, avec une concurrence de deux et un timeout fournisseur
+de trois secondes. Netlify ne l’exécute automatiquement que sur un deploy
+publié.
 
 ## RPC publiques authentifiées
 
@@ -243,5 +345,11 @@ de l’établissement. Une approbation seule ne modifie jamais le solde.
 | `400` | Paramètres ou opération Storage invalides |
 | `401` | Session absente |
 | `403` | Origine absente ou étrangère |
-| `413` | Fichier vide ou supérieur à 10 Mo |
+| `409` | Suppression d’une preuve déjà référencée |
+| `413` | Fichier vide ou supérieur à 10 Mio |
 | `415` | Signature ou MIME refusé |
+| `503` | Client serveur privilégié indisponible |
+
+Voir [Architecture](architecture.md),
+[Déploiement Netlify](deployment.md) et
+[E-mails transactionnels](transactional-email.md).

@@ -9,6 +9,21 @@ Monalyz propose deux configurations indépendantes :
 Un seul fournisseur métier est actif à la fois. Aucun e-mail ne donne un ordre
 bancaire et aucun fournisseur n’est relié à une banque.
 
+## En un coup d’œil
+
+| Élément | Valeur versionnée |
+| --- | --- |
+| Planification | Fonction Netlify chaque minute |
+| Lot planifié | 5 jobs maximum |
+| Concurrence | 2 envois |
+| Timeout fournisseur | 3 secondes par appel |
+| Lot de la route authentifiée | 10 jobs maximum |
+| Activation automatique | Deploy Netlify publié uniquement |
+
+Le worker et sa planification sont présents dans le dépôt. Leur activation
+effective exige encore un site publié et les secrets de production ; ce
+document ne constitue pas une preuve de déploiement.
+
 ## Architecture métier
 
 ```text
@@ -17,7 +32,7 @@ RPC virement/prêt/KYC
      -> nouvel état métier
      -> notification interne
      -> job unique dans transactional_email_outbox
-  -> POST /api/transactional-email/dispatch
+  -> fonction Netlify transactional-email-worker (chaque minute)
      -> claim atomique
      -> lecture de profiles.preferred_language
      -> rendu d’un modèle versionné
@@ -188,7 +203,14 @@ Auth; les profils Resend et Brevo décrits ici satisfont cette condition.
 
 ## Exploitation de l’outbox
 
-- un lot contient de 1 à 20 jobs au niveau RPC et 10 au niveau de la route ;
+- un lot contient de 1 à 20 jobs au niveau RPC, 10 au niveau de la route
+  authentifiée et 5 dans la fonction planifiée ;
+- `transactional-email-worker` exporte en code une configuration Netlify typée
+  avec la cadence `* * * * *` ; `netlify.toml` ne duplique pas ce cron ;
+- le worker traite deux jobs en parallèle et interrompt chaque appel Resend ou
+  Brevo après trois secondes ;
+- le worker lit uniquement la liste fermée de variables autorisées via
+  `Netlify.env` et ne renvoie aucun corps HTTP ;
 - seules les RPC appelées avec le rôle `service_role` peuvent réclamer ou
   terminer des jobs ;
 - `FOR UPDATE SKIP LOCKED` évite que deux workers réclament le même job ;
@@ -197,7 +219,9 @@ Auth; les profils Resend et Brevo décrits ici satisfont cette condition.
 - chaque tentative incrémente `attempts` ;
 - après cinq échecs, le job devient `failed` ;
 - l’erreur fournisseur est conservée avec une taille limitée ;
-- seuls les jobs `sent` possèdent `sent_at`.
+- seuls les jobs `sent` possèdent `sent_at` ;
+- chaque invocation journalise un résumé JSON : jobs réclamés, envoyés,
+  échoués, finalisations échouées et durée.
 
 La route de dispatch exige une origine canonique et une session, puis crée un
 client serveur isolé avec `SUPABASE_SECRET_KEY` — ou l’ancienne
@@ -205,21 +229,29 @@ client serveur isolé avec `SUPABASE_SECRET_KEY` — ou l’ancienne
 fournit jamais l’adresse du destinataire, le modèle ou le contenu : ils
 proviennent exclusivement de l’outbox.
 
-Pour une exécution régulière sans interaction utilisateur, appeler la même
-route depuis un mécanisme planifié authentifié ou déplacer le worker dans une
-fonction serveur dédiée. Ce mécanisme d’exploitation n’est pas encore activé.
+La fonction planifiée n’appelle pas cette route et ne possède aucun chemin HTTP
+public : elle utilise directement le même service de dispatch avec le client
+privilégié. Netlify ne lance automatiquement une fonction planifiée que pour
+un deploy publié. Sur un Deploy Preview, utiliser **Run now** dans l’interface
+Netlify pour un essai explicite ; aucune cadence automatique ne doit être
+attendue.
 
 ## Préparation et recette
 
 1. vérifier le domaine expéditeur chez le ou les fournisseurs ;
 2. publier les enregistrements SPF, DKIM et DMARC ;
 3. renseigner un seul profil métier dans les secrets du serveur ;
-4. lancer `npx bun x tsx --test tests/transactional-email.test.ts` ;
+4. lancer
+   `npx bun x tsx --test tests/transactional-email.test.ts tests/transactional-email-dispatch.test.ts` ;
 5. soumettre un virement et un prêt avec un compte de test ;
 6. valider, refuser et finaliser depuis le compte chef d’agence ;
 7. vérifier le statut `sent`, l’identifiant fournisseur et les journaux ;
 8. provoquer un échec contrôlé et vérifier la remise en attente ;
 9. contrôler l’affichage texte et HTML sur mobile et ordinateur.
+
+La mise en place des secrets, le test **Run now**, les alertes et le go/no-go
+sont détaillés dans le
+[runbook de mise en production Netlify](runbooks/netlify-production-release.md).
 
 Références officielles :
 [SMTP Supabase](https://supabase.com/docs/guides/auth/auth-smtp),

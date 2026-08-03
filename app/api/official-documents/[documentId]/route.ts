@@ -51,31 +51,32 @@ export async function GET(_request: Request, context: RouteContext) {
     );
   }
 
-  const { data: file, error: downloadError } = await supabase.storage
-    .from('official-documents')
-    .download(document.storage_path);
-  if (downloadError || !file) {
-    return NextResponse.json(
-      { error: 'Téléchargement impossible.' },
-      { status: 404, headers: { 'Cache-Control': 'no-store, private' } },
-    );
-  }
-
-  const bytes = await file.arrayBuffer();
   const safeName = `${document.document_number}-${document.title}`
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9_-]+/gi, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 120);
+  const downloadName = `${safeName || 'document-monalyz'}.pdf`;
+  const { data: signedDownload, error: signedDownloadError } =
+    await supabase.storage
+      .from('official-documents')
+      .createSignedUrl(document.storage_path, 60, {
+        download: downloadName,
+      });
+  if (signedDownloadError || !signedDownload?.signedUrl) {
+    return NextResponse.json(
+      { error: 'Téléchargement impossible.' },
+      { status: 404, headers: { 'Cache-Control': 'no-store, private' } },
+    );
+  }
 
-  return new NextResponse(bytes, {
-    status: 200,
+  return new NextResponse(null, {
+    status: 307,
     headers: {
       'Cache-Control': 'no-store, private',
-      'Content-Disposition': `attachment; filename="${safeName || 'document-monalyz'}.pdf"`,
-      'Content-Length': String(bytes.byteLength),
-      'Content-Type': 'application/pdf',
+      Location: signedDownload.signedUrl,
+      'Referrer-Policy': 'no-referrer',
       'X-Content-Type-Options': 'nosniff',
     },
   });

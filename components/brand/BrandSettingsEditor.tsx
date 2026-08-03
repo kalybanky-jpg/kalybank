@@ -3,7 +3,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ImageIcon, Save, UploadCloud } from 'lucide-react';
 import { normalizeBankName } from '@/lib/branding';
+import { discardStagedUploads, stageUpload } from '@/lib/staged-upload';
 import type { BrandSettings } from '@/lib/types';
+import {
+  MAX_COMPRESSIBLE_IMAGE_SOURCE_BYTES,
+  isCompressibleRasterType,
+  prepareUploadFile,
+} from '@/lib/upload-preparation';
 import { useBrand } from './BrandProvider';
 
 function useFilePreview(file: File | null, fallback: string) {
@@ -70,7 +76,15 @@ export default function BrandSettingsEditor() {
     try {
       normalizeBankName(bankName);
       for (const file of [primaryLogo, reversedLogo, favicon]) {
-        if (file && file.size > 5 * 1024 * 1024) return 'Chaque image doit peser au maximum 5 Mo.';
+        if (!file) continue;
+        const maximumSourceBytes = isCompressibleRasterType(file.type)
+          ? MAX_COMPRESSIBLE_IMAGE_SOURCE_BYTES
+          : 5 * 1024 * 1024;
+        if (file.size > maximumSourceBytes) {
+          return isCompressibleRasterType(file.type)
+            ? 'Chaque image source doit peser au maximum 25 Mo.'
+            : 'Chaque SVG doit peser au maximum 5 Mo.';
+        }
       }
       return null;
     } catch (error) {
@@ -86,14 +100,52 @@ export default function BrandSettingsEditor() {
     }
     setIsSaving(true);
     setFeedback(null);
+    const stagedPaths: string[] = [];
     try {
-      const formData = new FormData();
-      formData.set('bankName', normalizeBankName(bankName));
-      formData.set('expectedRevision', String(brand.revision));
-      if (primaryLogo) formData.set('primaryLogo', primaryLogo);
-      if (reversedLogo) formData.set('reversedLogo', reversedLogo);
-      if (favicon) formData.set('favicon', favicon);
-      const response = await fetch('/api/admin/branding', { method: 'PUT', body: formData });
+      const stageBrandFile = async (
+        file: File | null,
+        kind: 'primaryLogo' | 'reversedLogo' | 'favicon',
+      ) => {
+        if (!file) return null;
+        const prepared = await prepareUploadFile(file);
+        if (prepared.size > 5 * 1024 * 1024) {
+          throw new Error(
+            'Cette image reste supérieure à 5 Mo après compression.',
+          );
+        }
+        const staged = await stageUpload(prepared, 'branding', { kind });
+        return staged.path;
+      };
+      const stagingResults = await Promise.allSettled([
+        stageBrandFile(primaryLogo, 'primaryLogo'),
+        stageBrandFile(reversedLogo, 'reversedLogo'),
+        stageBrandFile(favicon, 'favicon'),
+      ]);
+      for (const result of stagingResults) {
+        if (result.status === 'fulfilled' && result.value) {
+          stagedPaths.push(result.value);
+        }
+      }
+      const stagingFailure = stagingResults.find(
+        (result): result is PromiseRejectedResult => result.status === 'rejected',
+      );
+      if (stagingFailure) throw stagingFailure.reason;
+      const [primaryLogoPath, reversedLogoPath, faviconPath] =
+        stagingResults.map((result) =>
+          result.status === 'fulfilled' ? result.value : null,
+        );
+      const response = await fetch('/api/admin/branding', {
+        method: 'PUT',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bankName: normalizeBankName(bankName),
+          expectedRevision: brand.revision,
+          primaryLogoPath,
+          reversedLogoPath,
+          faviconPath,
+        }),
+      });
       const payload = (await response.json()) as { brand?: BrandSettings; error?: string };
       if (!response.ok || !payload.brand) {
         throw new Error(payload.error ?? 'Publication de la marque impossible.');
@@ -113,6 +165,7 @@ export default function BrandSettingsEditor() {
         message: error instanceof Error ? error.message : 'Publication impossible.',
       });
     } finally {
+      await discardStagedUploads(stagedPaths);
       setIsSaving(false);
     }
   };
@@ -183,7 +236,9 @@ export default function BrandSettingsEditor() {
         className="mt-5 inline-flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-3 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
       >
         <Save className="h-4 w-4" />
-        {isSaving ? 'Publication et génération des assets…' : 'Publier l’identité'}
+        {isSaving
+          ? 'Compression, publication et génération des assets…'
+          : 'Publier l’identité'}
       </button>
     </form>
   );

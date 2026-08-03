@@ -1,0 +1,13 @@
+[build]
+  command = "bun run build"
+  publish = ".next"
+
+[build.environment]
+  BUN_VERSION = "1.3.14"
+  BUN_FLAGS = "--frozen-lockfile"
+  NODE_VERSION = "22"
+  NEXT_TELEMETRY_DISABLED = "1"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"

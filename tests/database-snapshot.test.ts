@@ -12,13 +12,19 @@ function sha256(content: string | Buffer): string {
   return createHash("sha256").update(content).digest("hex");
 }
 
+function normalizeLineEndings(content: string): string {
+  return content.replace(/\r\n?/g, "\n");
+}
+
 async function expectedMigrationManifest(): Promise<string> {
   const migrations = (await readdir(migrationsRoot))
     .filter((fileName) => fileName.endsWith(".sql"))
     .sort();
   const entries = await Promise.all(
     migrations.map(async (fileName) => {
-      const content = await readFile(path.join(migrationsRoot, fileName));
+      const content = normalizeLineEndings(
+        await readFile(path.join(migrationsRoot, fileName), "utf8"),
+      );
       return `${fileName}:${sha256(content)}`;
     }),
   );

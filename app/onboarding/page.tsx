@@ -23,6 +23,10 @@ import { isSupportedLanguage } from '@/lib/language';
 import { createClient } from '@/lib/supabase/client';
 import type { Json } from '@/lib/supabase/database.types';
 import type { Language } from '@/lib/types';
+import {
+  MAX_COMPRESSIBLE_IMAGE_SOURCE_BYTES,
+  isCompressibleRasterType,
+} from '@/lib/upload-preparation';
 
 type EvidenceKey = KycEvidenceKey;
 type SectionKey =
@@ -267,13 +271,20 @@ export default function OnboardingPage() {
   }, [correctionMode, form, language, paths, ready, stepIndex]);
 
   const upload = async (key: EvidenceKey, original: File) => {
-    if (!FILE_TYPES.has(original.type) || original.size > 10 * 1024 * 1024) {
+    const maximumSourceBytes = isCompressibleRasterType(original.type)
+      ? MAX_COMPRESSIBLE_IMAGE_SOURCE_BYTES
+      : 10 * 1024 * 1024;
+    if (!FILE_TYPES.has(original.type) || original.size > maximumSourceBytes) {
       setError(copy.invalidFile);
       return;
     }
     setError('');
     try {
       const file = await prepareImage(original, key === 'selfie');
+      if (file.size > 10 * 1024 * 1024) {
+        setError(copy.invalidFile);
+        return;
+      }
       const path = await uploadEvidence('kyc-evidence', key, file);
       setPaths((current) => ({ ...current, [key]: path }));
       setUploadedNow((current) => new Set(current).add(key));

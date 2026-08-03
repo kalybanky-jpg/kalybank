@@ -2,7 +2,6 @@ import type { NextRequest } from 'next/server';
 import { mapBrandSettings, normalizeBankName, type BrandSettingsRow } from '@/lib/branding';
 import {
   generateBrandRelease,
-  sourceFromFile,
   type BrandSource,
 } from '@/lib/server/brand-assets';
 import { fetchBrandRow, readBrandAsset } from '@/lib/server/branding';
@@ -13,11 +12,15 @@ import {
 } from '@/lib/server/api';
 import { getPublicSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
+import {
+  isExpectedBrandingStagingPath,
+  STAGING_BUCKET,
+  stagingPathExtension,
+  type BrandingUploadKind,
+} from '@/lib/server/staged-upload';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-
-const MAX_REQUEST_BYTES = 16 * 1024 * 1024;
 
 function privilegedClient() {
   return createPrivilegedClient(
@@ -25,10 +28,17 @@ function privilegedClient() {
   );
 }
 
-function optionalFile(formData: FormData, key: string) {
-  const value = formData.get(key);
-  if (value === null || value === '') return null;
-  if (!(value instanceof File) || value.size === 0) {
+interface BrandingPayload {
+  bankName?: unknown;
+  expectedRevision?: unknown;
+  primaryLogoPath?: unknown;
+  reversedLogoPath?: unknown;
+  faviconPath?: unknown;
+}
+
+function optionalStagingPath(value: unknown, key: string) {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value !== 'string' || value.length > 500) {
     throw new Error(`Le fichier ${key} est invalide.`);
   }
   return value;
@@ -45,15 +55,83 @@ async function currentSource(
   };
 }
 
+function brandingMimeType(path: string): BrandSource['mimeType'] {
+  switch (stagingPathExtension(path)) {
+    case 'svg':
+      return 'image/svg+xml';
+    case 'png':
+      return 'image/png';
+    case 'webp':
+      return 'image/webp';
+    default:
+      throw new Error('Le format du fichier de marque est invalide.');
+  }
+}
+
+function hasExpectedBrandingSignature(
+  bytes: Buffer,
+  mimeType: BrandSource['mimeType'],
+) {
+  if (mimeType === 'image/svg+xml') {
+    return /<svg\b/i.test(bytes.subarray(0, 4_096).toString('utf8'));
+  }
+  if (mimeType === 'image/png') {
+    return (
+      bytes.length >= 8 &&
+      [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].every(
+        (value, index) => bytes[index] === value,
+      )
+    );
+  }
+  return (
+    bytes.length >= 12 &&
+    bytes.subarray(0, 4).toString('ascii') === 'RIFF' &&
+    bytes.subarray(8, 12).toString('ascii') === 'WEBP'
+  );
+}
+
+async function stagedSource(
+  worker: ReturnType<typeof privilegedClient>,
+  path: string,
+): Promise<BrandSource> {
+  const { data, error } = await worker.storage
+    .from(STAGING_BUCKET)
+    .download(path);
+  if (error || !data) {
+    throw new Error('Le fichier temporaire de marque est introuvable.');
+  }
+  const bytes = Buffer.from(await data.arrayBuffer());
+  const mimeType = brandingMimeType(path);
+  if (!hasExpectedBrandingSignature(bytes, mimeType)) {
+    throw new Error('La signature du fichier de marque est invalide.');
+  }
+  return {
+    bytes,
+    mimeType,
+  };
+}
+
+async function removeStagedSources(
+  worker: ReturnType<typeof privilegedClient>,
+  paths: readonly string[],
+) {
+  if (paths.length === 0) return;
+  try {
+    const { error } = await worker.storage
+      .from(STAGING_BUCKET)
+      .remove([...paths]);
+    if (error) {
+      console.warn(JSON.stringify({ event: 'staging_brand_cleanup_failed' }));
+    }
+  } catch {
+    console.warn(JSON.stringify({ event: 'staging_brand_cleanup_failed' }));
+  }
+}
+
 export async function PUT(request: NextRequest) {
   if (!isSameOriginMutation(request)) {
     return noStoreJson({ error: 'Origine refusée.' }, 403);
   }
-  const contentLength = Number(request.headers.get('content-length') ?? 0);
-  if (contentLength > MAX_REQUEST_BYTES) {
-    return noStoreJson({ error: 'La publication dépasse la taille maximale autorisée.' }, 413);
-  }
-
   const supabase = await createClient();
   const {
     data: { user },
@@ -65,33 +143,55 @@ export async function PUT(request: NextRequest) {
     return noStoreJson({ error: 'Habilitation administrateur requise.' }, 403);
   }
 
-  let formData: FormData;
+  let payload: BrandingPayload;
   try {
-    formData = await request.formData();
+    payload = (await request.json()) as BrandingPayload;
   } catch {
-    return noStoreJson({ error: 'Formulaire multipart invalide.' }, 400);
+    return noStoreJson({ error: 'Corps JSON invalide.' }, 400);
   }
 
   let bankName: string;
   let expectedRevision: number;
-  let primaryFile: File | null;
-  let reversedFile: File | null;
-  let faviconFile: File | null;
+  let primaryLogoPath: string | null;
+  let reversedLogoPath: string | null;
+  let faviconPath: string | null;
   try {
-    bankName = normalizeBankName(String(formData.get('bankName') ?? ''));
-    expectedRevision = Number(formData.get('expectedRevision'));
+    bankName = normalizeBankName(String(payload.bankName ?? ''));
+    expectedRevision = Number(payload.expectedRevision);
     if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 1) {
       throw new Error('Révision de marque invalide.');
     }
-    primaryFile = optionalFile(formData, 'primaryLogo');
-    reversedFile = optionalFile(formData, 'reversedLogo');
-    faviconFile = optionalFile(formData, 'favicon');
+    primaryLogoPath = optionalStagingPath(
+      payload.primaryLogoPath,
+      'primaryLogo',
+    );
+    reversedLogoPath = optionalStagingPath(
+      payload.reversedLogoPath,
+      'reversedLogo',
+    );
+    faviconPath = optionalStagingPath(payload.faviconPath, 'favicon');
+    const stagedByKind: readonly [BrandingUploadKind, string | null][] = [
+      ['primaryLogo', primaryLogoPath],
+      ['reversedLogo', reversedLogoPath],
+      ['favicon', faviconPath],
+    ];
+    for (const [kind, path] of stagedByKind) {
+      if (path && !isExpectedBrandingStagingPath(path, user.id, kind)) {
+        throw new Error(`Le fichier ${kind} est invalide.`);
+      }
+    }
   } catch (error) {
     return noStoreJson(
       { error: error instanceof Error ? error.message : 'Paramètres invalides.' },
       400,
     );
   }
+
+  const stagedPaths = [
+    primaryLogoPath,
+    reversedLogoPath,
+    faviconPath,
+  ].filter((path): path is string => Boolean(path));
 
   let worker: ReturnType<typeof privilegedClient>;
   try {
@@ -107,9 +207,11 @@ export async function PUT(request: NextRequest) {
   try {
     current = await fetchBrandRow(worker);
   } catch {
+    await removeStagedSources(worker, stagedPaths);
     return noStoreJson({ error: 'Configuration de marque introuvable.' }, 503);
   }
   if (current.revision !== expectedRevision) {
+    await removeStagedSources(worker, stagedPaths);
     return noStoreJson(
       { error: 'La marque a été modifiée dans une autre session. Rechargez la page.' },
       409,
@@ -120,14 +222,14 @@ export async function PUT(request: NextRequest) {
   let uploadedPaths: string[] = [];
   try {
     const [primary, reversed, favicon] = await Promise.all([
-      primaryFile
-        ? sourceFromFile(primaryFile)
+      primaryLogoPath
+        ? stagedSource(worker, primaryLogoPath)
         : currentSource(worker, current.primary_logo_path),
-      reversedFile
-        ? sourceFromFile(reversedFile)
+      reversedLogoPath
+        ? stagedSource(worker, reversedLogoPath)
         : currentSource(worker, current.reversed_logo_path),
-      faviconFile
-        ? sourceFromFile(faviconFile)
+      faviconPath
+        ? stagedSource(worker, faviconPath)
         : currentSource(worker, current.app_icon_512_path),
     ]);
     const release = await generateBrandRelease({
@@ -201,5 +303,7 @@ export async function PUT(request: NextRequest) {
       },
       Number.isInteger(status) && status >= 400 && status <= 599 ? status : 400,
     );
+  } finally {
+    await removeStagedSources(worker, stagedPaths);
   }
 }

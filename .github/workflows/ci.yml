@@ -68,6 +68,17 @@ jobs:
       - name: Reset database
         run: bun x supabase db reset --local
 
+      - name: Generate database snapshot
+        run: bun run db:snapshot
+
+      - name: Upload generated database snapshot
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: database-schema-snapshot-${{ github.run_attempt }}
+          path: supabase/schema.sql
+          if-no-files-found: error
+          retention-days: 3
+
       - name: Check generated database types
         run: bun run db:types:check
 
@@ -79,6 +90,9 @@ jobs:
 
       - name: Run database advisors
         run: bun x supabase db advisors --local --type all --level warn --fail-on error
+
+      - name: Check committed database snapshot
+        run: git diff --exit-code -- supabase/schema.sql
 
       - name: Stop Supabase
         if: always()

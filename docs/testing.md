@@ -10,13 +10,16 @@
 | Lint | `bun run lint -- --max-warnings=0` | Next, hooks, accessibilité |
 | Tests unitaires | `bun run test` | Tous les fichiers `tests/**/*.test.ts` et `tests/**/*.test.tsx` |
 | E-mails métier | `bun x tsx --test tests/transactional-email.test.ts` | Config, modèles, payloads et idempotence |
+| Worker e-mail | `bun x tsx --test tests/transactional-email-dispatch.test.ts` | Planification Netlify, lot, concurrence, timeout et finalisation |
+| Upload direct | `bun x tsx --test tests/staged-upload.test.ts tests/upload-preparation.test.ts` | Intents, chemins propriétaires, signatures et compression locale |
+| Health check | `bun x tsx --test tests/health-contract.test.ts` | Réponse indisponible sans fuite de configuration |
 | Langues | `bun x tsx --test tests/language.test.ts` | BCP 47, priorité et repli |
 | Registre bancaire | `bun x tsx --test tests/financial.test.ts tests/banking-i18n.test.ts` | Numéros de compte, soldes et traductions UI |
 | PDF officiels | `bun x tsx --test tests/official-document-pdf.test.ts` | Rendu, empreinte et filigrane démo |
 | Provisionnement démo | `bun x tsx --test tests/demo-provisioning.test.ts` | Cibles, secrets, refus de reprise et idempotence |
 | Schéma | `bun x supabase db lint --local --level warning --fail-on error` | Erreurs SQL |
 | Conseillers | `bun x supabase db advisors --local --type all --level warn --fail-on error` | Sécurité et performance |
-| pgTAP | `bun run test:db` | Les 3 suites SQL du dossier, soit 214 assertions planifiées (191 + 14 + 9) |
+| pgTAP | `bun run test:db` | Les 4 suites SQL du dossier, soit 261 assertions planifiées (191 + 14 + 9 + 47) |
 | Snapshot | `bun run db:snapshot` puis `bun run test` | Copie SQL et manifeste |
 | Types Supabase | `bun run db:types` | Régénération des contrats TypeScript depuis la base locale |
 | Dépendances | `bun audit` | Vulnérabilités connues |
@@ -30,29 +33,60 @@ La CI régénère les types Supabase après le reset local et les compare à
 `lib/supabase/database.types.ts`. Une différence bloque la fusion afin que les
 migrations et les contrats TypeScript restent synchronisés.
 
+## Parcours sans Docker local
+
+Le lint, le typecheck, les tests TypeScript/TSX, l’audit des dépendances et le
+build n’exigent pas Docker. Les commandes Supabase `--local` en ont besoin pour
+démarrer la pile locale ; elles doivent rester désactivées sur une machine qui
+ne le supporte pas.
+
+Dans ce cas, la branche ou la pull request doit obligatoirement laisser le job
+base de données de [la CI](../.github/workflows/ci.yml) exécuter le reset, pgTAP,
+le linter, les advisors, la comparaison des types et la régénération du
+snapshot dans son runner isolé. Le SQL généré est conservé trois jours comme
+artefact `database-schema-snapshot-<run_attempt>`, puis comparé au
+`supabase/schema.sql` commité. Le dry-run distant
+`bun run db:deploy:check` ne remplace pas pgTAP, mais peut compléter cette porte
+après le succès de la CI. Ne jamais sauter le job base de données au motif que
+Docker local est indisponible.
+
+Après une nouvelle migration, un premier run peut échouer uniquement sur la
+comparaison du snapshot tout en publiant l’artefact. Télécharger ce SQL, vérifier
+qu’il ne contient aucune donnée, remplacer `supabase/schema.sql`, committer la
+copie revue puis relancer la CI. Cette boucle est l’alternative documentée à la
+régénération locale.
+
 ## Arborescence
 
 ```text
 tests/
   database-snapshot.test.ts
   email-config.test.ts
+  health-contract.test.ts
   financial.test.ts
   banking-i18n.test.ts
   brand-logo.test.tsx
   navigation.test.ts
   official-document-pdf.test.ts
+  staged-upload.test.ts
+  transactional-email-dispatch.test.ts
   transactional-email.test.ts
+  upload-preparation.test.ts
 supabase/tests/
   kyc_workflow_test.sql
   monalyz_workflow_invariants_test.sql
+  security_hardening_test.sql
   transactional_email_claims_test.sql
 ```
 
 ## Avant fusion
 
-1. Appliquer les migrations avec `bun x supabase migration up --local`.
-2. Régénérer le snapshot avec `bun run db:snapshot`.
-3. Exécuter toutes les commandes du tableau.
+1. Exécuter lint, typecheck, tests TypeScript/TSX, audit et build.
+2. Après toute migration, régénérer le snapshot localement si autorisé ou
+   récupérer l’artefact CI, puis vérifier son manifeste avant de le committer.
+3. Si Docker local est explicitement disponible, appliquer les migrations et
+   exécuter les portes Supabase locales ; sinon attendre le job base de données
+   de la CI avant toute fusion ou migration distante.
 4. Vérifier `/login`, la redirection de `/myaccount` et celle de `/admin`.
 5. Vérifier que chaque script de la réponse HTML porte le nonce du CSP.
 6. Confirmer que `/api/evidence` retourne `401` sans session et `403` pour une origine étrangère.
@@ -61,7 +95,7 @@ supabase/tests/
 8. Ouvrir directement les routes publiques avec `fr-CA`, `en-GB`, `de-DE`,
    `es-MX` et une langue non prise en charge ; contrôler le contenu et
    `<html lang>`.
-9. Vérifier les 40 couples modèle/langue ainsi que le scénario où la langue du
+9. Vérifier les 60 couples modèle/langue ainsi que le scénario où la langue du
    profil change entre la création du job et son dispatch.
 10. Prévalider le provisionnement avec
     `bun run demo:provision -- --target=local --dry-run` ; cette commande ne
@@ -81,6 +115,12 @@ supabase/tests/
     PDF.
 16. Inspecter les requêtes réseau des flux financiers : aucun appel vers une
     API bancaire, un agrégateur ou un moteur de paiement n’est autorisé.
+17. Vérifier qu’un gros fichier utilise `/api/upload-intents`, que le corps de
+    `/api/evidence` reste JSON et que le PDF officiel est servi par redirection
+    `307` vers Storage.
+18. Sur Deploy Preview, tester manuellement le worker e-mail avec **Run now** ;
+    après publication, confirmer sa cadence et les alertes selon le
+    [runbook Netlify](runbooks/netlify-production-release.md).
 
 Le patch `patches/minimatch@3.1.5.patch` adapte l’ancien consommateur CommonJS
 à `brace-expansion` 5.0.8 corrigé. Ne le supprimer qu’après disparition de

@@ -8,21 +8,23 @@
 
 | Zone | Responsabilité |
 | --- | --- |
-| Next.js | UI, sessions SSR, CSP, génération et téléchargement des PDF |
+| Netlify | Build Next.js, routes serveur et worker d’e-mails planifié |
+| Next.js | UI, sessions SSR, CSP, génération PDF et orchestration de petits JSON |
 | Supabase Auth | Identité et session |
 | PostgreSQL | Comptes enrichis, grand livre, RLS, machines d’état et audit |
-| Storage | Justificatifs privés KYC/prêt et documents officiels PDF |
+| Storage | Staging et justificatifs privés, PDF officiels privés, assets de marque versionnés |
 | Resend ou Brevo | Notifications métier multilingues, sans donnée bancaire |
 | Personnel de l’établissement | Contrôles et exécutions opérationnelles internes, hors Monalyz |
 | Chef d’agence | Autorité unique de déclaration, décision et finalisation dans Monalyz |
 
 ```mermaid
 flowchart LR
-  U["Utilisateur"] --> N["Application Monalyz"]
+  U["Utilisateur"] --> N["Monalyz sur Netlify : Next.js + worker"]
   C["Chef d’agence"] --> N
   N --> A["Supabase Auth"]
   N --> D["Comptes + grand livre + RLS/RPC"]
-  N --> P["Storage privé : preuves et PDF"]
+  U -->|"upload signé direct"| P["Supabase Storage"]
+  N --> P
   B["Personnel de l’établissement"] --> X["Contrôles et exécution internes hors Monalyz"]
   X --> C
   X -. "confirmation humaine uniquement" .-> N
@@ -34,12 +36,55 @@ flowchart LR
 - `proxy.ts` rafraîchit la session, protège les routes et contrôle le rôle staff.
 - `lib/store.tsx` ne modifie pas directement les tables métier : il appelle les RPC.
 - les fonctions `SECURITY DEFINER` vérifient `auth.uid()`, les rôles et les états ;
-- la route `/api/evidence` vérifie origine, session, taille, MIME et signature binaire ;
-- les routes `/api/official-documents` émettent et téléchargent les PDF après
-  contrôle de session, de rôle et de RLS ;
-- le navigateur n’accède jamais à une clé privilégiée ni à un bucket public ;
+- `/api/upload-intents` émet une capacité d’upload étroite, temporaire et liée
+  à l’utilisateur ;
+- `/api/evidence` vérifie origine, session, propriété du staging, taille, MIME
+  et signature binaire sans télécharger le fichier complet ;
+- les routes `/api/official-documents` émettent le PDF après contrôle de rôle,
+  puis autorisent son téléchargement par une URL Storage signée après RLS ;
+- le navigateur ne reçoit jamais de clé privilégiée ; son écriture Storage
+  temporaire utilise uniquement le jeton signé du chemin autorisé ;
 - aucune API bancaire, aucun agrégateur de comptes et aucun moteur de paiement
   ne fait partie de l’architecture.
+
+## Téléversements compatibles Netlify
+
+Aucune requête du navigateur vers une route applicative ne transporte un
+fichier complet. Le navigateur prépare l’objet, demande un intent en JSON, puis
+l’envoie directement dans le bucket privé `upload-staging`. La finalisation
+reçoit seulement le bucket, le type logique et le chemin temporaire.
+
+```mermaid
+sequenceDiagram
+  participant B as Navigateur
+  participant N as Next.js sur Netlify
+  participant S as Supabase Storage
+  B->>B: Compresser JPEG/PNG/WebP > 3,5 Mo
+  B->>N: POST /api/upload-intents (JSON)
+  N-->>B: chemin + jeton signé
+  B->>S: uploadToSignedUrl(fichier)
+  B->>N: POST /api/evidence (JSON)
+  N->>S: move staging -> bucket final
+  N->>S: Range de 4 Kio au maximum
+  N-->>B: chemin final
+```
+
+La compression accepte une source raster jusqu’à 25 Mio, conserve le format,
+réduit progressivement qualité et dimensions et limite le plus grand côté à
+3 200 px. Les PDF et les formats non pris en charge restent byte-identiques.
+Après préparation, les preuves sont plafonnées à 10 Mio et les sources de
+marque à 5 Mio ; le bucket de staging est lui-même privé et plafonné à 10 Mio.
+
+La publication de marque suit le même staging. Pour générer les dérivés, la
+route administrateur relit depuis Storage chaque source privée de 5 Mio au
+maximum, côté serveur ; ce flux sortant ne passe pas par le corps de la requête
+cliente. Elle vérifie les signatures avant toute génération. En cas d’échec ou
+d’abandon, le client et le serveur tentent de supprimer les objets temporaires
+sans masquer l’erreur d’origine.
+
+Les policies historiques d’écriture directe dans les buckets finaux sont
+supprimées par migration. Un navigateur authentifié ne peut donc pas contourner
+le staging, le contrôle de signature et le déplacement privilégié.
 
 ## Registre des comptes et des soldes
 
@@ -151,6 +196,10 @@ chemin privé et les éventuelles révocations. Une révocation ajoute son acteu
 et son motif ; elle ne détruit ni la ligne ni le fichier audité. Les PDF de
 démonstration portent un filigrane explicite et `is_demo = true`.
 
+Au téléchargement, Next.js applique la session et la RLS puis répond `307` vers
+une URL Storage signée pendant 60 secondes. Le PDF privé ne traverse donc ni la
+réponse Next.js ni une fonction Netlify.
+
 Le terme « officiel » signifie ici « émis et traçable par l’établissement ».
 Il ne suppose ni certification par un tiers, ni connexion à une banque, ni
 exécution automatique.
@@ -159,11 +208,17 @@ exécution automatique.
 
 Chaque changement de statut utile crée, dans la même transaction SQL, une
 entrée unique dans `transactional_email_outbox`. Après la validation de la
-transaction, la route serveur utilise un client Supabase privilégié pour
-réclamer un lot d’e-mails. Elle relit la langue courante du destinataire juste
-avant chaque appel Resend ou Brevo, puis rend le modèle dans cette langue. Un
-incident de lecture ou de fournisseur ne revient jamais sur la décision
-financière : l’outbox conserve le message pour une nouvelle tentative.
+transaction, la fonction Netlify `transactional-email-worker`, planifiée
+chaque minute, utilise un client Supabase privilégié pour réclamer jusqu’à cinq
+jobs. Elle en traite deux en parallèle, avec un timeout fournisseur de trois
+secondes, relit la langue courante puis rend le modèle. Un incident de lecture
+ou de fournisseur ne revient jamais sur la décision financière : l’outbox
+conserve le message pour une nouvelle tentative.
+
+Netlify active automatiquement cette cadence uniquement sur un deploy publié.
+La route authentifiée `/api/transactional-email/dispatch` reste disponible pour
+un lot interactif de dix jobs maximum, limité au destinataire sauf pour le chef
+d’agence. Aucune route publique n’expose le worker planifié.
 
 Les événements couverts sont la soumission, la validation, le refus, l’échec
 et la finalisation d’un virement, ainsi que la soumission, la validation, le
@@ -174,7 +229,9 @@ refus, l’échec et le décaissement d’un prêt.
 - CSP à nonce par requête, `frame-ancestors 'none'` et en-têtes anti-sniffing ;
 - navigation interne normalisée contre les redirections ouvertes ;
 - RLS sur toutes les tables publiques ;
-- privilèges directs révoqués au profit de RPC étroites ;
+- privilèges directs révoqués au profit de RPC étroites ; la migration de
+  production révoque aussi `EXECUTE` par défaut à `anon` et n’accorde à
+  `authenticated` que les RPC applicatives explicitement listées ;
 - accès propriétaire ou chef d’agence aux comptes, écritures et documents ;
 - montants stockés en unités mineures entières.
 

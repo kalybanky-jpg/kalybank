@@ -164,6 +164,23 @@ select is(
 );
 
 select ok(
+  not has_function_privilege(
+    'authenticated',
+    'public.branch_manager_approve_transfer(uuid,text)',
+    'EXECUTE'
+  ),
+  'authenticated cannot execute the legacy bulk transfer approval RPC'
+);
+select ok(
+  not has_function_privilege(
+    'authenticated',
+    'public.branch_manager_finalize_transfer(uuid,text)',
+    'EXECUTE'
+  ),
+  'authenticated cannot execute the legacy transfer finalization RPC'
+);
+
+select ok(
   has_function_privilege(test_role, routine_signature, 'EXECUTE'),
   description
 )
@@ -172,10 +189,8 @@ from (
     ('authenticated', 'public.begin_kyc_review(uuid)', 'authenticated keeps begin_kyc_review'),
     ('authenticated', 'public.branch_manager_adjust_balance(uuid,bigint,timestamp with time zone,text,uuid)', 'authenticated keeps branch_manager_adjust_balance'),
     ('authenticated', 'public.branch_manager_approve_loan(uuid,text)', 'authenticated keeps branch_manager_approve_loan'),
-    ('authenticated', 'public.branch_manager_approve_transfer(uuid,text)', 'authenticated keeps branch_manager_approve_transfer'),
     ('authenticated', 'public.branch_manager_declare_account(uuid,text,text,text,text,text,text,text,text,text,bigint,timestamp with time zone,boolean,text,uuid)', 'authenticated keeps branch_manager_declare_account'),
     ('authenticated', 'public.branch_manager_disburse_loan(uuid,uuid,text)', 'authenticated keeps branch_manager_disburse_loan'),
-    ('authenticated', 'public.branch_manager_finalize_transfer(uuid,text)', 'authenticated keeps branch_manager_finalize_transfer'),
     ('authenticated', 'public.branch_manager_issue_official_document(uuid,uuid,uuid,uuid,text,text,text,date,date,uuid)', 'authenticated keeps branch_manager_issue_official_document'),
     ('authenticated', 'public.branch_manager_reject_loan(uuid,text)', 'authenticated keeps branch_manager_reject_loan'),
     ('authenticated', 'public.branch_manager_reject_transfer(uuid,text)', 'authenticated keeps branch_manager_reject_transfer'),

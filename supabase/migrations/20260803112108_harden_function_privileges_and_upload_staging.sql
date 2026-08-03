@@ -61,7 +61,6 @@ grant execute on function
   public.begin_kyc_review(uuid),
   public.branch_manager_adjust_balance(uuid, bigint, timestamp with time zone, text, uuid),
   public.branch_manager_approve_loan(uuid, text),
-  public.branch_manager_approve_transfer(uuid, text),
   public.branch_manager_declare_account(
     uuid,
     text,
@@ -80,7 +79,6 @@ grant execute on function
     uuid
   ),
   public.branch_manager_disburse_loan(uuid, uuid, text),
-  public.branch_manager_finalize_transfer(uuid, text),
   public.branch_manager_issue_official_document(
     uuid,
     uuid,

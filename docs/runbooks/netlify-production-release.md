@@ -19,8 +19,10 @@
 
 ## Ce qui est déjà automatisé dans le dépôt
 
-- `netlify.toml` fixe `bun run build`, `.next`, Bun 1.3.14, Node.js 22 et le
-  dossier des fonctions ;
+- `netlify.toml` fixe `bun run build`, `.next`, Bun 1.3.14, Node.js 22, le
+  dossier des fonctions et `@netlify/plugin-nextjs` 5.15.13 afin que les
+  déploiements Git comme les déploiements par archive produisent le runtime
+  Next.js complet ;
 - le worker exporte son cron `* * * * *` avec le type
   `@netlify/functions`, lit sa configuration avec `Netlify.env`, ne possède pas
   de route publique et ne renvoie aucun corps ;

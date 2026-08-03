@@ -69,10 +69,7 @@ jobs:
         run: bun x supabase db reset --local
 
       - name: Check generated database types
-        shell: bash
-        run: |
-          bun x supabase gen types typescript --local --schema public,private > /tmp/database.types.ts
-          diff --unified lib/supabase/database.types.ts /tmp/database.types.ts
+        run: bun run db:types:check
 
       - name: Test database
         run: bun run test:db

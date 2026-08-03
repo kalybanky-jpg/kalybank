@@ -39,7 +39,7 @@ if (result.status !== 0) {
 const generatedTypes = result.stdout
   .replace(/\r\n/g, '\n')
   .replace(
-    /  (?:\/\/[^\n]*\n)*  __InternalSupabase: \{\n(?:    [^\n]*\n)*?  \}\n/,
+    /(?:  \/\/[^\n]*\n)*  __InternalSupabase: \{\n(?:    [^\n]*\n)*?  \}\n/,
     '',
   )
   .trimEnd()

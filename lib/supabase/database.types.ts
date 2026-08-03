@@ -7,7 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
   private: {
     Tables: {
       account_number_configuration: {

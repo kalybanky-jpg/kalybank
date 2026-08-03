@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { formatLocalizedDateTime } from '@/lib/language';
 import { extraUserMessages, notificationCopy } from '@/lib/user-i18n';
 import { useBranded } from '@/components/brand/BrandProvider';
+import { DialogBackdrop, DialogPanel, Drawer } from '@/components/ui/Dialog';
 
 export default function NotificationsDrawer() {
   const {
@@ -25,23 +26,35 @@ export default function NotificationsDrawer() {
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-sm">
-        <motion.div
-          initial={{ x: 400, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          exit={{ x: 400, opacity: 0 }}
-          transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-          className="relative w-full max-w-sm bg-white h-full shadow-2xl flex flex-col border-l border-slate-200"
-        >
+      <Drawer
+        open={isNotificationsDrawerOpen}
+        onClose={() => setIsNotificationsDrawerOpen(false)}
+        ariaLabelledBy="notifications-drawer-title"
+      >
+        <DialogBackdrop className="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-sm">
+          <DialogPanel
+            as={motion.div}
+            initial={{ x: 400, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: 400, opacity: 0 }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            className="relative w-full max-w-sm bg-white h-full shadow-2xl flex flex-col border-l border-slate-200"
+          >
           {/* Header */}
           <div className="bg-slate-900 text-white p-5 flex items-center justify-between border-b border-slate-800">
             <div className="flex items-center space-x-3">
               <div className="w-9 h-9 rounded-xl bg-blue-500/20 text-blue-400 border border-blue-500/30 flex items-center justify-center">
                 <Bell className="w-5 h-5" />
               </div>
-              <h3 className="text-base font-extrabold">{t.notifications.title}</h3>
+              <h3
+                id="notifications-drawer-title"
+                className="text-base font-extrabold"
+              >
+                {t.notifications.title}
+              </h3>
             </div>
             <button
+              type="button"
               onClick={() => setIsNotificationsDrawerOpen(false)}
               id="close-notifications-drawer-btn"
               className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition"
@@ -94,8 +107,9 @@ export default function NotificationsDrawer() {
               )})
             )}
           </div>
-        </motion.div>
-      </div>
+          </DialogPanel>
+        </DialogBackdrop>
+      </Drawer>
     </AnimatePresence>
   );
 }

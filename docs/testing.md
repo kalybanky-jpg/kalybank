@@ -6,20 +6,29 @@
 
 | Couche | Commande | Portée |
 | --- | --- | --- |
-| TypeScript | `npx bun run typecheck` | Typage strict |
-| Lint | `npx bun run lint -- --max-warnings=0` | Next, hooks, accessibilité |
-| Tests unitaires | `npx bun run test` | Domaine, redirections et e-mails |
-| E-mails métier | `npx bun x tsx --test tests/transactional-email.test.ts` | Config, modèles, payloads et idempotence |
-| Langues | `npx bun x tsx --test tests/language.test.ts` | BCP 47, priorité et repli |
-| Registre bancaire | `npx bun x tsx --test tests/financial.test.ts tests/banking-i18n.test.ts` | Numéros de compte, soldes et traductions UI |
-| PDF officiels | `npx bun x tsx --test tests/official-document-pdf.test.ts` | Rendu, empreinte et filigrane démo |
-| Provisionnement démo | `npx bun x tsx --test tests/demo-provisioning.test.ts` | Cibles, secrets, refus de reprise et idempotence |
-| Schéma | `npx bun x supabase db lint --local --level warning --fail-on error` | Erreurs SQL |
-| Conseillers | `npx bun x supabase db advisors --local --type all --level warn --fail-on error` | Sécurité et performance |
-| pgTAP | `npx bun run test:db` | 145 invariants financiers, documentaires, linguistiques et démo |
-| Snapshot | `npx bun run db:snapshot` puis `npx bun run test` | Copie SQL et manifeste |
-| Dépendances | `npx bun audit` | Vulnérabilités connues |
-| Production | `npx bun run build` | Compilation et pré-rendu |
+| TypeScript | `bun run typecheck` | Typage strict |
+| Lint | `bun run lint -- --max-warnings=0` | Next, hooks, accessibilité |
+| Tests unitaires | `bun run test` | Tous les fichiers `tests/**/*.test.ts` et `tests/**/*.test.tsx` |
+| E-mails métier | `bun x tsx --test tests/transactional-email.test.ts` | Config, modèles, payloads et idempotence |
+| Langues | `bun x tsx --test tests/language.test.ts` | BCP 47, priorité et repli |
+| Registre bancaire | `bun x tsx --test tests/financial.test.ts tests/banking-i18n.test.ts` | Numéros de compte, soldes et traductions UI |
+| PDF officiels | `bun x tsx --test tests/official-document-pdf.test.ts` | Rendu, empreinte et filigrane démo |
+| Provisionnement démo | `bun x tsx --test tests/demo-provisioning.test.ts` | Cibles, secrets, refus de reprise et idempotence |
+| Schéma | `bun x supabase db lint --local --level warning --fail-on error` | Erreurs SQL |
+| Conseillers | `bun x supabase db advisors --local --type all --level warn --fail-on error` | Sécurité et performance |
+| pgTAP | `bun run test:db` | Les 3 suites SQL du dossier, soit 214 assertions planifiées (191 + 14 + 9) |
+| Snapshot | `bun run db:snapshot` puis `bun run test` | Copie SQL et manifeste |
+| Types Supabase | `bun run db:types` | Régénération des contrats TypeScript depuis la base locale |
+| Dépendances | `bun audit` | Vulnérabilités connues |
+| Production | `bun run build` | Compilation et pré-rendu |
+
+Bun 1.3.14 est le gestionnaire canonique déclaré dans `package.json`. Une
+installation reproductible se vérifie avec `bun install --frozen-lockfile` ;
+aucun lockfile npm ne doit être généré ou versionné.
+
+La CI régénère les types Supabase après le reset local et les compare à
+`lib/supabase/database.types.ts`. Une différence bloque la fusion afin que les
+migrations et les contrats TypeScript restent synchronisés.
 
 ## Arborescence
 
@@ -29,17 +38,20 @@ tests/
   email-config.test.ts
   financial.test.ts
   banking-i18n.test.ts
+  brand-logo.test.tsx
   navigation.test.ts
   official-document-pdf.test.ts
   transactional-email.test.ts
 supabase/tests/
+  kyc_workflow_test.sql
   monalyz_workflow_invariants_test.sql
+  transactional_email_claims_test.sql
 ```
 
 ## Avant fusion
 
-1. Appliquer les migrations avec `npx bun x supabase migration up --local`.
-2. Régénérer le snapshot avec `npx bun run db:snapshot`.
+1. Appliquer les migrations avec `bun x supabase migration up --local`.
+2. Régénérer le snapshot avec `bun run db:snapshot`.
 3. Exécuter toutes les commandes du tableau.
 4. Vérifier `/login`, la redirection de `/myaccount` et celle de `/admin`.
 5. Vérifier que chaque script de la réponse HTML porte le nonce du CSP.
@@ -52,7 +64,7 @@ supabase/tests/
 9. Vérifier les 40 couples modèle/langue ainsi que le scénario où la langue du
    profil change entre la création du job et son dispatch.
 10. Prévalider le provisionnement avec
-    `npm run demo:provision -- --target=local --dry-run` ; cette commande ne
+    `bun run demo:provision -- --target=local --dry-run` ; cette commande ne
     contacte pas Supabase.
 11. Vérifier qu’une déclaration de compte crée une seule écriture d’ouverture,
     normalise l’IBAN et refuse les doublons.

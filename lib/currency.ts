@@ -1,5 +1,14 @@
-import { Currency, CurrencyRates } from './types';
+import type { Currency, CurrencyRates } from './types';
 import { languageLocale } from './language';
+
+export const SUPPORTED_CURRENCIES = ['EUR', 'USD', 'CAD', 'CHF', 'GBP'] as const;
+
+export function isSupportedCurrency(value: unknown): value is Currency {
+  return (
+    typeof value === 'string' &&
+    (SUPPORTED_CURRENCIES as readonly string[]).includes(value)
+  );
+}
 
 // Default static fallback rates based on recent live baseline
 export const DEFAULT_RATES: CurrencyRates = {
@@ -37,7 +46,7 @@ export function convertAmount(
   targetCurrency: string,
   rates: CurrencyRates = DEFAULT_RATES
 ): number {
-  const rate = rates.rates[targetCurrency as any] || 1.0;
+  const rate = rates.rates[targetCurrency] || 1.0;
   return amountInEUR * rate;
 }
 
@@ -47,8 +56,8 @@ export function convertAnyAmount(
   targetCurrency: string,
   rates: CurrencyRates = DEFAULT_RATES
 ): number {
-  const rateSrc = rates.rates[sourceCurrency as any] || 1.0;
-  const rateTarget = rates.rates[targetCurrency as any] || 1.0;
+  const rateSrc = rates.rates[sourceCurrency] || 1.0;
+  const rateTarget = rates.rates[targetCurrency] || 1.0;
   // Convert from source currency to EUR base, then from EUR base to target currency
   const amountInEUR = amount / rateSrc;
   return amountInEUR * rateTarget;

@@ -3,15 +3,28 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Camera, Check, FileCheck2, LockKeyhole, UploadCloud } from 'lucide-react';
 import BrandLogo from '@/components/brand/BrandLogo';
+import {
+  kycAddressToJson,
+  kycChangesToJson,
+  kycProfileToJson,
+  parseKycAddress,
+  parseKycDocumentPaths,
+  parseKycDraft,
+  serializeKycDocumentPaths,
+  serializeKycDraft,
+  type KycDraftForm,
+  type KycEvidenceKey,
+} from '@/lib/domain/kyc';
 import { uploadEvidence } from '@/lib/evidence';
 import { appErrorCode, localizedAppError } from '@/lib/user-i18n';
 import { splitFullName } from '@/lib/identity';
 import { kycTranslations } from '@/lib/kyc-i18n';
 import { isSupportedLanguage } from '@/lib/language';
 import { createClient } from '@/lib/supabase/client';
+import type { Json } from '@/lib/supabase/database.types';
 import type { Language } from '@/lib/types';
 
-type EvidenceKey = 'id_front' | 'id_back' | 'proof_of_address' | 'selfie';
+type EvidenceKey = KycEvidenceKey;
 type SectionKey =
   | 'identity'
   | 'birth'
@@ -20,25 +33,7 @@ type SectionKey =
   | 'document_metadata'
   | EvidenceKey;
 
-interface KycForm {
-  firstName: string;
-  lastName: string;
-  placeOfBirth: string;
-  nationality: string;
-  dateOfBirth: string;
-  street: string;
-  postalCode: string;
-  city: string;
-  country: string;
-  occupation: string;
-  incomeRange: string;
-  fatca: boolean;
-  pep: boolean;
-  documentType: string;
-  documentNumber: string;
-  issuingCountry: string;
-  documentExpiresOn: string;
-}
+type KycForm = KycDraftForm;
 
 const EMPTY_FORM: KycForm = {
   firstName: '', lastName: '', placeOfBirth: '', nationality: '', dateOfBirth: '',
@@ -217,25 +212,30 @@ export default function OnboardingPage() {
       const preferred = isSupportedLanguage(profile?.preferred_language) ? profile.preferred_language : 'fr';
       setLanguage(preferred);
       if (application && ['needs_information', 'rejected'].includes(application.status)) {
+        const address = parseKycAddress(application.address);
         setKycId(application.id);
-        setRequestedItems(application.requested_items as SectionKey[]);
+        setRequestedItems(
+          application.requested_items.filter((item): item is SectionKey =>
+            ALL_STEPS.includes(item as SectionKey),
+          ),
+        );
         setForm({
           firstName: application.first_name, lastName: application.last_name,
           placeOfBirth: application.place_of_birth, nationality: application.nationality,
-          dateOfBirth: application.date_of_birth, street: application.address.street ?? '',
-          postalCode: application.address.postalCode ?? '', city: application.address.city ?? '',
-          country: application.address.country ?? '', occupation: application.occupation,
+          dateOfBirth: application.date_of_birth, street: address.street,
+          postalCode: address.postalCode, city: address.city,
+          country: address.country, occupation: application.occupation,
           incomeRange: application.income_range, fatca: application.fatca, pep: application.pep,
           documentType: application.document_type ?? '', documentNumber: application.document_number ?? '',
           issuingCountry: application.issuing_country ?? '', documentExpiresOn: application.document_expires_on ?? '',
         });
-        setPaths(application.document_object_paths ?? {});
+        setPaths(parseKycDocumentPaths(application.document_object_paths));
       } else if (application) {
         window.location.replace('/myaccount?tab=kyc');
         return;
       } else if (draft) {
-        setForm({ ...EMPTY_FORM, ...(draft.payload as Partial<KycForm>) });
-        setPaths(draft.document_object_paths ?? {});
+        setForm({ ...EMPTY_FORM, ...parseKycDraft(draft.payload) });
+        setPaths(parseKycDocumentPaths(draft.document_object_paths));
         setStepIndex(draft.current_step ?? 0);
         setSaved(true);
       } else {
@@ -256,8 +256,8 @@ export default function OnboardingPage() {
       setSaving(true);
       const { error: saveError } = await createClient().rpc('save_kyc_draft', {
         p_current_step: stepIndex,
-        p_payload: form,
-        p_document_object_paths: paths,
+        p_payload: serializeKycDraft(form),
+        p_document_object_paths: serializeKycDocumentPaths(paths),
         p_preferred_language: language,
       });
       setSaving(false);
@@ -313,18 +313,14 @@ export default function OnboardingPage() {
     try {
       const supabase = createClient();
       if (correctionMode) {
-        const changes: Record<string, unknown> = {};
+        const changes: Record<string, Json | undefined> = {};
         if (requestedItems.includes('identity')) changes.identity = {
           firstName: form.firstName, lastName: form.lastName,
           placeOfBirth: form.placeOfBirth, nationality: form.nationality,
         };
         if (requestedItems.includes('birth')) changes.birth = form.dateOfBirth;
-        if (requestedItems.includes('address')) changes.address = {
-          street: form.street, postalCode: form.postalCode, city: form.city, country: form.country,
-        };
-        if (requestedItems.includes('profile')) changes.profile = {
-          occupation: form.occupation, incomeRange: form.incomeRange, fatca: form.fatca, pep: form.pep,
-        };
+        if (requestedItems.includes('address')) changes.address = kycAddressToJson(form);
+        if (requestedItems.includes('profile')) changes.profile = kycProfileToJson(form);
         if (requestedItems.includes('document_metadata')) changes.document_metadata = {
           documentType: form.documentType, documentNumber: form.documentNumber,
           issuingCountry: form.issuingCountry, documentExpiresOn: form.documentExpiresOn,
@@ -333,7 +329,9 @@ export default function OnboardingPage() {
           [...uploadedNow].filter((key) => requestedItems.includes(key)).map((key) => [key, paths[key]]),
         );
         const { error: submitError } = await supabase.rpc('resubmit_kyc_application', {
-          p_kyc_id: kycId, p_changes: changes, p_document_object_paths: correctedPaths,
+          p_kyc_id: kycId,
+          p_changes: kycChangesToJson(changes),
+          p_document_object_paths: serializeKycDocumentPaths(correctedPaths),
         });
         if (submitError) throw submitError;
       } else {
@@ -341,11 +339,12 @@ export default function OnboardingPage() {
           p_first_name: form.firstName.trim(), p_last_name: form.lastName.trim(),
           p_date_of_birth: form.dateOfBirth, p_place_of_birth: form.placeOfBirth.trim(),
           p_nationality: form.nationality.trim(),
-          p_address: { street: form.street.trim(), postalCode: form.postalCode.trim(), city: form.city.trim(), country: form.country.trim() },
+          p_address: kycAddressToJson(form),
           p_occupation: form.occupation.trim(), p_income_range: form.incomeRange,
           p_fatca: form.fatca, p_pep: form.pep, p_document_type: form.documentType,
           p_document_number: form.documentNumber.trim(), p_issuing_country: form.issuingCountry.trim(),
-          p_document_expires_on: form.documentExpiresOn, p_document_object_paths: paths,
+          p_document_expires_on: form.documentExpiresOn,
+          p_document_object_paths: serializeKycDocumentPaths(paths),
           p_idempotency_key: crypto.randomUUID(),
         });
         if (submitError) throw submitError;

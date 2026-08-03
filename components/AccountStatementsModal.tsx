@@ -6,6 +6,7 @@ import type { Language } from '@/lib/types';
 import { Download, FileText, X } from 'lucide-react';
 import { officialDocumentTitle } from '@/lib/user-i18n';
 import { useBranded } from '@/components/brand/BrandProvider';
+import { Dialog, DialogBackdrop, DialogPanel } from '@/components/ui/Dialog';
 
 const messages: Record<
   Language,
@@ -70,13 +71,26 @@ export default function AccountStatementsModal() {
   );
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
-      <section className="bg-white rounded-3xl max-w-lg w-full p-6 space-y-5">
+    <Dialog
+      open={isStatementsModalOpen}
+      onClose={() => setIsStatementsModalOpen(false)}
+      ariaLabelledBy="account-statements-modal-title"
+    >
+      <DialogBackdrop className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+        <DialogPanel
+          as="section"
+          className="bg-white rounded-3xl max-w-lg w-full p-6 space-y-5"
+        >
         <header className="flex items-start justify-between border-b pb-4">
           <div className="flex gap-3">
             <FileText className="w-7 h-7 text-blue-600" />
             <div>
-              <h2 className="font-extrabold text-slate-900">{t.title}</h2>
+              <h2
+                id="account-statements-modal-title"
+                className="font-extrabold text-slate-900"
+              >
+                {t.title}
+              </h2>
               <p className="text-xs text-slate-500">{t.subtitle}</p>
             </div>
           </div>
@@ -120,7 +134,8 @@ export default function AccountStatementsModal() {
         <p className="p-3 bg-blue-50 text-blue-900 border border-blue-200 rounded-xl text-xs">
           {t.hint}
         </p>
-      </section>
-    </div>
+        </DialogPanel>
+      </DialogBackdrop>
+    </Dialog>
   );
 }

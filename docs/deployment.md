@@ -1,6 +1,8 @@
 # Déploiement
 
-> Checklist plateforme-agnostique ; aucune cible d’hébergement ni CI n’est actuellement configurée dans le dépôt.
+> Checklist plateforme-agnostique. Le workflow CI du dépôt valide la qualité,
+> le build et la base locale ; aucune cible d’hébergement n’est encore
+> configurée.
 
 ## Prévol
 
@@ -20,13 +22,23 @@
 ## Build et démarrage
 
 ```powershell
-npx bun install --frozen-lockfile
-npx bun run build
-npx bun run start
+bun install --frozen-lockfile
+bun run build
+bun run start
 ```
+
+Bun 1.3.14 est fixé dans `package.json` et `bun.lock` est l’unique lockfile.
+Node.js 20.9 ou ultérieur reste requis par Next.js pour les outils qui
+s’exécutent avec Node.
 
 Les variables `NEXT_PUBLIC_*` doivent être présentes au moment du build.
 `APP_ORIGIN` doit aussi être disponible au runtime.
+
+Le workflow [CI](../.github/workflows/ci.yml) exécute sur chaque pull request et
+chaque push l’installation gelée, le lint sans avertissement, le typecheck, les
+tests TypeScript/TSX et le build. Un job séparé démarre Supabase localement,
+réinitialise la base, lance toutes les suites pgTAP puis les contrôles de schéma
+et les conseillers sécurité/performance.
 
 ## Smoke tests
 
@@ -65,8 +77,9 @@ Les variables `NEXT_PUBLIC_*` doivent être présentes au moment du build.
 
 ## État plateforme
 
-La base distante Supabase est identifiée et les migrations sont gérées depuis
-le dépôt. Il n’existe encore aucun fichier Vercel, Netlify, Render, Cloudflare,
-Docker de production ou workflow CI. Ajouter une cible applicative explicite
-avant le premier déploiement ; ne pas considérer `next start` comme une
-stratégie d’exploitation complète.
+La base distante Supabase est identifiée, les migrations sont gérées depuis le
+dépôt et un workflow CI vérifie l’application ainsi qu’une base locale jetable.
+Il n’existe encore aucun fichier Vercel, Netlify, Render, Cloudflare ou Docker
+de production. Ajouter une cible applicative explicite avant le premier
+déploiement ; ne pas considérer `next start` comme une stratégie d’exploitation
+complète.

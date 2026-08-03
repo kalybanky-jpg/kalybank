@@ -29,7 +29,23 @@ import type {
   UserRole,
 } from './types';
 import { normalizeLoanMotiveCode } from './user-i18n';
-import { DEFAULT_RATES, fetchLiveCurrencyRates } from './currency';
+import {
+  DEFAULT_RATES,
+  fetchLiveCurrencyRates,
+  isSupportedCurrency,
+} from './currency';
+import {
+  parseKycAddress,
+  parseKycDocumentType,
+  parseKycDocumentPaths,
+  parseKycReviewState,
+  parseKycWorkflowStatus,
+} from './domain/kyc';
+import {
+  parseNotificationMessageKey,
+  parseNotificationMessageParams,
+  parseNotificationType,
+} from './domain/notifications';
 import {
   currencyExponent,
   fromMinorUnits,
@@ -40,6 +56,8 @@ import {
 } from './domain/financial';
 import { createClient } from './supabase/client';
 import { isPublicSupabaseConfigured } from './supabase/config';
+import type { Tables } from './supabase/database.types';
+import { rpcArgsWithKnownNulls } from './supabase/rpc';
 import { authFailureRedirect } from './security/navigation';
 import { dispatchTransactionalEmails } from './transactional-email-client';
 import {
@@ -297,40 +315,9 @@ interface LoanProductSettingsRow {
   updated_by: string | null;
 }
 
-interface KycRow {
-  id: string;
-  owner_id: string;
-  first_name: string;
-  last_name: string;
-  date_of_birth: string;
-  place_of_birth: string;
-  nationality: string;
-  address: KYCApplication['address'];
-  occupation: string;
-  income_range: string;
-  fatca: boolean;
-  pep: boolean;
-  document_object_paths: Record<string, string>;
-  status: NonNullable<KYCApplication['workflowStatus']>;
-  submitted_at: string;
-  review_note: string | null;
-  document_type: KYCApplication['documentType'] | null;
-  document_number: string | null;
-  issuing_country: string | null;
-  document_expires_on: string | null;
-  requested_items: string[];
-  correction_reason_code: string | null;
-  correction_due_at: string | null;
-  kyc_review_checklists?: {
-    document_quality: KYCReviewChecklist['documentQuality'];
-    data_consistency: KYCReviewChecklist['dataConsistency'];
-    selfie_match: KYCReviewChecklist['selfieMatch'];
-    adulthood: KYCReviewChecklist['adulthood'];
-    fatca: KYCReviewChecklist['fatca'];
-    pep: KYCReviewChecklist['pep'];
-    internal_comments: string | null;
-  }[] | null;
-}
+type KycRow = Tables<'kyc_applications'> & {
+  kyc_review_checklists: Tables<'kyc_review_checklists'> | null;
+};
 
 function friendlyAdminDate(value: string) {
   return new Intl.DateTimeFormat('fr-FR', {
@@ -373,7 +360,7 @@ function mapLoanStatus(status: LoanRow['status']): LoanApplication['status'] {
   return 'en_cours';
 }
 
-function mapKycStatus(status: KycRow['status']): KYCApplication['status'] {
+function mapKycStatus(status: string): KYCApplication['status'] {
   if (status === 'approved') return 'valide';
   if (status === 'rejected') return 'rejete';
   return 'en_attente';
@@ -597,7 +584,9 @@ export function AppProvider({
         auditResult,
       ] = await Promise.all([
         supabase.rpc('current_app_role'),
-        supabase.from('profiles').select('user_id,email,display_name,preferred_language'),
+        supabase
+          .from('profiles')
+          .select('user_id,email,display_name,preferred_language,preferred_currency'),
         supabase.from('financial_positions').select('*').order('created_at'),
         supabase
           .from('transfer_intents')
@@ -684,6 +673,9 @@ export function AppProvider({
       setCurrentUserDisplayName(
         ownProfile?.display_name?.trim() || ownProfile?.email?.split('@')[0] || null,
       );
+      if (!isAdmin && isSupportedCurrency(ownProfile?.preferred_currency)) {
+        setCurrency(ownProfile.preferred_currency);
+      }
       if (isAdmin) {
         applyLanguage('fr', 'profile', false);
       } else if (isSupportedLanguage(ownProfile?.preferred_language)) {
@@ -872,16 +864,10 @@ export function AppProvider({
           message: notification.message,
           timestamp: notification.created_at,
           createdAt: notification.created_at,
-          messageKey: notification.message_key ?? 'generic_info',
-          messageParams:
-            notification.message_params && typeof notification.message_params === 'object'
-              ? notification.message_params
-              : {},
+          messageKey: parseNotificationMessageKey(notification.message_key),
+          messageParams: parseNotificationMessageParams(notification.message_params),
           read: Boolean(notification.read_at),
-          type:
-            notification.notification_type === 'kyc'
-              ? 'kyc'
-              : notification.notification_type,
+          type: parseNotificationType(notification.notification_type),
           actionPath: notification.action_path ?? undefined,
         })),
       );
@@ -889,7 +875,9 @@ export function AppProvider({
       const kycRows = (kycResult.data ?? []) as KycRow[];
       const mappedKyc = await Promise.all(
         kycRows.map(async (kyc): Promise<KYCApplication> => {
-          const pathEntries = Object.entries(kyc.document_object_paths ?? {});
+          const pathEntries = Object.entries(
+            parseKycDocumentPaths(kyc.document_object_paths),
+          );
           const signedEntries = await Promise.all(
             pathEntries.map(async ([key, path]) => {
               const { data } = await supabase.storage
@@ -908,7 +896,7 @@ export function AppProvider({
             dateOfBirth: kyc.date_of_birth,
             placeOfBirth: kyc.place_of_birth,
             nationality: kyc.nationality,
-            address: kyc.address,
+            address: parseKycAddress(kyc.address),
             profile: {
               occupation: kyc.occupation,
               incomeRange: kyc.income_range,
@@ -921,12 +909,12 @@ export function AppProvider({
               selfieUrl: signed.selfie ?? '',
               proofOfAddressUrl: signed.proof_of_address ?? '',
             },
-            documentType: kyc.document_type ?? undefined,
+            documentType: parseKycDocumentType(kyc.document_type),
             documentNumber: kyc.document_number ?? undefined,
             issuingCountry: kyc.issuing_country ?? undefined,
             documentExpiresOn: kyc.document_expires_on ?? undefined,
             status: mapKycStatus(kyc.status),
-            workflowStatus: kyc.status,
+            workflowStatus: parseKycWorkflowStatus(kyc.status),
             submittedAt: kyc.submitted_at,
             rejectionReason: kyc.review_note ?? undefined,
             correctionReasonCode: kyc.correction_reason_code ?? undefined,
@@ -934,16 +922,24 @@ export function AppProvider({
               ? kyc.correction_due_at
               : undefined,
             requestedItems: kyc.requested_items ?? [],
-            checklist: kyc.kyc_review_checklists?.[0]
+            checklist: kyc.kyc_review_checklists
               ? {
-                  documentQuality: kyc.kyc_review_checklists[0].document_quality,
-                  dataConsistency: kyc.kyc_review_checklists[0].data_consistency,
-                  selfieMatch: kyc.kyc_review_checklists[0].selfie_match,
-                  adulthood: kyc.kyc_review_checklists[0].adulthood,
-                  fatca: kyc.kyc_review_checklists[0].fatca,
-                  pep: kyc.kyc_review_checklists[0].pep,
+                  documentQuality: parseKycReviewState(
+                    kyc.kyc_review_checklists.document_quality,
+                  ),
+                  dataConsistency: parseKycReviewState(
+                    kyc.kyc_review_checklists.data_consistency,
+                  ),
+                  selfieMatch: parseKycReviewState(
+                    kyc.kyc_review_checklists.selfie_match,
+                  ),
+                  adulthood: parseKycReviewState(
+                    kyc.kyc_review_checklists.adulthood,
+                  ),
+                  fatca: parseKycReviewState(kyc.kyc_review_checklists.fatca),
+                  pep: parseKycReviewState(kyc.kyc_review_checklists.pep),
                   internalComments:
-                    kyc.kyc_review_checklists[0].internal_comments ?? '',
+                    kyc.kyc_review_checklists.internal_comments ?? '',
                 }
               : undefined,
           };
@@ -1055,27 +1051,32 @@ export function AppProvider({
       transfer.amount > 0 ? transfer.convertedAmount / transfer.amount : 0;
 
     await executeAndRefresh(() =>
-      createClient().rpc('submit_transfer_intent', {
-        p_source_position_id: account.id,
-        p_recipient_name: transfer.recipientName.trim(),
-        p_recipient_account_masked: maskFinancialIdentifier(transfer.recipientAccount),
-        p_beneficiary_details: {
-          recipientAccount: transfer.recipientAccount,
-          ...transfer.details,
-        },
-        p_transfer_type: transfer.transferType,
-        p_amount_minor: toMinorUnits(transfer.amount, account.currency),
-        p_currency: account.currency,
-        p_target_amount_minor: toMinorUnits(
-          transfer.convertedAmount,
-          transfer.targetCurrency,
-        ),
-        p_target_currency: transfer.targetCurrency,
-        p_quote_rate: rate,
-        p_quote_as_of: rates.updatedAt,
-        p_motive: transfer.details?.motive ?? null,
-        p_idempotency_key: idempotencyKey,
-      }),
+      createClient().rpc(
+        'submit_transfer_intent',
+        rpcArgsWithKnownNulls<'submit_transfer_intent'>({
+          p_source_position_id: account.id,
+          p_recipient_name: transfer.recipientName.trim(),
+          p_recipient_account_masked: maskFinancialIdentifier(
+            transfer.recipientAccount,
+          ),
+          p_beneficiary_details: {
+            recipientAccount: transfer.recipientAccount,
+            ...transfer.details,
+          },
+          p_transfer_type: transfer.transferType,
+          p_amount_minor: toMinorUnits(transfer.amount, account.currency),
+          p_currency: account.currency,
+          p_target_amount_minor: toMinorUnits(
+            transfer.convertedAmount,
+            transfer.targetCurrency,
+          ),
+          p_target_currency: transfer.targetCurrency,
+          p_quote_rate: rate,
+          p_quote_as_of: rates.updatedAt,
+          p_motive: transfer.details?.motive ?? null,
+          p_idempotency_key: idempotencyKey,
+        }),
+      ),
     );
   };
 
@@ -1121,7 +1122,7 @@ export function AppProvider({
     await executeAndRefresh(() =>
       createClient().rpc('branch_manager_approve_transfer', {
         p_transfer_id: transferId,
-        p_note: note?.trim() || null,
+        p_note: note?.trim() || undefined,
       }),
     );
   };
@@ -1167,7 +1168,7 @@ export function AppProvider({
     await executeAndRefresh(() =>
       createClient().rpc('branch_manager_approve_loan', {
         p_loan_id: loanId,
-        p_note: note?.trim() || null,
+        p_note: note?.trim() || undefined,
       }),
     );
   };
@@ -1241,13 +1242,16 @@ export function AppProvider({
     dueAt,
   ) => {
     await executeAndRefresh(() =>
-      createClient().rpc('request_kyc_information', {
-        p_kyc_id: kycId,
-        p_requested_items: requestedItems,
-        p_reason_code: reasonCode,
-        p_note: note,
-        p_due_at: dueAt || null,
-      }),
+      createClient().rpc(
+        'request_kyc_information',
+        rpcArgsWithKnownNulls<'request_kyc_information'>({
+          p_kyc_id: kycId,
+          p_requested_items: requestedItems,
+          p_reason_code: reasonCode,
+          p_note: note,
+          p_due_at: dueAt || null,
+        }),
+      ),
     );
   };
 
@@ -1256,12 +1260,15 @@ export function AppProvider({
     note,
   ) => {
     await executeAndRefresh(() =>
-      createClient().rpc('decide_kyc_application', {
-        p_kyc_id: kycId,
-        p_decision: 'approved',
-        p_reason_code: null,
-        p_note: note?.trim() || 'Identité approuvée après contrôle humain.',
-      }),
+      createClient().rpc(
+        'decide_kyc_application',
+        rpcArgsWithKnownNulls<'decide_kyc_application'>({
+          p_kyc_id: kycId,
+          p_decision: 'approved',
+          p_reason_code: null,
+          p_note: note?.trim() || 'Identité approuvée après contrôle humain.',
+        }),
+      ),
     );
   };
 
@@ -1424,11 +1431,23 @@ export function AppProvider({
   const issueOfficialDocument: AppState['issueOfficialDocument'] = async (
     document,
   ) => {
-    const response = await fetch('/api/official-documents', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(document),
-    });
+    const idempotencyKey = crypto.randomUUID();
+    const body = JSON.stringify(document);
+    const issue = () =>
+      fetch('/api/official-documents', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+        },
+        body,
+      });
+    let response: Response;
+    try {
+      response = await issue();
+    } catch {
+      response = await issue();
+    }
     const payload = (await response.json()) as { error?: string };
     if (!response.ok) {
       throw new Error(payload.error ?? 'Émission du document impossible.');

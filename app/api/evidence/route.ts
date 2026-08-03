@@ -1,4 +1,11 @@
-import { NextResponse, type NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
+import {
+  evidenceObjectPath,
+  hasProtectedKycEvidencePath,
+  hasReferencedEvidencePath,
+} from '@/lib/domain/evidence';
+import { isSameOriginMutation, noStoreJson } from '@/lib/server/api';
+import { jsonStringValues } from '@/lib/supabase/json';
 import { createClient } from '@/lib/supabase/server';
 import type { AppErrorCode } from '@/lib/types';
 
@@ -44,33 +51,12 @@ const SIGNATURES = [
   },
 ];
 
-function noStoreJson(body: unknown, status = 200) {
-  return NextResponse.json(body, {
-    status,
-    headers: { 'Cache-Control': 'no-store, private' },
-  });
-}
-
 function errorJson(code: AppErrorCode, status: number) {
   return noStoreJson({ error: { code } }, status);
 }
 
-function originAllowed(request: NextRequest) {
-  const origin = request.headers.get('origin');
-  const canonicalOrigin =
-    process.env.APP_ORIGIN ??
-    process.env.NEXT_PUBLIC_APP_ORIGIN ??
-    (process.env.NODE_ENV === 'development' ? request.nextUrl.origin : null);
-  if (!origin || !canonicalOrigin) return false;
-  try {
-    return new URL(origin).origin === new URL(canonicalOrigin).origin;
-  } catch {
-    return false;
-  }
-}
-
 export async function POST(request: NextRequest) {
-  if (!originAllowed(request)) return errorJson('PERMISSION_DENIED', 403);
+  if (!isSameOriginMutation(request)) return errorJson('PERMISSION_DENIED', 403);
 
   const supabase = await createClient();
   const {
@@ -79,7 +65,12 @@ export async function POST(request: NextRequest) {
   } = await supabase.auth.getUser();
   if (authError || !user) return errorJson('AUTH_REQUIRED', 401);
 
-  const formData = await request.formData();
+  let formData: FormData;
+  try {
+    formData = await request.formData();
+  } catch {
+    return errorJson('INVALID_REQUEST', 400);
+  }
   const bucket = formData.get('bucket');
   const kind = formData.get('kind');
   const file = formData.get('file');
@@ -134,29 +125,24 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const path =
-    bucket === 'kyc-evidence'
-      ? `${user.id}/current/${kind}.${detected.extension}`
-      : `${user.id}/${kind}/${crypto.randomUUID()}.${detected.extension}`;
+  const path = evidenceObjectPath(
+    user.id,
+    kind,
+    detected.extension,
+    crypto.randomUUID(),
+  );
   const { error: uploadError } = await supabase.storage.from(bucket).upload(path, bytes, {
     contentType: detected.mime,
     cacheControl: '3600',
-    upsert: bucket === 'kyc-evidence',
+    upsert: false,
   });
   if (uploadError) return errorJson('UPLOAD_FAILED', 400);
-
-  if (bucket === 'kyc-evidence') {
-    const stalePaths = ['pdf', 'png', 'jpg']
-      .filter((extension) => extension !== detected.extension)
-      .map((extension) => `${user.id}/current/${kind}.${extension}`);
-    await supabase.storage.from(bucket).remove(stalePaths);
-  }
 
   return noStoreJson({ path }, 201);
 }
 
 export async function DELETE(request: NextRequest) {
-  if (!originAllowed(request)) return errorJson('PERMISSION_DENIED', 403);
+  if (!isSameOriginMutation(request)) return errorJson('PERMISSION_DENIED', 403);
 
   const supabase = await createClient();
   const {
@@ -165,7 +151,15 @@ export async function DELETE(request: NextRequest) {
   } = await supabase.auth.getUser();
   if (authError || !user) return errorJson('AUTH_REQUIRED', 401);
 
-  const payload = (await request.json()) as { bucket?: unknown; paths?: unknown };
+  let payload: { bucket?: unknown; paths?: unknown };
+  try {
+    payload = (await request.json()) as {
+      bucket?: unknown;
+      paths?: unknown;
+    };
+  } catch {
+    return errorJson('INVALID_REQUEST', 400);
+  }
   if (
     typeof payload.bucket !== 'string' ||
     !BUCKETS.has(payload.bucket) ||
@@ -182,9 +176,69 @@ export async function DELETE(request: NextRequest) {
     return errorJson('INVALID_REQUEST', 400);
   }
 
+  const paths = payload.paths as string[];
+  let referencedPaths: string[] = [];
+  let hasSubmittedKycApplication = false;
+  if (payload.bucket === 'kyc-evidence') {
+    const [applications, draft] = await Promise.all([
+      supabase
+        .from('kyc_applications')
+        .select('document_object_paths')
+        .eq('owner_id', user.id),
+      supabase
+        .from('kyc_drafts')
+        .select('document_object_paths')
+        .eq('owner_id', user.id),
+    ]);
+    if (applications.error || draft.error) return errorJson('SAVE_FAILED', 400);
+    hasSubmittedKycApplication = (applications.data?.length ?? 0) > 0;
+    referencedPaths = [
+      ...(applications.data ?? []),
+      ...(draft.data ?? []),
+    ].flatMap((row) => jsonStringValues(row.document_object_paths));
+  } else if (payload.bucket === 'loan-evidence') {
+    const { data, error } = await supabase
+      .from('loan_applications')
+      .select('document_object_paths')
+      .eq('owner_id', user.id);
+    if (error) return errorJson('SAVE_FAILED', 400);
+    referencedPaths = (data ?? []).flatMap((row) =>
+      jsonStringValues(row.document_object_paths),
+    );
+  } else {
+    const [transfers, loans] = await Promise.all([
+      supabase
+        .from('external_transfer_executions')
+        .select('evidence_object_path')
+        .in('evidence_object_path', paths),
+      supabase
+        .from('external_loan_fundings')
+        .select('evidence_object_path')
+        .in('evidence_object_path', paths),
+    ]);
+    if (transfers.error || loans.error) return errorJson('SAVE_FAILED', 400);
+    referencedPaths = [
+      ...(transfers.data ?? []),
+      ...(loans.data ?? []),
+    ].map((row) => row.evidence_object_path);
+  }
+
+  if (
+    (payload.bucket === 'kyc-evidence' &&
+      hasProtectedKycEvidencePath(
+        paths,
+        referencedPaths,
+        hasSubmittedKycApplication,
+      )) ||
+    (payload.bucket !== 'kyc-evidence' &&
+      hasReferencedEvidencePath(paths, referencedPaths))
+  ) {
+    return errorJson('PERMISSION_DENIED', 409);
+  }
+
   const { error } = await supabase.storage
     .from(payload.bucket)
-    .remove(payload.paths as string[]);
+    .remove(paths);
   if (error) return errorJson('SAVE_FAILED', 400);
-  return noStoreJson({ deleted: payload.paths.length });
+  return noStoreJson({ deleted: paths.length });
 }

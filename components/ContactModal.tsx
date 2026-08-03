@@ -5,6 +5,7 @@ import { useAppStore } from '@/lib/store';
 import { Headphones, X } from 'lucide-react';
 import { extraUserMessages } from '@/lib/user-i18n';
 import { useBranded } from '@/components/brand/BrandProvider';
+import { Dialog, DialogBackdrop, DialogPanel } from '@/components/ui/Dialog';
 
 export default function ContactModal() {
   const { language, role, isContactModalOpen, setIsContactModalOpen } = useAppStore();
@@ -16,17 +17,34 @@ export default function ContactModal() {
   if (!isContactModalOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/70 flex items-center justify-center p-4">
-      <section className="bg-white rounded-3xl max-w-md w-full p-6 space-y-4">
+    <Dialog
+      open={isContactModalOpen}
+      onClose={() => setIsContactModalOpen(false)}
+      ariaLabelledBy="contact-modal-title"
+    >
+      <DialogBackdrop className="fixed inset-0 z-50 bg-slate-950/70 flex items-center justify-center p-4">
+        <DialogPanel
+          as="section"
+          className="bg-white rounded-3xl max-w-md w-full p-6 space-y-4"
+        >
         <header className="flex justify-between items-start">
           <div className="flex gap-3">
             <Headphones className="w-7 h-7 text-blue-600" />
             <div>
-              <h2 className="font-extrabold text-slate-900">{t.contact.title}</h2>
+              <h2
+                id="contact-modal-title"
+                className="font-extrabold text-slate-900"
+              >
+                {t.contact.title}
+              </h2>
               <p className="text-xs text-slate-500">{t.contact.subtitle}</p>
             </div>
           </div>
-          <button type="button" onClick={() => setIsContactModalOpen(false)} aria-label={t.common.close}>
+          <button
+            type="button"
+            onClick={() => setIsContactModalOpen(false)}
+            aria-label={t.common.close}
+          >
             <X className="w-5 h-5 text-slate-500" />
           </button>
         </header>
@@ -39,7 +57,8 @@ export default function ContactModal() {
         >
           {supportEmail}
         </a>
-      </section>
-    </div>
+        </DialogPanel>
+      </DialogBackdrop>
+    </Dialog>
   );
 }

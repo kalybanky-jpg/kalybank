@@ -1,8 +1,8 @@
 -- Monalyz DATABASE SCHEMA SNAPSHOT
 -- GENERATED FILE: run `npx bun run db:snapshot`; do not edit manually.
 -- remote-project-ref: qljqldhvbakornnpalua
--- migration-manifest-sha256: 88cf6ce04d987a5433287a71638e2e43a39512f99ef1ac1a21e9bb68949992d1
--- migrations: 20260728060744_kaly_secure_external_financial_workflows.sql, 20260728061308_add_missing_foreign_key_indexes.sql, 20260728065832_rename_brand_to_monalyz.sql, 20260728092751_simplify_branch_manager_financial_workflows.sql, 20260728094442_add_outbox_claimed_by_index.sql, 20260728150934_add_profile_preferred_language.sql, 20260728151335_grant_profile_preferences_update.sql, 20260728173319_provision_demo_accounts.sql, 20260728183213_fix_demo_provisioner_uuid_literals.sql, 20260729115445_add_official_accounts_and_ledger.sql, 20260729115451_wire_ledger_to_financial_workflows.sql, 20260729115458_add_official_documents_and_demo_fixtures.sql, 20260730123059_automatic_account_numbers.sql, 20260730162101_kyc_workflow_and_internal_account.sql, 20260730170000_sequential_transfer_checks.sql, 20260731120000_user_localization_contract.sql, 20260801091705_configure_loan_products.sql, 20260801095428_dynamic_brand_settings.sql, 20260801163432_secure_brand_snapshot_function.sql
+-- migration-manifest-sha256: 42c34c7967e9053265fd80e92bba298feca6029b31e3446f9728b5497ac288a2
+-- migrations: 20260728060744_kaly_secure_external_financial_workflows.sql, 20260728061308_add_missing_foreign_key_indexes.sql, 20260728065832_rename_brand_to_monalyz.sql, 20260728092751_simplify_branch_manager_financial_workflows.sql, 20260728094442_add_outbox_claimed_by_index.sql, 20260728150934_add_profile_preferred_language.sql, 20260728151335_grant_profile_preferences_update.sql, 20260728173319_provision_demo_accounts.sql, 20260728183213_fix_demo_provisioner_uuid_literals.sql, 20260729115445_add_official_accounts_and_ledger.sql, 20260729115451_wire_ledger_to_financial_workflows.sql, 20260729115458_add_official_documents_and_demo_fixtures.sql, 20260730123059_automatic_account_numbers.sql, 20260730162101_kyc_workflow_and_internal_account.sql, 20260730170000_sequential_transfer_checks.sql, 20260731120000_user_localization_contract.sql, 20260801091705_configure_loan_products.sql, 20260801095428_dynamic_brand_settings.sql, 20260801163432_secure_brand_snapshot_function.sql, 20260803074608_scope_transactional_email_claims.sql
 -- schema-only: true
 -- production-data-included: false
 -- schemas: public, private
@@ -97,6 +97,117 @@ $$;
 
 
 ALTER FUNCTION "private"."allocate_internal_account_number"() OWNER TO "postgres";
+
+SET default_tablespace = '';
+
+SET default_table_access_method = "heap";
+
+
+CREATE TABLE IF NOT EXISTS "public"."transactional_email_outbox" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "event_key" "text" NOT NULL,
+    "recipient_id" "uuid" NOT NULL,
+    "recipient_email" "text" NOT NULL,
+    "template_key" "text" NOT NULL,
+    "entity_type" "text" NOT NULL,
+    "entity_id" "uuid" NOT NULL,
+    "payload" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
+    "status" "text" DEFAULT 'pending'::"text" NOT NULL,
+    "attempts" integer DEFAULT 0 NOT NULL,
+    "claimed_by" "uuid",
+    "claim_token" "uuid",
+    "claimed_at" timestamp with time zone,
+    "provider_message_id" "text",
+    "last_error" "text",
+    "sent_at" timestamp with time zone,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "transactional_email_outbox_attempts_check" CHECK ((("attempts" >= 0) AND ("attempts" <= 5))),
+    CONSTRAINT "transactional_email_outbox_check" CHECK (((("status" = 'sent'::"text") AND ("sent_at" IS NOT NULL)) OR (("status" <> 'sent'::"text") AND ("sent_at" IS NULL)))),
+    CONSTRAINT "transactional_email_outbox_entity_type_check" CHECK (("entity_type" = ANY (ARRAY['transfer'::"text", 'loan'::"text", 'kyc'::"text"]))),
+    CONSTRAINT "transactional_email_outbox_event_key_check" CHECK ((("char_length"("event_key") >= 3) AND ("char_length"("event_key") <= 220))),
+    CONSTRAINT "transactional_email_outbox_last_error_check" CHECK ((("last_error" IS NULL) OR ("char_length"("last_error") <= 1000))),
+    CONSTRAINT "transactional_email_outbox_payload_check" CHECK (("jsonb_typeof"("payload") = 'object'::"text")),
+    CONSTRAINT "transactional_email_outbox_provider_message_id_check" CHECK ((("provider_message_id" IS NULL) OR ("char_length"("provider_message_id") <= 500))),
+    CONSTRAINT "transactional_email_outbox_recipient_email_check" CHECK ((("char_length"("recipient_email") >= 3) AND ("char_length"("recipient_email") <= 254))),
+    CONSTRAINT "transactional_email_outbox_status_check" CHECK (("status" = ANY (ARRAY['pending'::"text", 'sending'::"text", 'sent'::"text", 'failed'::"text"]))),
+    CONSTRAINT "transactional_email_outbox_template_key_check" CHECK (("template_key" = ANY (ARRAY['transfer_submitted'::"text", 'transfer_approved'::"text", 'transfer_completed'::"text", 'transfer_rejected'::"text", 'transfer_failed'::"text", 'loan_submitted'::"text", 'loan_approved'::"text", 'loan_disbursed'::"text", 'loan_rejected'::"text", 'loan_failed'::"text", 'kyc_submitted'::"text", 'kyc_information_requested'::"text", 'kyc_resubmitted'::"text", 'kyc_approved'::"text", 'kyc_rejected'::"text"])))
+);
+
+
+ALTER TABLE "public"."transactional_email_outbox" OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "private"."claim_transactional_emails_internal"("p_limit" integer, "p_recipient_id" "uuid") RETURNS SETOF "public"."transactional_email_outbox"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare
+  worker_role text := coalesce((select auth.jwt() ->> 'role'), '');
+begin
+  if worker_role <> 'service_role' then
+    raise exception 'EMAIL_WORKER_PERMISSION_REQUIRED' using errcode = '42501';
+  end if;
+
+  if p_limit < 1 or p_limit > 20 then
+    raise exception 'INVALID_EMAIL_BATCH_SIZE' using errcode = '22023';
+  end if;
+
+  update public.transactional_email_outbox
+  set
+    status = 'failed',
+    claim_token = null,
+    last_error =
+      'Nombre maximal de tentatives atteint après expiration de la réclamation.'
+  where status = 'sending'
+    and attempts >= 5
+    and claimed_at < now() - interval '10 minutes'
+    and (p_recipient_id is null or recipient_id = p_recipient_id);
+
+  return query
+  with claimable as (
+    select email.id
+    from public.transactional_email_outbox as email
+    where email.attempts < 5
+      and (p_recipient_id is null or email.recipient_id = p_recipient_id)
+      and (
+        (
+          email.status = 'pending'
+          and (
+            email.attempts = 0
+            or email.claimed_at <= now() - (
+              least(
+                30,
+                power(2, greatest(email.attempts - 1, 0))::integer
+              ) * interval '1 minute'
+            )
+          )
+        )
+        or (
+          email.status = 'sending'
+          and email.claimed_at < now() - interval '10 minutes'
+        )
+      )
+    order by email.created_at
+    limit p_limit
+    for update skip locked
+  )
+  update public.transactional_email_outbox as email
+  set
+    status = 'sending',
+    attempts = email.attempts + 1,
+    claimed_by = null,
+    claim_token = gen_random_uuid(),
+    claimed_at = now(),
+    last_error = null
+  from claimable
+  where email.id = claimable.id
+  returning email.*;
+end;
+$$;
+
+
+ALTER FUNCTION "private"."claim_transactional_emails_internal"("p_limit" integer, "p_recipient_id" "uuid") OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "private"."enqueue_financial_workflow_email"() RETURNS "trigger"
@@ -1100,10 +1211,6 @@ $$;
 
 
 ALTER FUNCTION "private"."validate_loan_disbursement_target"() OWNER TO "postgres";
-
-SET default_tablespace = '';
-
-SET default_table_access_method = "heap";
 
 
 CREATE TABLE IF NOT EXISTS "public"."financial_positions" (
@@ -3085,97 +3192,39 @@ $$;
 ALTER FUNCTION "public"."branch_manager_revoke_official_document"("p_document_id" "uuid", "p_reason" "text") OWNER TO "postgres";
 
 
-CREATE TABLE IF NOT EXISTS "public"."transactional_email_outbox" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "event_key" "text" NOT NULL,
-    "recipient_id" "uuid" NOT NULL,
-    "recipient_email" "text" NOT NULL,
-    "template_key" "text" NOT NULL,
-    "entity_type" "text" NOT NULL,
-    "entity_id" "uuid" NOT NULL,
-    "payload" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
-    "status" "text" DEFAULT 'pending'::"text" NOT NULL,
-    "attempts" integer DEFAULT 0 NOT NULL,
-    "claimed_by" "uuid",
-    "claim_token" "uuid",
-    "claimed_at" timestamp with time zone,
-    "provider_message_id" "text",
-    "last_error" "text",
-    "sent_at" timestamp with time zone,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    CONSTRAINT "transactional_email_outbox_attempts_check" CHECK ((("attempts" >= 0) AND ("attempts" <= 5))),
-    CONSTRAINT "transactional_email_outbox_check" CHECK (((("status" = 'sent'::"text") AND ("sent_at" IS NOT NULL)) OR (("status" <> 'sent'::"text") AND ("sent_at" IS NULL)))),
-    CONSTRAINT "transactional_email_outbox_entity_type_check" CHECK (("entity_type" = ANY (ARRAY['transfer'::"text", 'loan'::"text", 'kyc'::"text"]))),
-    CONSTRAINT "transactional_email_outbox_event_key_check" CHECK ((("char_length"("event_key") >= 3) AND ("char_length"("event_key") <= 220))),
-    CONSTRAINT "transactional_email_outbox_last_error_check" CHECK ((("last_error" IS NULL) OR ("char_length"("last_error") <= 1000))),
-    CONSTRAINT "transactional_email_outbox_payload_check" CHECK (("jsonb_typeof"("payload") = 'object'::"text")),
-    CONSTRAINT "transactional_email_outbox_provider_message_id_check" CHECK ((("provider_message_id" IS NULL) OR ("char_length"("provider_message_id") <= 500))),
-    CONSTRAINT "transactional_email_outbox_recipient_email_check" CHECK ((("char_length"("recipient_email") >= 3) AND ("char_length"("recipient_email") <= 254))),
-    CONSTRAINT "transactional_email_outbox_status_check" CHECK (("status" = ANY (ARRAY['pending'::"text", 'sending'::"text", 'sent'::"text", 'failed'::"text"]))),
-    CONSTRAINT "transactional_email_outbox_template_key_check" CHECK (("template_key" = ANY (ARRAY['transfer_submitted'::"text", 'transfer_approved'::"text", 'transfer_completed'::"text", 'transfer_rejected'::"text", 'transfer_failed'::"text", 'loan_submitted'::"text", 'loan_approved'::"text", 'loan_disbursed'::"text", 'loan_rejected'::"text", 'loan_failed'::"text", 'kyc_submitted'::"text", 'kyc_information_requested'::"text", 'kyc_resubmitted'::"text", 'kyc_approved'::"text", 'kyc_rejected'::"text"])))
-);
-
-
-ALTER TABLE "public"."transactional_email_outbox" OWNER TO "postgres";
-
-
 CREATE OR REPLACE FUNCTION "public"."claim_transactional_emails"("p_limit" integer DEFAULT 10) RETURNS SETOF "public"."transactional_email_outbox"
-    LANGUAGE "plpgsql" SECURITY DEFINER
+    LANGUAGE "sql" SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
-declare
-  worker_role text := coalesce((select auth.jwt() ->> 'role'), '');
-begin
-  if worker_role <> 'service_role' then
-    raise exception 'EMAIL_WORKER_PERMISSION_REQUIRED' using errcode = '42501';
-  end if;
-
-  if p_limit < 1 or p_limit > 20 then
-    raise exception 'INVALID_EMAIL_BATCH_SIZE' using errcode = '22023';
-  end if;
-
-  update public.transactional_email_outbox
-  set
-    status = 'failed',
-    claim_token = null,
-    last_error = 'Nombre maximal de tentatives atteint après expiration de la réclamation.'
-  where status = 'sending'
-    and attempts >= 5
-    and claimed_at < now() - interval '10 minutes';
-
-  return query
-  with claimable as (
-    select email.id
-    from public.transactional_email_outbox as email
-    where email.attempts < 5
-      and (
-        email.status = 'pending'
-        or (
-          email.status = 'sending'
-          and email.claimed_at < now() - interval '10 minutes'
-        )
-      )
-    order by email.created_at
-    limit p_limit
-    for update skip locked
-  )
-  update public.transactional_email_outbox as email
-  set
-    status = 'sending',
-    attempts = email.attempts + 1,
-    claimed_by = null,
-    claim_token = gen_random_uuid(),
-    claimed_at = now(),
-    last_error = null
-  from claimable
-  where email.id = claimable.id
-  returning email.*;
-end;
+  select *
+  from private.claim_transactional_emails_internal(p_limit, null);
 $$;
 
 
 ALTER FUNCTION "public"."claim_transactional_emails"("p_limit" integer) OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."claim_transactional_emails_for_recipient"("p_recipient_id" "uuid", "p_limit" integer DEFAULT 10) RETURNS SETOF "public"."transactional_email_outbox"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+begin
+  if p_recipient_id is null then
+    raise exception 'EMAIL_RECIPIENT_REQUIRED' using errcode = '22023';
+  end if;
+
+  return query
+  select *
+  from private.claim_transactional_emails_internal(p_limit, p_recipient_id);
+end;
+$$;
+
+
+ALTER FUNCTION "public"."claim_transactional_emails_for_recipient"("p_recipient_id" "uuid", "p_limit" integer) OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "public"."claim_transactional_emails_for_recipient"("p_recipient_id" "uuid", "p_limit" integer) IS 'Atomically claims due transactional emails for one authenticated workflow owner.';
+
 
 
 CREATE OR REPLACE FUNCTION "public"."complete_official_document"("p_document_id" "uuid", "p_storage_path" "text", "p_content_hash" "text", "p_succeeded" boolean, "p_error" "text") RETURNS "public"."official_documents"
@@ -6750,6 +6799,10 @@ CREATE INDEX "transactional_email_outbox_recipient_idx" ON "public"."transaction
 
 
 
+CREATE INDEX "transactional_email_outbox_retry_idx" ON "public"."transactional_email_outbox" USING "btree" ("status", "claimed_at", "created_at") WHERE (("status" = ANY (ARRAY['pending'::"text", 'sending'::"text"])) AND ("attempts" < 5));
+
+
+
 CREATE INDEX "transfer_events_actor_id_idx" ON "public"."transfer_events" USING "btree" ("actor_id");
 
 
@@ -7341,6 +7394,14 @@ REVOKE ALL ON FUNCTION "private"."allocate_internal_account_number"() FROM PUBLI
 
 
 
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."transactional_email_outbox" TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "private"."claim_transactional_emails_internal"("p_limit" integer, "p_recipient_id" "uuid") FROM PUBLIC;
+
+
+
 REVOKE ALL ON FUNCTION "private"."enqueue_financial_workflow_email"() FROM PUBLIC;
 
 
@@ -7389,11 +7450,12 @@ REVOKE ALL ON FUNCTION "private"."prevent_financial_ledger_mutation"() FROM PUBL
 REVOKE ALL ON FUNCTION "private"."protect_official_document"() FROM PUBLIC;
 
 
-REVOKE ALL ON FUNCTION "private"."snapshot_official_document_brand"() FROM PUBLIC;
-
-
 
 REVOKE ALL ON FUNCTION "private"."remove_iban_from_new_official_document"() FROM PUBLIC;
+
+
+
+REVOKE ALL ON FUNCTION "private"."snapshot_official_document_brand"() FROM PUBLIC;
 
 
 
@@ -7506,12 +7568,13 @@ GRANT ALL ON FUNCTION "public"."branch_manager_revoke_official_document"("p_docu
 
 
 
-GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."transactional_email_outbox" TO "service_role";
-
-
-
 REVOKE ALL ON FUNCTION "public"."claim_transactional_emails"("p_limit" integer) FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."claim_transactional_emails"("p_limit" integer) TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."claim_transactional_emails_for_recipient"("p_recipient_id" "uuid", "p_limit" integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."claim_transactional_emails_for_recipient"("p_recipient_id" "uuid", "p_limit" integer) TO "service_role";
 
 
 

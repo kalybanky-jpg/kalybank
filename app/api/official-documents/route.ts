@@ -1,12 +1,18 @@
 import { createHash } from 'node:crypto';
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
-import { NextResponse, type NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { renderOfficialDocumentPdf } from '@/lib/server/official-document-pdf';
 import {
   fetchBrandRowOrDefault,
   readBrandAsset,
 } from '@/lib/server/branding';
-import { getPublicSupabaseConfig } from '@/lib/supabase/config';
+import {
+  createPrivilegedClient,
+  isSameOriginMutation,
+  noStoreJson,
+} from '@/lib/server/api';
+import type { Database } from '@/lib/supabase/database.types';
+import { jsonObject } from '@/lib/supabase/json';
+import { rpcArgsWithKnownNulls } from '@/lib/supabase/rpc';
 import { createClient } from '@/lib/supabase/server';
 import type {
   Language,
@@ -46,34 +52,16 @@ interface IssuedDocumentRow {
   language: string;
   version: number;
   localization_revision: number;
+  requested_at: string;
   issued_at: string | null;
   is_demo: boolean;
-  snapshot: Record<string, unknown>;
+  snapshot: Database['public']['Tables']['official_documents']['Row']['snapshot'];
   content_hash: string | null;
+  status: string;
+  storage_path: string | null;
   brand_name_snapshot?: string;
   brand_revision_snapshot?: number;
   brand_logo_path_snapshot?: string;
-}
-
-function noStoreJson(body: unknown, status = 200) {
-  return NextResponse.json(body, {
-    status,
-    headers: { 'Cache-Control': 'no-store, private' },
-  });
-}
-
-function originAllowed(request: NextRequest) {
-  const origin = request.headers.get('origin');
-  const canonicalOrigin =
-    process.env.APP_ORIGIN ??
-    process.env.NEXT_PUBLIC_APP_ORIGIN ??
-    (process.env.NODE_ENV === 'development' ? request.nextUrl.origin : null);
-  if (!origin || !canonicalOrigin) return false;
-  try {
-    return new URL(origin).origin === new URL(canonicalOrigin).origin;
-  } catch {
-    return false;
-  }
 }
 
 function optionalUuid(value: unknown) {
@@ -94,24 +82,13 @@ function optionalDate(value: unknown) {
 }
 
 function privilegedClient() {
-  const secretKey =
-    process.env.SUPABASE_SECRET_KEY?.trim() ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
-  if (!secretKey || /replace|changeme|your[-_]/i.test(secretKey)) {
-    throw new Error('SUPABASE_SECRET_KEY est requise pour émettre un document.');
-  }
-  const { url } = getPublicSupabaseConfig();
-  return createSupabaseClient(url, secretKey, {
-    auth: {
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-      persistSession: false,
-    },
-  });
+  return createPrivilegedClient(
+    'SUPABASE_SECRET_KEY est requise pour émettre un document.',
+  );
 }
 
 export async function POST(request: NextRequest) {
-  if (!originAllowed(request)) {
+  if (!isSameOriginMutation(request)) {
     return noStoreJson({ error: 'Origine refusée.' }, 403);
   }
 
@@ -173,11 +150,27 @@ export async function POST(request: NextRequest) {
     ? (profile.preferred_language as Language)
     : 'fr';
   const title = officialDocumentTitle(language, documentType);
-  const idempotencyKey = crypto.randomUUID();
+  const requestedIdempotencyKey = optionalUuid(
+    request.headers.get('idempotency-key'),
+  );
+  if (requestedIdempotencyKey === undefined) {
+    return noStoreJson({ error: 'Clé d’idempotence invalide.' }, 400);
+  }
+  const idempotencyKey = requestedIdempotencyKey ?? crypto.randomUUID();
+
+  let worker: ReturnType<typeof privilegedClient>;
+  try {
+    worker = privilegedClient();
+  } catch {
+    return noStoreJson(
+      { error: 'Le service de publication documentaire est indisponible.' },
+      503,
+    );
+  }
 
   const { data, error: issueError } = await supabase.rpc(
     'branch_manager_issue_official_document',
-    {
+    rpcArgsWithKnownNulls<'branch_manager_issue_official_document'>({
       p_owner_id: ownerId,
       p_account_id: accountId,
       p_transfer_id: transferId,
@@ -188,7 +181,7 @@ export async function POST(request: NextRequest) {
       p_period_start: periodStart,
       p_period_end: periodEnd,
       p_idempotency_key: idempotencyKey,
-    },
+    }),
   );
   if (issueError) return noStoreJson({ error: 'Le document ne peut pas être émis avec les paramètres sélectionnés.' }, 400);
 
@@ -199,8 +192,16 @@ export async function POST(request: NextRequest) {
     return noStoreJson({ error: 'Snapshot documentaire absent.' }, 500);
   }
 
-  const worker = privilegedClient();
+  if (document.status === 'issued' && document.storage_path) {
+    return noStoreJson({
+      id: document.id,
+      documentNumber: document.document_number,
+      status: 'issued',
+    });
+  }
+
   const storagePath = `${ownerId}/${document.id}/v${document.version}.pdf`;
+  let uploadedByRequest = false;
   try {
     const currentBrand = await fetchBrandRowOrDefault(worker);
     const bankName = document.brand_name_snapshot || currentBrand.bank_name;
@@ -217,10 +218,10 @@ export async function POST(request: NextRequest) {
       language: document.language,
       version: document.version,
       localizationRevision: document.localization_revision ?? 2,
-      issuedAt: document.issued_at ?? new Date().toISOString(),
+      issuedAt: document.issued_at ?? document.requested_at,
       isDemo: document.is_demo,
       contentHash: document.content_hash,
-      snapshot: document.snapshot,
+      snapshot: jsonObject(document.snapshot),
       branding: {
         bankName,
         revision: brandRevision,
@@ -229,25 +230,69 @@ export async function POST(request: NextRequest) {
     });
     const pdfBytes = Buffer.from(pdf);
     const contentHash = createHash('sha256').update(pdfBytes).digest('hex');
+    const completePublication = () =>
+      worker.rpc(
+        'complete_official_document',
+        rpcArgsWithKnownNulls<'complete_official_document'>({
+          p_document_id: document.id,
+          p_storage_path: storagePath,
+          p_content_hash: contentHash,
+          p_succeeded: true,
+          p_error: null,
+        }),
+      );
     const { error: uploadError } = await worker.storage
       .from('official-documents')
       .upload(storagePath, pdfBytes, {
         contentType: 'application/pdf',
         cacheControl: '3600',
-        upsert: false,
+        upsert: document.status === 'failed',
       });
-    if (uploadError) throw uploadError;
+    if (uploadError) {
+      const { data: currentDocument } = await worker
+        .from('official_documents')
+        .select('status,storage_path')
+        .eq('id', document.id)
+        .maybeSingle();
+      if (
+        currentDocument?.status === 'issued' &&
+        currentDocument.storage_path === storagePath
+      ) {
+        return noStoreJson({
+          id: document.id,
+          documentNumber: document.document_number,
+          status: 'issued',
+        });
+      }
+      if (currentDocument?.status === 'pending') {
+        const { data: existingArtifact } = await worker.storage
+          .from('official-documents')
+          .download(storagePath);
+        if (existingArtifact) {
+          const existingHash = createHash('sha256')
+            .update(Buffer.from(await existingArtifact.arrayBuffer()))
+            .digest('hex');
+          if (existingHash === contentHash) {
+            const { error: takeoverError } = await completePublication();
+            if (!takeoverError) {
+              return noStoreJson({
+                id: document.id,
+                documentNumber: document.document_number,
+                status: 'issued',
+              });
+            }
+          }
+        }
+        return noStoreJson(
+          { error: 'La publication de ce document est déjà en cours.' },
+          409,
+        );
+      }
+      throw uploadError;
+    }
+    uploadedByRequest = true;
 
-    const { error: completeError } = await worker.rpc(
-      'complete_official_document',
-      {
-        p_document_id: document.id,
-        p_storage_path: storagePath,
-        p_content_hash: contentHash,
-        p_succeeded: true,
-        p_error: null,
-      },
-    );
+    const { error: completeError } = await completePublication();
     if (completeError) throw completeError;
 
     return noStoreJson(
@@ -259,17 +304,43 @@ export async function POST(request: NextRequest) {
       201,
     );
   } catch (caughtError) {
-    await worker.storage.from('official-documents').remove([storagePath]);
-    await worker.rpc('complete_official_document', {
-      p_document_id: document.id,
-      p_storage_path: null,
-      p_content_hash: null,
-      p_succeeded: false,
-      p_error:
-        caughtError instanceof Error
-          ? caughtError.message.slice(0, 1000)
-          : 'Échec de génération PDF.',
-    });
+    if (uploadedByRequest) {
+      const { data: currentDocument, error: stateError } = await worker
+        .from('official_documents')
+        .select('status,storage_path')
+        .eq('id', document.id)
+        .maybeSingle();
+      if (
+        currentDocument?.status === 'issued' &&
+        currentDocument.storage_path === storagePath
+      ) {
+        return noStoreJson({
+          id: document.id,
+          documentNumber: document.document_number,
+          status: 'issued',
+        });
+      }
+      if (stateError) {
+        return noStoreJson(
+          { error: 'L’état de publication du PDF doit être vérifié.' },
+          503,
+        );
+      }
+      await worker.storage.from('official-documents').remove([storagePath]);
+    }
+    await worker.rpc(
+      'complete_official_document',
+      rpcArgsWithKnownNulls<'complete_official_document'>({
+        p_document_id: document.id,
+        p_storage_path: null,
+        p_content_hash: null,
+        p_succeeded: false,
+        p_error:
+          caughtError instanceof Error
+            ? caughtError.message.slice(0, 1000)
+            : 'Échec de génération PDF.',
+      }),
+    );
     return noStoreJson({ error: 'Le PDF officiel n’a pas pu être publié.' }, 500);
   }
 }

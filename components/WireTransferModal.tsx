@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useBranded } from '@/components/brand/BrandProvider';
+import { Dialog, DialogBackdrop, DialogPanel } from '@/components/ui/Dialog';
 
 export default function WireTransferModal() {
   const {
@@ -294,13 +295,19 @@ export default function WireTransferModal() {
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.95 }}
-          className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-8"
-        >
+      <Dialog
+        open={isTransferModalOpen}
+        onClose={() => setIsTransferModalOpen(false)}
+        ariaLabelledBy="wire-transfer-modal-title"
+      >
+        <DialogBackdrop className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
+          <DialogPanel
+            as={motion.div}
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-8"
+          >
           {/* Header */}
           <div className="bg-slate-900 p-6 text-white flex items-center justify-between border-b border-slate-800">
             <div className="flex items-center space-x-3">
@@ -308,13 +315,19 @@ export default function WireTransferModal() {
                 <Send className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-base sm:text-lg font-extrabold">{t.newTransferTitle}</h3>
+                <h3
+                  id="wire-transfer-modal-title"
+                  className="text-base sm:text-lg font-extrabold"
+                >
+                  {t.newTransferTitle}
+                </h3>
                 <p className="text-[11px] sm:text-xs text-slate-400">
                   {transferCopy.subtitle}
                 </p>
               </div>
             </div>
             <button
+              type="button"
               onClick={() => setIsTransferModalOpen(false)}
               id="close-transfer-modal-btn"
               className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition"
@@ -1055,8 +1068,9 @@ export default function WireTransferModal() {
               </div>
             </form>
           )}
-        </motion.div>
-      </div>
+          </DialogPanel>
+        </DialogBackdrop>
+      </Dialog>
     </AnimatePresence>
   );
 }

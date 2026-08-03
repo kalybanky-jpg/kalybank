@@ -2,6 +2,11 @@
   "name": "monalyz",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "bun@1.3.14",
+  "engines": {
+    "node": ">=20.9.0",
+    "bun": "1.3.14"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -10,12 +15,13 @@
     "brand:check": "tsx scripts/generate-brand-assets.ts --check",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test tests/**/*.test.ts",
-    "test:db": "supabase test db supabase/tests/monalyz_workflow_invariants_test.sql --local",
+    "test": "tsx --test \"tests/**/*.test.ts\" \"tests/**/*.test.tsx\"",
+    "test:db": "supabase test db supabase/tests --local",
     "supabase:link": "supabase link --project-ref qljqldhvbakornnpalua",
     "db:deploy:check": "supabase db push --linked --dry-run",
     "db:deploy": "supabase db push --linked",
     "db:snapshot": "tsx scripts/update-database-snapshot.ts",
+    "db:types": "supabase gen types typescript --local --schema public,private > lib/supabase/database.types.ts",
     "auth:email:check:resend": "tsx --env-file=.env scripts/configure-supabase-auth-email.ts resend --dry-run",
     "auth:email:configure:resend": "tsx --env-file=.env scripts/configure-supabase-auth-email.ts resend",
     "auth:email:check:brevo": "tsx --env-file=.env.email.brevo.local scripts/configure-supabase-auth-email.ts brevo --dry-run",

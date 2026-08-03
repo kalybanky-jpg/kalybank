@@ -1,4 +1,5 @@
 import type {NextConfig} from 'next';
+import { PERMISSIONS_POLICY } from './lib/security/browser-policy';
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -29,7 +30,7 @@ const nextConfig: NextConfig = {
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           {
             key: 'Permissions-Policy',
-            value: 'camera=(), microphone=(), geolocation=()',
+            value: PERMISSIONS_POLICY,
           },
         ],
       },

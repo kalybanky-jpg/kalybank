@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useBranded } from '@/components/brand/BrandProvider';
+import { Dialog, DialogBackdrop, DialogPanel } from '@/components/ui/Dialog';
 
 function alignDurationToSettings(
   value: number,
@@ -156,16 +157,19 @@ export default function LoanApplicationModal() {
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.95 }}
-          className="relative w-full max-w-xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-8"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="loan-application-modal-title"
-        >
+      <Dialog
+        open={isLoanModalOpen}
+        onClose={() => setIsLoanModalOpen(false)}
+        ariaLabelledBy="loan-application-modal-title"
+      >
+        <DialogBackdrop className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
+          <DialogPanel
+            as={motion.div}
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="relative w-full max-w-xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-8"
+          >
           {/* Header */}
           <div className="bg-slate-900 p-6 text-white flex items-center justify-between border-b border-slate-800">
             <div className="flex items-center space-x-3">
@@ -173,7 +177,12 @@ export default function LoanApplicationModal() {
                 <Building2 className="w-5 h-5" />
               </div>
               <div>
-                <h3 id="loan-application-modal-title" className="text-base sm:text-lg font-extrabold">{t.loanApplicationTitle}</h3>
+                <h3
+                  id="loan-application-modal-title"
+                  className="text-base sm:text-lg font-extrabold"
+                >
+                  {t.loanApplicationTitle}
+                </h3>
                 <p className="text-[11px] sm:text-xs text-slate-400">{copy.loanModal.subtitle}</p>
               </div>
             </div>
@@ -447,8 +456,9 @@ export default function LoanApplicationModal() {
               </div>
             </form>
           )}
-        </motion.div>
-      </div>
+          </DialogPanel>
+        </DialogBackdrop>
+      </Dialog>
     </AnimatePresence>
   );
 }

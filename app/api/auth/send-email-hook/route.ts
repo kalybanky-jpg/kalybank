@@ -1,4 +1,3 @@
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { NextResponse, type NextRequest } from 'next/server';
 import {
   renderSupabaseAuthEmails,
@@ -8,7 +7,7 @@ import {
 } from '@/lib/server/auth-email';
 import { resolveBrandSettings } from '@/lib/server/branding';
 import { getTransactionalEmailConfig } from '@/lib/server/transactional-email';
-import { getPublicSupabaseConfig } from '@/lib/supabase/config';
+import { createPrivilegedClient } from '@/lib/server/api';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -31,19 +30,9 @@ function requiredSecret(name: string) {
 }
 
 function privilegedClient() {
-  const key =
-    process.env.SUPABASE_SECRET_KEY?.trim() ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
-  if (!key || /replace|changeme|your[-_]/i.test(key)) {
-    throw new Error('Configuration Auth Hook manquante : SUPABASE_SECRET_KEY.');
-  }
-  return createSupabaseClient(getPublicSupabaseConfig().url, key, {
-    auth: {
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-      persistSession: false,
-    },
-  });
+  return createPrivilegedClient(
+    'Configuration Auth Hook manquante : SUPABASE_SECRET_KEY.',
+  );
 }
 
 function applicationOrigin(request: NextRequest) {

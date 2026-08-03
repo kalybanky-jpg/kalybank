@@ -1,5 +1,4 @@
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
-import { NextResponse, type NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { mapBrandSettings, normalizeBankName, type BrandSettingsRow } from '@/lib/branding';
 import {
   generateBrandRelease,
@@ -7,6 +6,11 @@ import {
   type BrandSource,
 } from '@/lib/server/brand-assets';
 import { fetchBrandRow, readBrandAsset } from '@/lib/server/branding';
+import {
+  createPrivilegedClient,
+  isSameOriginMutation,
+  noStoreJson,
+} from '@/lib/server/api';
 import { getPublicSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
 
@@ -15,38 +19,10 @@ export const runtime = 'nodejs';
 
 const MAX_REQUEST_BYTES = 16 * 1024 * 1024;
 
-function noStoreJson(body: unknown, status = 200) {
-  return NextResponse.json(body, {
-    status,
-    headers: { 'Cache-Control': 'no-store, private' },
-  });
-}
-
-function originAllowed(request: NextRequest) {
-  const origin = request.headers.get('origin');
-  const canonicalOrigin =
-    process.env.APP_ORIGIN ??
-    process.env.NEXT_PUBLIC_APP_ORIGIN ??
-    (process.env.NODE_ENV === 'development' ? request.nextUrl.origin : null);
-  if (!origin || !canonicalOrigin) return false;
-  try {
-    return new URL(origin).origin === new URL(canonicalOrigin).origin;
-  } catch {
-    return false;
-  }
-}
-
 function privilegedClient() {
-  const secretKey =
-    process.env.SUPABASE_SECRET_KEY?.trim() ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
-  if (!secretKey || /replace|changeme|your[-_]/i.test(secretKey)) {
-    throw new Error('SUPABASE_SECRET_KEY est requise pour publier la marque.');
-  }
-  const { url } = getPublicSupabaseConfig();
-  return createSupabaseClient(url, secretKey, {
-    auth: { autoRefreshToken: false, detectSessionInUrl: false, persistSession: false },
-  });
+  return createPrivilegedClient(
+    'SUPABASE_SECRET_KEY est requise pour publier la marque.',
+  );
 }
 
 function optionalFile(formData: FormData, key: string) {
@@ -70,7 +46,9 @@ async function currentSource(
 }
 
 export async function PUT(request: NextRequest) {
-  if (!originAllowed(request)) return noStoreJson({ error: 'Origine refusée.' }, 403);
+  if (!isSameOriginMutation(request)) {
+    return noStoreJson({ error: 'Origine refusée.' }, 403);
+  }
   const contentLength = Number(request.headers.get('content-length') ?? 0);
   if (contentLength > MAX_REQUEST_BYTES) {
     return noStoreJson({ error: 'La publication dépasse la taille maximale autorisée.' }, 413);

@@ -1,4 +1,6 @@
 import { applyBrand } from '@/lib/branding';
+import type { Json } from '@/lib/supabase/database.types';
+import { jsonObject } from '@/lib/supabase/json';
 
 export type TransactionalEmailProvider = 'resend' | 'brevo';
 export type TransactionalEmailLanguage = 'fr' | 'en' | 'de' | 'es';
@@ -27,6 +29,53 @@ export interface TransactionalEmailJob {
   recipient_email: string;
   template_key: TransactionalEmailTemplate;
   payload: Record<string, unknown>;
+}
+
+const TRANSACTIONAL_EMAIL_TEMPLATES = new Set<TransactionalEmailTemplate>([
+  'transfer_submitted',
+  'transfer_approved',
+  'transfer_completed',
+  'transfer_rejected',
+  'transfer_failed',
+  'loan_submitted',
+  'loan_approved',
+  'loan_disbursed',
+  'loan_rejected',
+  'loan_failed',
+  'kyc_submitted',
+  'kyc_information_requested',
+  'kyc_resubmitted',
+  'kyc_approved',
+  'kyc_rejected',
+]);
+
+export function parseTransactionalEmailJob(value: {
+  id: string;
+  claim_token: string | null;
+  recipient_id: string;
+  recipient_email: string;
+  template_key: string;
+  payload: Json;
+}): TransactionalEmailJob {
+  if (!value.claim_token) {
+    throw new Error('Le job e-mail réclamé ne contient aucun jeton.');
+  }
+  if (
+    !TRANSACTIONAL_EMAIL_TEMPLATES.has(
+      value.template_key as TransactionalEmailTemplate,
+    )
+  ) {
+    throw new Error(`Modèle e-mail inconnu : ${value.template_key}.`);
+  }
+
+  return {
+    id: value.id,
+    claim_token: value.claim_token,
+    recipient_id: value.recipient_id,
+    recipient_email: value.recipient_email,
+    template_key: value.template_key as TransactionalEmailTemplate,
+    payload: jsonObject(value.payload),
+  };
 }
 
 export interface TransactionalEmailConfig {

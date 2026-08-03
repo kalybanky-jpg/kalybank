@@ -23,8 +23,10 @@ entre MIME déclaré et signature binaire. Réponse réussie :
 ### `DELETE /api/evidence`
 
 Supprime jusqu’à dix chemins préfixés par l’UUID du téléverseur, après contrôle
-de session, d’origine et de RLS. Cette route sert au nettoyage compensatoire
-lorsqu’une RPC métier échoue.
+de session, d’origine et de RLS. Un objet déjà référencé par un dossier KYC,
+un brouillon, une demande de prêt ou une exécution enregistrée ne peut pas être
+supprimé. Les nouveaux téléversements KYC utilisent un chemin versionné : une
+correction ne remplace jamais le fichier d’une soumission antérieure.
 
 `external-execution-evidence` est un nom historique qui signifie « preuve
 d’une exécution effectuée hors Monalyz ». Dans le MVP actuel, cette exécution
@@ -54,7 +56,9 @@ banque tierce connectée.
 session, une origine canonique et le rôle actif `admin`. Elle relit la langue
 du propriétaire, fige le snapshot par RPC, rend le PDF côté serveur, calcule
 son SHA-256, l’enregistre dans le bucket privé `official-documents` et termine
-le job avec un client `service_role`. Réponse réussie :
+le job avec un client `service_role`. Le client transmet une clé UUID dans
+`Idempotency-Key`; une reprise avec la même clé retrouve le même document et ne
+supprime jamais l’artefact produit par une requête concurrente. Réponse réussie :
 
 ```json
 {
@@ -101,10 +105,12 @@ puis marqués comme envoyés ou remis en attente. Réponse réussie :
 ```
 
 Les réponses portent `Cache-Control: no-store, private`. La session autorise
-le déclenchement HTTP, mais seule la route serveur peut réclamer la file
-globale : les RPC `claim` et `complete` refusent les JWT autres que
-`service_role`. Chaque complétion doit en plus présenter le `claim_token`
-opaque renvoyé lors de la réclamation.
+le déclenchement HTTP, mais seule la route serveur peut réclamer la file : un
+utilisateur standard est limité à ses propres e-mails, tandis qu’un chef
+d’agence actif peut traiter le lot global. Les échecs suivent un backoff
+exponentiel borné à 30 minutes. Les RPC `claim` et `complete` refusent les JWT
+autres que `service_role`; chaque complétion doit en plus présenter le
+`claim_token` opaque renvoyé lors de la réclamation.
 
 ## RPC publiques authentifiées
 
@@ -135,6 +141,7 @@ opaque renvoyé lors de la réclamation.
 | `branch_manager_revoke_official_document` | Révoquer un document émis sans supprimer son historique |
 | `complete_official_document` | Finaliser ou échouer le PDF (`service_role`) |
 | `claim_transactional_emails` | Réclamer atomiquement des jobs (`service_role`) |
+| `claim_transactional_emails_for_recipient` | Réclamer atomiquement les jobs d’un seul destinataire (`service_role`) |
 | `complete_transactional_email` | Terminer un claim avec son jeton (`service_role`) |
 
 Les privilèges `anon` et les écritures directes métier sont révoqués. Les RPC

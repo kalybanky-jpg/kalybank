@@ -1,41 +1,23 @@
-import { NextResponse, type NextRequest } from 'next/server';
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import type { NextRequest } from 'next/server';
 import {
   getTransactionalEmailConfig,
+  parseTransactionalEmailJob,
   resolveTransactionalEmailLanguage,
   sendTransactionalEmail,
-  type TransactionalEmailJob,
 } from '@/lib/server/transactional-email';
-import { getPublicSupabaseConfig } from '@/lib/supabase/config';
+import {
+  createPrivilegedClient,
+  isSameOriginMutation,
+  noStoreJson,
+} from '@/lib/server/api';
 import { createClient } from '@/lib/supabase/server';
 import { resolveBrandSettings } from '@/lib/server/branding';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-function noStoreJson(body: unknown, status = 200) {
-  return NextResponse.json(body, {
-    status,
-    headers: { 'Cache-Control': 'no-store, private' },
-  });
-}
-
-function originAllowed(request: NextRequest) {
-  const origin = request.headers.get('origin');
-  const canonicalOrigin =
-    process.env.APP_ORIGIN ??
-    process.env.NEXT_PUBLIC_APP_ORIGIN ??
-    (process.env.NODE_ENV === 'development' ? request.nextUrl.origin : null);
-  if (!origin || !canonicalOrigin) return false;
-  try {
-    return new URL(origin).origin === new URL(canonicalOrigin).origin;
-  } catch {
-    return false;
-  }
-}
-
 export async function POST(request: NextRequest) {
-  if (!originAllowed(request)) {
+  if (!isSameOriginMutation(request)) {
     return noStoreJson({ error: 'Origine refusée.' }, 403);
   }
 
@@ -52,25 +34,9 @@ export async function POST(request: NextRequest) {
   let worker;
   try {
     config = getTransactionalEmailConfig();
-    const serviceRoleKey =
-      process.env.SUPABASE_SECRET_KEY?.trim() ||
-      process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
-    if (
-      !serviceRoleKey ||
-      /replace|changeme|your[-_]/i.test(serviceRoleKey)
-    ) {
-      throw new Error(
-        'Configuration e-mail manquante : SUPABASE_SECRET_KEY.',
-      );
-    }
-    const { url } = getPublicSupabaseConfig();
-    worker = createSupabaseClient(url, serviceRoleKey, {
-      auth: {
-        autoRefreshToken: false,
-        detectSessionInUrl: false,
-        persistSession: false,
-      },
-    });
+    worker = createPrivilegedClient(
+      'Configuration e-mail manquante : SUPABASE_SECRET_KEY.',
+    );
   } catch (error) {
     return noStoreJson(
       {
@@ -83,13 +49,21 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { data, error: claimError } = await worker.rpc(
-    'claim_transactional_emails',
-    { p_limit: 10 },
-  );
+  const { data: role, error: roleError } = await supabase.rpc('current_app_role');
+  if (roleError) {
+    return noStoreJson({ error: 'Rôle applicatif indisponible.' }, 403);
+  }
+
+  const { data, error: claimError } =
+    role === 'admin'
+      ? await worker.rpc('claim_transactional_emails', { p_limit: 10 })
+      : await worker.rpc('claim_transactional_emails_for_recipient', {
+          p_recipient_id: user.id,
+          p_limit: 10,
+        });
   if (claimError) return noStoreJson({ error: claimError.message }, 400);
 
-  const jobs = (data ?? []) as TransactionalEmailJob[];
+  const jobs = (data ?? []).map(parseTransactionalEmailJob);
   const brand = await resolveBrandSettings(worker);
   let sent = 0;
   let failed = 0;
@@ -118,7 +92,7 @@ export async function POST(request: NextRequest) {
         p_claim_token: job.claim_token,
         p_succeeded: true,
         p_provider_message_id: providerMessageId,
-        p_error: null,
+        p_error: undefined,
       });
       if (error) throw error;
       sent += 1;
@@ -128,7 +102,7 @@ export async function POST(request: NextRequest) {
         p_email_id: job.id,
         p_claim_token: job.claim_token,
         p_succeeded: false,
-        p_provider_message_id: null,
+        p_provider_message_id: undefined,
         p_error:
           error instanceof Error ? error.message : 'Échec d’envoi non détaillé.',
       });

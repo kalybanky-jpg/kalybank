@@ -1,8 +1,8 @@
 -- Monalyz DATABASE SCHEMA SNAPSHOT
 -- GENERATED FILE: run `npx bun run db:snapshot`; do not edit manually.
 -- remote-project-ref: qljqldhvbakornnpalua
--- migration-manifest-sha256: 42c34c7967e9053265fd80e92bba298feca6029b31e3446f9728b5497ac288a2
--- migrations: 20260728060744_kaly_secure_external_financial_workflows.sql, 20260728061308_add_missing_foreign_key_indexes.sql, 20260728065832_rename_brand_to_monalyz.sql, 20260728092751_simplify_branch_manager_financial_workflows.sql, 20260728094442_add_outbox_claimed_by_index.sql, 20260728150934_add_profile_preferred_language.sql, 20260728151335_grant_profile_preferences_update.sql, 20260728173319_provision_demo_accounts.sql, 20260728183213_fix_demo_provisioner_uuid_literals.sql, 20260729115445_add_official_accounts_and_ledger.sql, 20260729115451_wire_ledger_to_financial_workflows.sql, 20260729115458_add_official_documents_and_demo_fixtures.sql, 20260730123059_automatic_account_numbers.sql, 20260730162101_kyc_workflow_and_internal_account.sql, 20260730170000_sequential_transfer_checks.sql, 20260731120000_user_localization_contract.sql, 20260801091705_configure_loan_products.sql, 20260801095428_dynamic_brand_settings.sql, 20260801163432_secure_brand_snapshot_function.sql, 20260803074608_scope_transactional_email_claims.sql
+-- migration-manifest-sha256: 2f077f8e5094274d7284eef53d1ea61774cc612137678af610fbb78ca496ebe3
+-- migrations: 20260728060744_kaly_secure_external_financial_workflows.sql, 20260728061308_add_missing_foreign_key_indexes.sql, 20260728065832_rename_brand_to_monalyz.sql, 20260728092751_simplify_branch_manager_financial_workflows.sql, 20260728094442_add_outbox_claimed_by_index.sql, 20260728150934_add_profile_preferred_language.sql, 20260728151335_grant_profile_preferences_update.sql, 20260728173319_provision_demo_accounts.sql, 20260728183213_fix_demo_provisioner_uuid_literals.sql, 20260729115445_add_official_accounts_and_ledger.sql, 20260729115451_wire_ledger_to_financial_workflows.sql, 20260729115458_add_official_documents_and_demo_fixtures.sql, 20260730123059_automatic_account_numbers.sql, 20260730162101_kyc_workflow_and_internal_account.sql, 20260730170000_sequential_transfer_checks.sql, 20260731120000_user_localization_contract.sql, 20260801091705_configure_loan_products.sql, 20260801095428_dynamic_brand_settings.sql, 20260801163432_secure_brand_snapshot_function.sql, 20260803074608_scope_transactional_email_claims.sql, 20260803112108_harden_function_privileges_and_upload_staging.sql
 -- schema-only: true
 -- production-data-included: false
 -- schemas: public, private
@@ -7391,6 +7391,7 @@ GRANT USAGE ON SCHEMA "public" TO "service_role";
 
 
 REVOKE ALL ON FUNCTION "private"."allocate_internal_account_number"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "private"."allocate_internal_account_number"() TO "service_role";
 
 
 
@@ -7399,75 +7400,103 @@ GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."transaction
 
 
 REVOKE ALL ON FUNCTION "private"."claim_transactional_emails_internal"("p_limit" integer, "p_recipient_id" "uuid") FROM PUBLIC;
+GRANT ALL ON FUNCTION "private"."claim_transactional_emails_internal"("p_limit" integer, "p_recipient_id" "uuid") TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "private"."enqueue_financial_workflow_email"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "private"."enqueue_financial_workflow_email"() TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "private"."enqueue_kyc_message"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "private"."enqueue_kyc_message"() TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "private"."ensure_active_user"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "private"."ensure_active_user"() TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "private"."ensure_branch_manager"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "private"."ensure_branch_manager"() TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "private"."ensure_demo_banking_artifacts"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "private"."ensure_demo_banking_artifacts"() TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "private"."handle_new_user"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "private"."handle_new_user"() TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "private"."is_active_staff"("required_roles" "text"[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION "private"."is_active_staff"("required_roles" "text"[]) TO "service_role";
 GRANT ALL ON FUNCTION "private"."is_active_staff"("required_roles" "text"[]) TO "authenticated";
 
 
 
 REVOKE ALL ON FUNCTION "private"."is_valid_iban"("p_iban" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "private"."is_valid_iban"("p_iban" "text") TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "private"."normalize_iban"("p_iban" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "private"."normalize_iban"("p_iban" "text") TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "private"."normalize_notification_localization"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "private"."normalize_notification_localization"() TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "private"."prepare_demo_financial_position"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "private"."prepare_demo_financial_position"() TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "private"."prevent_financial_ledger_mutation"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "private"."prevent_financial_ledger_mutation"() TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "private"."protect_official_document"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "private"."protect_official_document"() TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "private"."remove_iban_from_new_official_document"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "private"."remove_iban_from_new_official_document"() TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "private"."set_updated_at"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "private"."set_updated_at"() TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "private"."snapshot_official_document_brand"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "private"."snapshot_official_document_brand"() TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "private"."validate_financial_ledger_entry"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "private"."validate_financial_ledger_entry"() TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "private"."validate_kyc_submission"("p_first_name" "text", "p_last_name" "text", "p_date_of_birth" "date", "p_place_of_birth" "text", "p_nationality" "text", "p_address" "jsonb", "p_occupation" "text", "p_income_range" "text", "p_document_type" "text", "p_document_number" "text", "p_issuing_country" "text", "p_document_expires_on" "date", "p_document_object_paths" "jsonb") FROM PUBLIC;
+GRANT ALL ON FUNCTION "private"."validate_kyc_submission"("p_first_name" "text", "p_last_name" "text", "p_date_of_birth" "date", "p_place_of_birth" "text", "p_nationality" "text", "p_address" "jsonb", "p_occupation" "text", "p_income_range" "text", "p_document_type" "text", "p_document_number" "text", "p_issuing_country" "text", "p_document_expires_on" "date", "p_document_object_paths" "jsonb") TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "private"."validate_loan_disbursement_target"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "private"."validate_loan_disbursement_target"() TO "service_role";
 
 
 
@@ -7477,6 +7506,7 @@ GRANT SELECT ON TABLE "public"."financial_positions" TO "authenticated";
 
 
 REVOKE ALL ON FUNCTION "public"."adjust_financial_position"("p_position_id" "uuid", "p_delta_minor" bigint, "p_as_of" timestamp with time zone, "p_reason" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."adjust_financial_position"("p_position_id" "uuid", "p_delta_minor" bigint, "p_as_of" timestamp with time zone, "p_reason" "text") TO "service_role";
 
 
 
@@ -7486,13 +7516,14 @@ GRANT SELECT ON TABLE "public"."kyc_applications" TO "authenticated";
 
 
 REVOKE ALL ON FUNCTION "public"."begin_kyc_review"("p_kyc_id" "uuid") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."begin_kyc_review"("p_kyc_id" "uuid") TO "service_role";
 GRANT ALL ON FUNCTION "public"."begin_kyc_review"("p_kyc_id" "uuid") TO "authenticated";
 
 
 
 REVOKE ALL ON FUNCTION "public"."branch_manager_adjust_balance"("p_account_id" "uuid", "p_target_amount_minor" bigint, "p_value_date" timestamp with time zone, "p_reason" "text", "p_idempotency_key" "uuid") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."branch_manager_adjust_balance"("p_account_id" "uuid", "p_target_amount_minor" bigint, "p_value_date" timestamp with time zone, "p_reason" "text", "p_idempotency_key" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."branch_manager_adjust_balance"("p_account_id" "uuid", "p_target_amount_minor" bigint, "p_value_date" timestamp with time zone, "p_reason" "text", "p_idempotency_key" "uuid") TO "service_role";
+GRANT ALL ON FUNCTION "public"."branch_manager_adjust_balance"("p_account_id" "uuid", "p_target_amount_minor" bigint, "p_value_date" timestamp with time zone, "p_reason" "text", "p_idempotency_key" "uuid") TO "authenticated";
 
 
 
@@ -7502,8 +7533,8 @@ GRANT SELECT ON TABLE "public"."loan_applications" TO "authenticated";
 
 
 REVOKE ALL ON FUNCTION "public"."branch_manager_approve_loan"("p_loan_id" "uuid", "p_note" "text") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."branch_manager_approve_loan"("p_loan_id" "uuid", "p_note" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."branch_manager_approve_loan"("p_loan_id" "uuid", "p_note" "text") TO "service_role";
+GRANT ALL ON FUNCTION "public"."branch_manager_approve_loan"("p_loan_id" "uuid", "p_note" "text") TO "authenticated";
 
 
 
@@ -7518,13 +7549,14 @@ GRANT ALL ON FUNCTION "public"."branch_manager_approve_transfer"("p_transfer_id"
 
 
 REVOKE ALL ON FUNCTION "public"."branch_manager_declare_account"("p_owner_id" "uuid", "p_label" "text", "p_account_type" "text", "p_currency" "text", "p_iban" "text", "p_bic" "text", "p_account_holder_name" "text", "p_institution_name" "text", "p_branch_name" "text", "p_branch_code" "text", "p_opening_balance_minor" bigint, "p_opened_at" timestamp with time zone, "p_is_demo" boolean, "p_reason" "text", "p_idempotency_key" "uuid") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."branch_manager_declare_account"("p_owner_id" "uuid", "p_label" "text", "p_account_type" "text", "p_currency" "text", "p_iban" "text", "p_bic" "text", "p_account_holder_name" "text", "p_institution_name" "text", "p_branch_name" "text", "p_branch_code" "text", "p_opening_balance_minor" bigint, "p_opened_at" timestamp with time zone, "p_is_demo" boolean, "p_reason" "text", "p_idempotency_key" "uuid") TO "service_role";
 GRANT ALL ON FUNCTION "public"."branch_manager_declare_account"("p_owner_id" "uuid", "p_label" "text", "p_account_type" "text", "p_currency" "text", "p_iban" "text", "p_bic" "text", "p_account_holder_name" "text", "p_institution_name" "text", "p_branch_name" "text", "p_branch_code" "text", "p_opening_balance_minor" bigint, "p_opened_at" timestamp with time zone, "p_is_demo" boolean, "p_reason" "text", "p_idempotency_key" "uuid") TO "authenticated";
 
 
 
 REVOKE ALL ON FUNCTION "public"."branch_manager_disburse_loan"("p_loan_id" "uuid", "p_destination_position_id" "uuid", "p_note" "text") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."branch_manager_disburse_loan"("p_loan_id" "uuid", "p_destination_position_id" "uuid", "p_note" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."branch_manager_disburse_loan"("p_loan_id" "uuid", "p_destination_position_id" "uuid", "p_note" "text") TO "service_role";
+GRANT ALL ON FUNCTION "public"."branch_manager_disburse_loan"("p_loan_id" "uuid", "p_destination_position_id" "uuid", "p_note" "text") TO "authenticated";
 
 
 
@@ -7539,32 +7571,32 @@ GRANT SELECT ON TABLE "public"."official_documents" TO "service_role";
 
 
 REVOKE ALL ON FUNCTION "public"."branch_manager_issue_official_document"("p_owner_id" "uuid", "p_account_id" "uuid", "p_transfer_id" "uuid", "p_loan_id" "uuid", "p_document_type" "text", "p_title" "text", "p_language" "text", "p_period_start" "date", "p_period_end" "date", "p_idempotency_key" "uuid") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."branch_manager_issue_official_document"("p_owner_id" "uuid", "p_account_id" "uuid", "p_transfer_id" "uuid", "p_loan_id" "uuid", "p_document_type" "text", "p_title" "text", "p_language" "text", "p_period_start" "date", "p_period_end" "date", "p_idempotency_key" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."branch_manager_issue_official_document"("p_owner_id" "uuid", "p_account_id" "uuid", "p_transfer_id" "uuid", "p_loan_id" "uuid", "p_document_type" "text", "p_title" "text", "p_language" "text", "p_period_start" "date", "p_period_end" "date", "p_idempotency_key" "uuid") TO "service_role";
+GRANT ALL ON FUNCTION "public"."branch_manager_issue_official_document"("p_owner_id" "uuid", "p_account_id" "uuid", "p_transfer_id" "uuid", "p_loan_id" "uuid", "p_document_type" "text", "p_title" "text", "p_language" "text", "p_period_start" "date", "p_period_end" "date", "p_idempotency_key" "uuid") TO "authenticated";
 
 
 
 REVOKE ALL ON FUNCTION "public"."branch_manager_reject_loan"("p_loan_id" "uuid", "p_reason" "text") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."branch_manager_reject_loan"("p_loan_id" "uuid", "p_reason" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."branch_manager_reject_loan"("p_loan_id" "uuid", "p_reason" "text") TO "service_role";
+GRANT ALL ON FUNCTION "public"."branch_manager_reject_loan"("p_loan_id" "uuid", "p_reason" "text") TO "authenticated";
 
 
 
 REVOKE ALL ON FUNCTION "public"."branch_manager_reject_transfer"("p_transfer_id" "uuid", "p_reason" "text") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."branch_manager_reject_transfer"("p_transfer_id" "uuid", "p_reason" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."branch_manager_reject_transfer"("p_transfer_id" "uuid", "p_reason" "text") TO "service_role";
+GRANT ALL ON FUNCTION "public"."branch_manager_reject_transfer"("p_transfer_id" "uuid", "p_reason" "text") TO "authenticated";
 
 
 
 REVOKE ALL ON FUNCTION "public"."branch_manager_review_transfer_check"("p_transfer_id" "uuid", "p_check_kind" "text", "p_note" "text") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."branch_manager_review_transfer_check"("p_transfer_id" "uuid", "p_check_kind" "text", "p_note" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."branch_manager_review_transfer_check"("p_transfer_id" "uuid", "p_check_kind" "text", "p_note" "text") TO "service_role";
+GRANT ALL ON FUNCTION "public"."branch_manager_review_transfer_check"("p_transfer_id" "uuid", "p_check_kind" "text", "p_note" "text") TO "authenticated";
 
 
 
 REVOKE ALL ON FUNCTION "public"."branch_manager_revoke_official_document"("p_document_id" "uuid", "p_reason" "text") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."branch_manager_revoke_official_document"("p_document_id" "uuid", "p_reason" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."branch_manager_revoke_official_document"("p_document_id" "uuid", "p_reason" "text") TO "service_role";
+GRANT ALL ON FUNCTION "public"."branch_manager_revoke_official_document"("p_document_id" "uuid", "p_reason" "text") TO "authenticated";
 
 
 
@@ -7594,11 +7626,13 @@ GRANT ALL ON FUNCTION "public"."create_official_document_localized_reissue"("p_s
 
 
 REVOKE ALL ON FUNCTION "public"."current_app_role"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."current_app_role"() TO "service_role";
 GRANT ALL ON FUNCTION "public"."current_app_role"() TO "authenticated";
 
 
 
 REVOKE ALL ON FUNCTION "public"."decide_kyc_application"("p_kyc_id" "uuid", "p_decision" "text", "p_reason_code" "text", "p_note" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."decide_kyc_application"("p_kyc_id" "uuid", "p_decision" "text", "p_reason_code" "text", "p_note" "text") TO "service_role";
 GRANT ALL ON FUNCTION "public"."decide_kyc_application"("p_kyc_id" "uuid", "p_decision" "text", "p_reason_code" "text", "p_note" "text") TO "authenticated";
 
 
@@ -7609,11 +7643,13 @@ GRANT ALL ON FUNCTION "public"."finalize_official_document_localized_reissue"("p
 
 
 REVOKE ALL ON FUNCTION "public"."get_account_number_configuration"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."get_account_number_configuration"() TO "service_role";
 GRANT ALL ON FUNCTION "public"."get_account_number_configuration"() TO "authenticated";
 
 
 
 REVOKE ALL ON FUNCTION "public"."mark_notification_read"("p_notification_id" "uuid") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."mark_notification_read"("p_notification_id" "uuid") TO "service_role";
 GRANT ALL ON FUNCTION "public"."mark_notification_read"("p_notification_id" "uuid") TO "authenticated";
 
 
@@ -7630,34 +7666,40 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "public"."brand_settings" TO "service
 
 
 REVOKE ALL ON FUNCTION "public"."publish_brand_settings"("p_expected_revision" bigint, "p_bank_name" "text", "p_primary_logo_path" "text", "p_primary_logo_width" integer, "p_primary_logo_height" integer, "p_reversed_logo_path" "text", "p_reversed_logo_width" integer, "p_reversed_logo_height" integer, "p_email_logo_path" "text", "p_pdf_logo_path" "text", "p_favicon_ico_path" "text", "p_favicon_16_path" "text", "p_favicon_32_path" "text", "p_favicon_48_path" "text", "p_apple_touch_icon_path" "text", "p_app_icon_192_path" "text", "p_app_icon_512_path" "text", "p_maskable_icon_path" "text", "p_social_card_path" "text") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."publish_brand_settings"("p_expected_revision" bigint, "p_bank_name" "text", "p_primary_logo_path" "text", "p_primary_logo_width" integer, "p_primary_logo_height" integer, "p_reversed_logo_path" "text", "p_reversed_logo_width" integer, "p_reversed_logo_height" integer, "p_email_logo_path" "text", "p_pdf_logo_path" "text", "p_favicon_ico_path" "text", "p_favicon_16_path" "text", "p_favicon_32_path" "text", "p_favicon_48_path" "text", "p_apple_touch_icon_path" "text", "p_app_icon_192_path" "text", "p_app_icon_512_path" "text", "p_maskable_icon_path" "text", "p_social_card_path" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."publish_brand_settings"("p_expected_revision" bigint, "p_bank_name" "text", "p_primary_logo_path" "text", "p_primary_logo_width" integer, "p_primary_logo_height" integer, "p_reversed_logo_path" "text", "p_reversed_logo_width" integer, "p_reversed_logo_height" integer, "p_email_logo_path" "text", "p_pdf_logo_path" "text", "p_favicon_ico_path" "text", "p_favicon_16_path" "text", "p_favicon_32_path" "text", "p_favicon_48_path" "text", "p_apple_touch_icon_path" "text", "p_app_icon_192_path" "text", "p_app_icon_512_path" "text", "p_maskable_icon_path" "text", "p_social_card_path" "text") TO "service_role";
+GRANT ALL ON FUNCTION "public"."publish_brand_settings"("p_expected_revision" bigint, "p_bank_name" "text", "p_primary_logo_path" "text", "p_primary_logo_width" integer, "p_primary_logo_height" integer, "p_reversed_logo_path" "text", "p_reversed_logo_width" integer, "p_reversed_logo_height" integer, "p_email_logo_path" "text", "p_pdf_logo_path" "text", "p_favicon_ico_path" "text", "p_favicon_16_path" "text", "p_favicon_32_path" "text", "p_favicon_48_path" "text", "p_apple_touch_icon_path" "text", "p_app_icon_192_path" "text", "p_app_icon_512_path" "text", "p_maskable_icon_path" "text", "p_social_card_path" "text") TO "authenticated";
 
 
 
 REVOKE ALL ON FUNCTION "public"."record_financial_position"("p_owner_id" "uuid", "p_label" "text", "p_currency" "text", "p_amount_minor" bigint, "p_as_of" timestamp with time zone, "p_external_identifier_masked" "text", "p_reason" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."record_financial_position"("p_owner_id" "uuid", "p_label" "text", "p_currency" "text", "p_amount_minor" bigint, "p_as_of" timestamp with time zone, "p_external_identifier_masked" "text", "p_reason" "text") TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "public"."request_kyc_information"("p_kyc_id" "uuid", "p_requested_items" "text"[], "p_reason_code" "text", "p_note" "text", "p_due_at" timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."request_kyc_information"("p_kyc_id" "uuid", "p_requested_items" "text"[], "p_reason_code" "text", "p_note" "text", "p_due_at" timestamp with time zone) TO "service_role";
 GRANT ALL ON FUNCTION "public"."request_kyc_information"("p_kyc_id" "uuid", "p_requested_items" "text"[], "p_reason_code" "text", "p_note" "text", "p_due_at" timestamp with time zone) TO "authenticated";
 
 
 
 REVOKE ALL ON FUNCTION "public"."resubmit_kyc_application"("p_kyc_id" "uuid", "p_changes" "jsonb", "p_document_object_paths" "jsonb") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."resubmit_kyc_application"("p_kyc_id" "uuid", "p_changes" "jsonb", "p_document_object_paths" "jsonb") TO "service_role";
 GRANT ALL ON FUNCTION "public"."resubmit_kyc_application"("p_kyc_id" "uuid", "p_changes" "jsonb", "p_document_object_paths" "jsonb") TO "authenticated";
 
 
 
 REVOKE ALL ON FUNCTION "public"."review_kyc_application"("p_kyc_id" "uuid", "p_status" "text", "p_note" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."review_kyc_application"("p_kyc_id" "uuid", "p_status" "text", "p_note" "text") TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "public"."review_loan_check"("p_loan_id" "uuid", "p_check_kind" "text", "p_status" "text", "p_note" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."review_loan_check"("p_loan_id" "uuid", "p_check_kind" "text", "p_status" "text", "p_note" "text") TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "public"."review_transfer_check"("p_transfer_id" "uuid", "p_check_kind" "text", "p_status" "text", "p_note" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."review_transfer_check"("p_transfer_id" "uuid", "p_check_kind" "text", "p_status" "text", "p_note" "text") TO "service_role";
 
 
 
@@ -7667,11 +7709,13 @@ GRANT SELECT ON TABLE "public"."kyc_drafts" TO "authenticated";
 
 
 REVOKE ALL ON FUNCTION "public"."save_kyc_draft"("p_current_step" integer, "p_payload" "jsonb", "p_document_object_paths" "jsonb", "p_preferred_language" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."save_kyc_draft"("p_current_step" integer, "p_payload" "jsonb", "p_document_object_paths" "jsonb", "p_preferred_language" "text") TO "service_role";
 GRANT ALL ON FUNCTION "public"."save_kyc_draft"("p_current_step" integer, "p_payload" "jsonb", "p_document_object_paths" "jsonb", "p_preferred_language" "text") TO "authenticated";
 
 
 
 REVOKE ALL ON FUNCTION "public"."set_account_number_prefix"("p_prefix" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."set_account_number_prefix"("p_prefix" "text") TO "service_role";
 GRANT ALL ON FUNCTION "public"."set_account_number_prefix"("p_prefix" "text") TO "authenticated";
 
 
@@ -7698,31 +7742,36 @@ GRANT UPDATE("preferred_language") ON TABLE "public"."profiles" TO "authenticate
 
 
 REVOKE ALL ON FUNCTION "public"."set_user_access_status"("p_user_id" "uuid", "p_status" "text", "p_reason" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."set_user_access_status"("p_user_id" "uuid", "p_status" "text", "p_reason" "text") TO "service_role";
 GRANT ALL ON FUNCTION "public"."set_user_access_status"("p_user_id" "uuid", "p_status" "text", "p_reason" "text") TO "authenticated";
 
 
 
 REVOKE ALL ON FUNCTION "public"."submit_kyc_application"("p_first_name" "text", "p_last_name" "text", "p_date_of_birth" "date", "p_place_of_birth" "text", "p_nationality" "text", "p_address" "jsonb", "p_occupation" "text", "p_income_range" "text", "p_fatca" boolean, "p_pep" boolean, "p_document_type" "text", "p_document_number" "text", "p_issuing_country" "text", "p_document_expires_on" "date", "p_document_object_paths" "jsonb", "p_idempotency_key" "uuid") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."submit_kyc_application"("p_first_name" "text", "p_last_name" "text", "p_date_of_birth" "date", "p_place_of_birth" "text", "p_nationality" "text", "p_address" "jsonb", "p_occupation" "text", "p_income_range" "text", "p_fatca" boolean, "p_pep" boolean, "p_document_type" "text", "p_document_number" "text", "p_issuing_country" "text", "p_document_expires_on" "date", "p_document_object_paths" "jsonb", "p_idempotency_key" "uuid") TO "service_role";
 GRANT ALL ON FUNCTION "public"."submit_kyc_application"("p_first_name" "text", "p_last_name" "text", "p_date_of_birth" "date", "p_place_of_birth" "text", "p_nationality" "text", "p_address" "jsonb", "p_occupation" "text", "p_income_range" "text", "p_fatca" boolean, "p_pep" boolean, "p_document_type" "text", "p_document_number" "text", "p_issuing_country" "text", "p_document_expires_on" "date", "p_document_object_paths" "jsonb", "p_idempotency_key" "uuid") TO "authenticated";
 
 
 
 REVOKE ALL ON FUNCTION "public"."submit_loan_application"("p_requested_amount_minor" bigint, "p_currency" "text", "p_duration_months" integer, "p_motive_code" "text", "p_document_object_paths" "jsonb", "p_idempotency_key" "uuid") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."submit_loan_application"("p_requested_amount_minor" bigint, "p_currency" "text", "p_duration_months" integer, "p_motive_code" "text", "p_document_object_paths" "jsonb", "p_idempotency_key" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."submit_loan_application"("p_requested_amount_minor" bigint, "p_currency" "text", "p_duration_months" integer, "p_motive_code" "text", "p_document_object_paths" "jsonb", "p_idempotency_key" "uuid") TO "service_role";
+GRANT ALL ON FUNCTION "public"."submit_loan_application"("p_requested_amount_minor" bigint, "p_currency" "text", "p_duration_months" integer, "p_motive_code" "text", "p_document_object_paths" "jsonb", "p_idempotency_key" "uuid") TO "authenticated";
 
 
 
 REVOKE ALL ON FUNCTION "public"."submit_transfer_intent"("p_source_position_id" "uuid", "p_recipient_name" "text", "p_recipient_account_masked" "text", "p_beneficiary_details" "jsonb", "p_transfer_type" "text", "p_amount_minor" bigint, "p_currency" "text", "p_target_amount_minor" bigint, "p_target_currency" "text", "p_quote_rate" numeric, "p_quote_as_of" timestamp with time zone, "p_motive" "text", "p_idempotency_key" "uuid") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."submit_transfer_intent"("p_source_position_id" "uuid", "p_recipient_name" "text", "p_recipient_account_masked" "text", "p_beneficiary_details" "jsonb", "p_transfer_type" "text", "p_amount_minor" bigint, "p_currency" "text", "p_target_amount_minor" bigint, "p_target_currency" "text", "p_quote_rate" numeric, "p_quote_as_of" timestamp with time zone, "p_motive" "text", "p_idempotency_key" "uuid") TO "service_role";
 GRANT ALL ON FUNCTION "public"."submit_transfer_intent"("p_source_position_id" "uuid", "p_recipient_name" "text", "p_recipient_account_masked" "text", "p_beneficiary_details" "jsonb", "p_transfer_type" "text", "p_amount_minor" bigint, "p_currency" "text", "p_target_amount_minor" bigint, "p_target_currency" "text", "p_quote_rate" numeric, "p_quote_as_of" timestamp with time zone, "p_motive" "text", "p_idempotency_key" "uuid") TO "authenticated";
 
 
 
 REVOKE ALL ON FUNCTION "public"."transition_loan"("p_loan_id" "uuid", "p_action" "text", "p_reason" "text", "p_external_reference" "text", "p_evidence_object_path" "text", "p_executed_at" timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."transition_loan"("p_loan_id" "uuid", "p_action" "text", "p_reason" "text", "p_external_reference" "text", "p_evidence_object_path" "text", "p_executed_at" timestamp with time zone) TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "public"."transition_transfer"("p_transfer_id" "uuid", "p_action" "text", "p_reason" "text", "p_external_reference" "text", "p_evidence_object_path" "text", "p_executed_at" timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."transition_transfer"("p_transfer_id" "uuid", "p_action" "text", "p_reason" "text", "p_external_reference" "text", "p_evidence_object_path" "text", "p_executed_at" timestamp with time zone) TO "service_role";
 
 
 
@@ -7732,6 +7781,7 @@ GRANT SELECT ON TABLE "public"."kyc_review_checklists" TO "authenticated";
 
 
 REVOKE ALL ON FUNCTION "public"."update_kyc_review_checklist"("p_kyc_id" "uuid", "p_document_quality" "text", "p_data_consistency" "text", "p_selfie_match" "text", "p_adulthood" "text", "p_fatca" "text", "p_pep" "text", "p_internal_comments" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."update_kyc_review_checklist"("p_kyc_id" "uuid", "p_document_quality" "text", "p_data_consistency" "text", "p_selfie_match" "text", "p_adulthood" "text", "p_fatca" "text", "p_pep" "text", "p_internal_comments" "text") TO "service_role";
 GRANT ALL ON FUNCTION "public"."update_kyc_review_checklist"("p_kyc_id" "uuid", "p_document_quality" "text", "p_data_consistency" "text", "p_selfie_match" "text", "p_adulthood" "text", "p_fatca" "text", "p_pep" "text", "p_internal_comments" "text") TO "authenticated";
 
 
@@ -7741,8 +7791,8 @@ GRANT SELECT ON TABLE "public"."loan_product_settings" TO "authenticated";
 
 
 REVOKE ALL ON FUNCTION "public"."update_loan_product_settings"("p_currency" "text", "p_minimum_amount_minor" bigint, "p_maximum_amount_minor" bigint, "p_minimum_duration_months" integer, "p_maximum_duration_months" integer, "p_duration_step_months" integer, "p_fixed_annual_rate" numeric, "p_reference_prefix" "text", "p_is_active" boolean) FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."update_loan_product_settings"("p_currency" "text", "p_minimum_amount_minor" bigint, "p_maximum_amount_minor" bigint, "p_minimum_duration_months" integer, "p_maximum_duration_months" integer, "p_duration_step_months" integer, "p_fixed_annual_rate" numeric, "p_reference_prefix" "text", "p_is_active" boolean) TO "authenticated";
 GRANT ALL ON FUNCTION "public"."update_loan_product_settings"("p_currency" "text", "p_minimum_amount_minor" bigint, "p_maximum_amount_minor" bigint, "p_minimum_duration_months" integer, "p_maximum_duration_months" integer, "p_duration_step_months" integer, "p_fixed_annual_rate" numeric, "p_reference_prefix" "text", "p_is_active" boolean) TO "service_role";
+GRANT ALL ON FUNCTION "public"."update_loan_product_settings"("p_currency" "text", "p_minimum_amount_minor" bigint, "p_maximum_amount_minor" bigint, "p_minimum_duration_months" integer, "p_maximum_duration_months" integer, "p_duration_step_months" integer, "p_fixed_annual_rate" numeric, "p_reference_prefix" "text", "p_is_active" boolean) TO "authenticated";
 
 
 
@@ -7833,6 +7883,10 @@ GRANT UPDATE ON SEQUENCE "public"."transfer_review_checks_id_seq" TO "service_ro
 
 
 
+ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "private" GRANT ALL ON FUNCTIONS TO "service_role";
+
+
+
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON SEQUENCES TO "postgres";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT UPDATE ON SEQUENCES TO "service_role";
 
@@ -7842,6 +7896,7 @@ ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT UPDATE ON 
 
 
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON FUNCTIONS TO "postgres";
+ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON FUNCTIONS TO "service_role";
 
 
 

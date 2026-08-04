@@ -12,6 +12,11 @@ import { registrationLanguageMetadata } from '@/lib/language';
 import PasswordField from '@/components/auth/PasswordField';
 import BrandLogo from '@/components/brand/BrandLogo';
 import { useBranded } from '@/components/brand/BrandProvider';
+import {
+  EMAIL_OTP_LENGTH,
+  isValidEmailOtp,
+  normalizeEmailOtp,
+} from '@/lib/auth-email-otp';
 
 export default function RegisterPage() {
   const { language } = useAppStore();
@@ -82,7 +87,7 @@ export default function RegisterPage() {
     setError('');
     setNotice('');
 
-    if (!/^\d{6}$/.test(otpCode)) {
+    if (!isValidEmailOtp(otpCode)) {
       setError(copy.otpInvalidError);
       return;
     }
@@ -178,13 +183,13 @@ export default function RegisterPage() {
                   type="text"
                   inputMode="numeric"
                   autoComplete="one-time-code"
-                  pattern="[0-9]{6}"
-                  minLength={6}
-                  maxLength={6}
+                  pattern={`[0-9]{${EMAIL_OTP_LENGTH}}`}
+                  minLength={EMAIL_OTP_LENGTH}
+                  maxLength={EMAIL_OTP_LENGTH}
                   required
                   autoFocus
                   value={otpCode}
-                  onChange={(event) => setOtpCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                  onChange={(event) => setOtpCode(normalizeEmailOtp(event.target.value))}
                   placeholder={copy.otpPlaceholder}
                   aria-describedby={`register-otp-description register-otp-hint${error ? ' register-otp-error' : ''}`}
                   aria-invalid={Boolean(error)}

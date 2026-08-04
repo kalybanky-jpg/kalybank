@@ -1,3 +1,5 @@
+import { EMAIL_OTP_LENGTH } from "../../lib/auth-email-otp";
+
 export type AuthEmailProvider = "resend" | "brevo";
 
 export type AuthEmailEnvironment = Record<string, string | undefined>;
@@ -11,6 +13,7 @@ export interface AuthEmailTemplates {
 export interface SupabaseAuthEmailPayload {
   external_email_enabled: true;
   mailer_autoconfirm: false;
+  mailer_otp_length: typeof EMAIL_OTP_LENGTH;
   mailer_secure_email_change_enabled: true;
   security_update_password_require_reauthentication: true;
   smtp_admin_email: string;
@@ -203,6 +206,7 @@ export function buildSupabaseAuthEmailConfig(
     payload: {
       external_email_enabled: true,
       mailer_autoconfirm: false,
+      mailer_otp_length: EMAIL_OTP_LENGTH,
       mailer_secure_email_change_enabled: true,
       security_update_password_require_reauthentication: true,
       smtp_admin_email: senderEmail,
@@ -255,6 +259,7 @@ export function safeAuthEmailSummary(config: SupabaseAuthEmailConfig) {
     },
     protections: {
       emailConfirmationRequired: !config.payload.mailer_autoconfirm,
+      emailOtpLength: config.payload.mailer_otp_length,
       secureEmailChange: config.payload.mailer_secure_email_change_enabled,
       passwordChangeReauthentication:
         config.payload.security_update_password_require_reauthentication,

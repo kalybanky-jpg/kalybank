@@ -45,7 +45,14 @@ test('chaque langue expose la façade bancaire et tous les statuts métier', () 
   }
 });
 
-test('les écrans publics ouvrent un espace bancaire sans promettre une exécution automatique', () => {
+test('les écrans publics proposent simplement de créer un compte', () => {
+  const expectedCtas: Record<Language, string> = {
+    fr: 'Créer un compte',
+    en: 'Create an account',
+    de: 'Konto erstellen',
+    es: 'Crear una cuenta',
+  };
+
   for (const language of languages) {
     const messages = publicMessages[language];
     const copy = [
@@ -59,7 +66,9 @@ test('les écrans publics ouvrent un espace bancaire sans promettre une exécuti
       copy,
       /application account|compte applicatif|Anwendungskonto|cuenta de aplicación/i,
     );
-    assert.match(copy, /Monalyz|bancaire|banking|Banking|banca/i);
+    assert.match(copy, /Monalyz|bancaire|bank(?:ing|dienstleistungen)?|banca/i);
+    assert.equal(messages.login.register, expectedCtas[language]);
+    assert.equal(messages.register.submit, expectedCtas[language]);
   }
 });
 

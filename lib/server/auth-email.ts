@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { Webhook } from 'standardwebhooks';
 import type { BrandSettings } from '@/lib/types';
+import { EMAIL_OTP_LENGTH, isValidEmailOtp } from '@/lib/auth-email-otp';
 import {
   parseTransactionalEmailLanguage,
   sendBrandedEmail,
@@ -96,7 +97,7 @@ function copyFor(
 ): AuthCopy {
   const dictionaries: Record<TransactionalEmailLanguage, Record<string, AuthCopy>> = {
     fr: {
-      signup: { subject: `Votre code de confirmation ${bankName}`, heading: 'Votre code de confirmation', message: `Votre espace ${bankName} est presque prêt. Saisissez ce code à 6 chiffres sur l’écran d’inscription pour confirmer votre adresse e-mail.`, action: 'Confirmer mon inscription', code: 'Code de confirmation' },
+      signup: { subject: `Votre code de confirmation ${bankName}`, heading: 'Votre code de confirmation', message: `Votre compte ${bankName} est presque prêt. Saisissez ce code à ${EMAIL_OTP_LENGTH} chiffres sur l’écran d’inscription pour confirmer votre adresse e-mail.`, action: 'Confirmer mon inscription', code: 'Code de confirmation' },
       recovery: { subject: `Réinitialisez votre accès ${bankName}`, heading: 'Réinitialisation de votre accès', message: `Une demande de réinitialisation a été reçue pour votre espace ${bankName}.`, action: 'Réinitialiser mon accès', code: 'Code de récupération' },
       email_change: { subject: `Confirmez le changement d’adresse — ${bankName}`, heading: 'Confirmez votre nouvelle adresse', message: 'Confirmez ce changement pour protéger l’accès à votre espace bancaire.', action: 'Confirmer le changement', code: 'Code de confirmation' },
       invite: { subject: `Votre invitation ${bankName}`, heading: `Vous êtes invité chez ${bankName}`, message: 'Acceptez cette invitation pour activer votre accès sécurisé.', action: 'Accepter l’invitation', code: 'Code d’invitation' },
@@ -105,7 +106,7 @@ function copyFor(
       security: { subject: `Notification de sécurité — ${bankName}`, heading: 'Activité de sécurité sur votre compte', message: 'Un changement de sécurité vient d’être enregistré sur votre compte. Si vous ne le reconnaissez pas, contactez immédiatement le support.', action: 'Ouvrir mon espace', code: 'Code de sécurité' },
     },
     en: {
-      signup: { subject: `Your ${bankName} confirmation code`, heading: 'Your confirmation code', message: `Your ${bankName} space is almost ready. Enter this 6-digit code on the registration screen to confirm your email address.`, action: 'Confirm registration', code: 'Confirmation code' },
+      signup: { subject: `Your ${bankName} confirmation code`, heading: 'Your confirmation code', message: `Your ${bankName} account is almost ready. Enter this ${EMAIL_OTP_LENGTH}-digit code on the registration screen to confirm your email address.`, action: 'Confirm registration', code: 'Confirmation code' },
       recovery: { subject: `Reset your ${bankName} access`, heading: 'Reset your access', message: `A reset request was received for your ${bankName} space.`, action: 'Reset my access', code: 'Recovery code' },
       email_change: { subject: `Confirm your email change — ${bankName}`, heading: 'Confirm your new address', message: 'Confirm this change to protect access to your banking space.', action: 'Confirm change', code: 'Confirmation code' },
       invite: { subject: `Your ${bankName} invitation`, heading: `You are invited to ${bankName}`, message: 'Accept this invitation to activate your secure access.', action: 'Accept invitation', code: 'Invitation code' },
@@ -114,7 +115,7 @@ function copyFor(
       security: { subject: `Security notification — ${bankName}`, heading: 'Security activity on your account', message: 'A security change was recorded on your account. If you do not recognize it, contact support immediately.', action: 'Open my space', code: 'Security code' },
     },
     de: {
-      signup: { subject: `Ihr ${bankName}-Bestätigungscode`, heading: 'Ihr Bestätigungscode', message: `Ihr ${bankName}-Zugang ist fast bereit. Geben Sie diesen 6-stelligen Code im Registrierungsfenster ein, um Ihre E-Mail-Adresse zu bestätigen.`, action: 'Registrierung bestätigen', code: 'Bestätigungscode' },
+      signup: { subject: `Ihr ${bankName}-Bestätigungscode`, heading: 'Ihr Bestätigungscode', message: `Ihr ${bankName}-Konto ist fast bereit. Geben Sie diesen ${EMAIL_OTP_LENGTH}-stelligen Code im Registrierungsfenster ein, um Ihre E-Mail-Adresse zu bestätigen.`, action: 'Registrierung bestätigen', code: 'Bestätigungscode' },
       recovery: { subject: `${bankName}-Zugang zurücksetzen`, heading: 'Zugang zurücksetzen', message: `Für Ihren ${bankName}-Zugang wurde eine Zurücksetzung angefordert.`, action: 'Zugang zurücksetzen', code: 'Wiederherstellungscode' },
       email_change: { subject: `E-Mail-Änderung bestätigen — ${bankName}`, heading: 'Neue Adresse bestätigen', message: 'Bestätigen Sie diese Änderung, um Ihren Bankzugang zu schützen.', action: 'Änderung bestätigen', code: 'Bestätigungscode' },
       invite: { subject: `Ihre Einladung zu ${bankName}`, heading: `Einladung zu ${bankName}`, message: 'Nehmen Sie die Einladung an, um Ihren sicheren Zugang zu aktivieren.', action: 'Einladung annehmen', code: 'Einladungscode' },
@@ -123,7 +124,7 @@ function copyFor(
       security: { subject: `Sicherheitshinweis — ${bankName}`, heading: 'Sicherheitsaktivität auf Ihrem Konto', message: 'Auf Ihrem Konto wurde eine Sicherheitsänderung registriert. Wenn sie Ihnen unbekannt ist, kontaktieren Sie sofort den Support.', action: 'Zugang öffnen', code: 'Sicherheitscode' },
     },
     es: {
-      signup: { subject: `Su código de confirmación de ${bankName}`, heading: 'Su código de confirmación', message: `Su espacio ${bankName} está casi listo. Introduzca este código de 6 dígitos en la pantalla de registro para confirmar su correo electrónico.`, action: 'Confirmar registro', code: 'Código de confirmación' },
+      signup: { subject: `Su código de confirmación de ${bankName}`, heading: 'Su código de confirmación', message: `Su cuenta de ${bankName} está casi lista. Introduzca este código de ${EMAIL_OTP_LENGTH} dígitos en la pantalla de registro para confirmar su correo electrónico.`, action: 'Confirmar registro', code: 'Código de confirmación' },
       recovery: { subject: `Restablezca su acceso a ${bankName}`, heading: 'Restablecimiento del acceso', message: `Se ha solicitado restablecer su espacio ${bankName}.`, action: 'Restablecer mi acceso', code: 'Código de recuperación' },
       email_change: { subject: `Confirme el cambio de correo — ${bankName}`, heading: 'Confirme su nueva dirección', message: 'Confirme este cambio para proteger el acceso a su espacio bancario.', action: 'Confirmar cambio', code: 'Código de confirmación' },
       invite: { subject: `Su invitación a ${bankName}`, heading: `Ha sido invitado a ${bankName}`, message: 'Acepte esta invitación para activar su acceso seguro.', action: 'Aceptar invitación', code: 'Código de invitación' },
@@ -242,7 +243,7 @@ export function renderSupabaseAuthEmails(
 
   if (!currentEmail) throw new Error('Destinataire Auth absent.');
   const otpOnly = action === 'signup';
-  if (otpOnly && !/^\d{6}$/.test(token)) {
+  if (otpOnly && !isValidEmailOtp(token)) {
     throw new Error('Code OTP d’inscription absent ou invalide.');
   }
   const url = otpOnly

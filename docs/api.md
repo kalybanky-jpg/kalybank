@@ -187,7 +187,8 @@ sont pas mises en cache et les redirections externes sont refusées.
 Déclenche l’envoi d’un lot de dix e-mails métier au maximum. La route exige :
 
 - une session Supabase valide ;
-- une origine identique à `APP_ORIGIN` ou `NEXT_PUBLIC_APP_ORIGIN` ;
+- une origine identique à `APP_ORIGIN`, `NEXT_PUBLIC_APP_ORIGIN` ou à une
+  origine explicitement listée dans `APP_ALLOWED_ORIGINS` pendant une migration ;
 - une configuration serveur complète pour Resend ou Brevo ;
 - `SUPABASE_SECRET_KEY`, ou `SUPABASE_SERVICE_ROLE_KEY` pour compatibilité,
   exclusivement côté serveur.

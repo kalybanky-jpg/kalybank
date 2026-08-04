@@ -111,7 +111,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
       submit: 'Se connecter',
       submitting: 'Connexion…',
       newUser: 'Nouveau sur {bankName} ?',
-      register: 'Ouvrir mon espace bancaire',
+      register: 'Créer un compte',
       genericError: 'Connexion impossible. Vérifiez vos identifiants.',
       errors: {
         auth_callback: 'Le lien de connexion est invalide ou expiré.',
@@ -121,7 +121,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
       },
     },
     register: {
-      title: 'Ouvrir votre espace {bankName}',
+      title: 'Créer votre compte {bankName}',
       subtitle:
         'Renseignez vos informations pour créer votre accès sécurisé aux services bancaires {bankName}.',
       displayName: 'Nom complet',
@@ -136,8 +136,8 @@ export const publicMessages: Record<Language, PublicMessages> = {
         '10 caractères minimum, avec au moins une lettre et un chiffre.',
       showPassword: 'Afficher le mot de passe',
       hidePassword: 'Masquer le mot de passe',
-      submit: 'Ouvrir mon espace sécurisé',
-      submitting: 'Ouverture en cours…',
+      submit: 'Créer un compte',
+      submitting: 'Création du compte…',
       passwordPolicyError:
         'Le mot de passe doit comporter au moins 10 caractères, dont une lettre et un chiffre.',
       passwordMismatchError: 'Les mots de passe ne correspondent pas.',
@@ -222,7 +222,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
       submit: 'Sign in',
       submitting: 'Signing in…',
       newUser: 'New to {bankName}?',
-      register: 'Open my online banking',
+      register: 'Create an account',
       genericError: 'Unable to sign in. Check your credentials.',
       errors: {
         auth_callback: 'The sign-in link is invalid or has expired.',
@@ -232,7 +232,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
       },
     },
     register: {
-      title: 'Open your {bankName} account',
+      title: 'Create your {bankName} account',
       subtitle:
         'Enter your details to create secure access to {bankName} banking services.',
       displayName: 'Full name',
@@ -247,8 +247,8 @@ export const publicMessages: Record<Language, PublicMessages> = {
         'At least 10 characters, including one letter and one number.',
       showPassword: 'Show password',
       hidePassword: 'Hide password',
-      submit: 'Open my secure account',
-      submitting: 'Opening your account…',
+      submit: 'Create an account',
+      submitting: 'Creating your account…',
       passwordPolicyError:
         'The password must contain at least 10 characters, including a letter and a number.',
       passwordMismatchError: 'The passwords do not match.',
@@ -333,7 +333,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
       submit: 'Anmelden',
       submitting: 'Anmeldung…',
       newUser: 'Neu bei {bankName}?',
-      register: 'Online-Banking eröffnen',
+      register: 'Konto erstellen',
       genericError: 'Anmeldung nicht möglich. Prüfen Sie Ihre Zugangsdaten.',
       errors: {
         auth_callback: 'Der Anmeldelink ist ungültig oder abgelaufen.',
@@ -344,7 +344,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
       },
     },
     register: {
-      title: 'Ihren {bankName}-Zugang eröffnen',
+      title: '{bankName}-Konto erstellen',
       subtitle:
         'Geben Sie Ihre Daten ein, um einen sicheren Zugang zu den Bankdienstleistungen von {bankName} einzurichten.',
       displayName: 'Vollständiger Name',
@@ -359,8 +359,8 @@ export const publicMessages: Record<Language, PublicMessages> = {
         'Mindestens 10 Zeichen, darunter ein Buchstabe und eine Zahl.',
       showPassword: 'Passwort anzeigen',
       hidePassword: 'Passwort ausblenden',
-      submit: 'Sicheren Zugang eröffnen',
-      submitting: 'Zugang wird eröffnet…',
+      submit: 'Konto erstellen',
+      submitting: 'Konto wird erstellt…',
       passwordPolicyError:
         'Das Passwort muss mindestens 10 Zeichen sowie einen Buchstaben und eine Zahl enthalten.',
       passwordMismatchError: 'Die Passwörter stimmen nicht überein.',
@@ -445,7 +445,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
       submit: 'Iniciar sesión',
       submitting: 'Conectando…',
       newUser: '¿Es nuevo en {bankName}?',
-      register: 'Abrir mi banca en línea',
+      register: 'Crear una cuenta',
       genericError: 'No se pudo iniciar sesión. Compruebe sus credenciales.',
       errors: {
         auth_callback: 'El enlace de inicio de sesión no es válido o ha caducado.',
@@ -455,7 +455,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
       },
     },
     register: {
-      title: 'Abra su espacio {bankName}',
+      title: 'Crear su cuenta de {bankName}',
       subtitle:
         'Introduzca sus datos para crear un acceso seguro a los servicios bancarios de {bankName}.',
       displayName: 'Nombre completo',
@@ -470,8 +470,8 @@ export const publicMessages: Record<Language, PublicMessages> = {
         'Mínimo 10 caracteres, con al menos una letra y un número.',
       showPassword: 'Mostrar contraseña',
       hidePassword: 'Ocultar contraseña',
-      submit: 'Abrir mi espacio seguro',
-      submitting: 'Abriendo su espacio…',
+      submit: 'Crear una cuenta',
+      submitting: 'Creando la cuenta…',
       passwordPolicyError:
         'La contraseña debe tener al menos 10 caracteres, incluida una letra y un número.',
       passwordMismatchError: 'Las contraseñas no coinciden.',

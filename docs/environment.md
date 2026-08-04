@@ -13,6 +13,7 @@
 | `NEXT_PUBLIC_APP_ORIGIN` | Oui | Build et fonctions | Origine HTTPS des callbacks e-mail et de l’UI |
 | `NEXT_PUBLIC_SUPPORT_EMAIL` | Non | Build | Adresse affichée dans l’interface |
 | `APP_ORIGIN` | Oui en production | Fonctions/runtime | Origine canonique pour les mutations et redirections |
+| `APP_ALLOWED_ORIGINS` | Non | Fonctions/runtime | Origines HTTPS supplémentaires autorisées pour les mutations pendant une migration de domaine, séparées par des virgules |
 | `SUPABASE_SECRET_KEY` | Oui en production | Fonctions/runtime, secret | Client privilégié pour staging, marque, PDF, health check et outbox |
 | `SEND_EMAIL_HOOK_SECRET` | Oui si le hook Auth est actif | Fonctions/runtime, secret | Signature Standard Webhooks du hook Supabase Auth |
 | `TRANSACTIONAL_EMAIL_PROVIDER` | Oui pour l’outbox | Fonctions/runtime | `resend` ou `brevo` |
@@ -33,6 +34,11 @@ Le worker résout la base des assets dans cet ordre :
 `TRANSACTIONAL_EMAIL_ASSET_BASE_URL`, `APP_ORIGIN`, puis
 `NEXT_PUBLIC_APP_ORIGIN`. En production, l’URL retenue doit être absolue et
 utiliser HTTPS.
+
+`APP_ALLOWED_ORIGINS` ne remplace jamais l’origine canonique. L’application
+ajoute toujours `APP_ORIGIN` et `NEXT_PUBLIC_APP_ORIGIN` à la liste. Cette
+variable sert notamment à garder l’ancien domaine fonctionnel pendant une
+bascule DNS sans ouvrir les mutations à des origines non maîtrisées.
 
 ## Contextes Netlify
 

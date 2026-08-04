@@ -74,6 +74,7 @@ test("les deux profils conservent les protections Auth et les modèles Monalyz",
   );
 
   assert.equal(config.payload.mailer_autoconfirm, false);
+  assert.equal(config.payload.mailer_otp_length, 6);
   assert.equal(config.payload.mailer_secure_email_change_enabled, true);
   assert.equal(
     config.payload.security_update_password_require_reauthentication,
@@ -153,6 +154,7 @@ test("le résumé ne divulgue jamais le secret SMTP", () => {
   const serialized = JSON.stringify(safeAuthEmailSummary(config));
   assert.equal(serialized.includes(secret), false);
   assert.equal(serialized.includes("[MASQUÉ]"), true);
+  assert.equal(safeAuthEmailSummary(config).protections.emailOtpLength, 6);
 });
 
 test("une valeur d’exemple ou une limite incohérente est refusée", () => {

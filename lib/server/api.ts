@@ -2,6 +2,7 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { NextResponse, type NextRequest } from 'next/server';
 import { getPublicSupabaseConfig } from '../supabase/config';
 import type { Database } from '../supabase/database.types';
+import { safeHttpOrigin } from '../security/navigation';
 
 export function noStoreJson(body: unknown, status = 200) {
   return NextResponse.json(body, {
@@ -10,19 +11,43 @@ export function noStoreJson(body: unknown, status = 200) {
   });
 }
 
-export function isSameOriginMutation(request: NextRequest) {
-  const origin = request.headers.get('origin');
-  const canonicalOrigin =
-    process.env.APP_ORIGIN ??
-    process.env.NEXT_PUBLIC_APP_ORIGIN ??
-    (process.env.NODE_ENV === 'development' ? request.nextUrl.origin : null);
-  if (!origin || !canonicalOrigin) return false;
+export function configuredMutationOrigins(
+  environment: NodeJS.ProcessEnv = process.env,
+) {
+  const candidates = [
+    environment.APP_ORIGIN,
+    environment.NEXT_PUBLIC_APP_ORIGIN,
+    ...(environment.APP_ALLOWED_ORIGINS?.split(',') ?? []),
+  ];
+  return new Set(
+    candidates
+      .map((candidate) => safeHttpOrigin(candidate?.trim()))
+      .filter((origin): origin is string => Boolean(origin)),
+  );
+}
 
-  try {
-    return new URL(origin).origin === new URL(canonicalOrigin).origin;
-  } catch {
-    return false;
+export function isAllowedMutationOrigin(
+  origin: string | null,
+  requestOrigin: string,
+  environment: NodeJS.ProcessEnv = process.env,
+) {
+  const normalizedOrigin = safeHttpOrigin(origin);
+  if (!normalizedOrigin) return false;
+
+  const allowedOrigins = configuredMutationOrigins(environment);
+  if (allowedOrigins.size === 0 && environment.NODE_ENV !== 'production') {
+    const developmentOrigin = safeHttpOrigin(requestOrigin);
+    return Boolean(developmentOrigin && normalizedOrigin === developmentOrigin);
   }
+
+  return allowedOrigins.has(normalizedOrigin);
+}
+
+export function isSameOriginMutation(request: NextRequest) {
+  return isAllowedMutationOrigin(
+    request.headers.get('origin'),
+    request.nextUrl.origin,
+  );
 }
 
 export function createPrivilegedClient(configurationError: string) {

@@ -5,6 +5,11 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import PasswordField from '../components/auth/PasswordField';
 import { publicMessages } from '../lib/public-i18n';
 import { SUPPORTED_LANGUAGES } from '../lib/language';
+import {
+  EMAIL_OTP_LENGTH,
+  isValidEmailOtp,
+  normalizeEmailOtp,
+} from '../lib/auth-email-otp';
 
 test('every supported language provides complete authentication form guidance', () => {
   for (const language of SUPPORTED_LANGUAGES) {
@@ -75,4 +80,12 @@ test('password field renders its visible label, guidance, and accessibility cont
   assert.match(markup, /aria-label="Show password"/);
   assert.match(markup, /aria-pressed="false"/);
   assert.match(markup, /id="password-hint"/);
+});
+
+test('email OTP handling shares the six-digit Supabase contract', () => {
+  assert.equal(EMAIL_OTP_LENGTH, 6);
+  assert.equal(normalizeEmailOtp(' 12a34-567 '), '123456');
+  assert.equal(isValidEmailOtp('123456'), true);
+  assert.equal(isValidEmailOtp('12345'), false);
+  assert.equal(isValidEmailOtp('12345678'), false);
 });

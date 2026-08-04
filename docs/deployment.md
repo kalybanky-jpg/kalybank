@@ -9,9 +9,9 @@
 | Élément | Configuration versionnée |
 | --- | --- |
 | Framework | Next.js, sortie `.next` |
-| Commande de build | `bun run build` |
+| Commande de build | `bun run build:netlify` |
 | Runtimes | Bun 1.3.14 et Node.js 22 |
-| Dépendances | Installation gelée par `BUN_FLAGS=--frozen-lockfile` |
+| Dépendances | Installation gelée par `BUN_FLAGS=--frozen-lockfile`, avec les binaires Linux x64 préparés et vérifiés par `build:netlify` |
 | Fonctions | `netlify/functions`, bundle `esbuild` |
 | Worker e-mail | `transactional-email-worker`, cron exporté en code chaque minute |
 | Health check | `GET /api/health` |
@@ -26,9 +26,11 @@ centralisés dans le
 [`netlify.toml`](../netlify.toml) fixe la commande de build, le dossier publié,
 les versions de runtime, le dossier des fonctions et l’adaptateur Next.js
 officiel `@netlify/plugin-nextjs` 5.15.13. L’adaptateur est volontairement
-versionné : il rend aussi les déploiements par archive/API reproductibles,
-sans dépendre de l’installation automatique réservée aux sites reliés à un
-fournisseur Git. La fonction exporte sa cadence `config.schedule = '* * * * *'`
+versionné. `build:netlify` installe les dépendances natives Linux x64 et refuse
+le build si le manifeste de la route de marque ne les référence pas. Un
+déploiement par archive/API n’est admis que si cette archive provient de cette
+commande ; une archive précompilée qui la contourne n’offre pas cette garantie.
+La fonction exporte sa cadence `config.schedule = '* * * * *'`
 depuis
 `netlify/functions/transactional-email-worker.ts`, conformément au contrat
 typé de `@netlify/functions` 5.3.0. Aucun de ces fichiers ne contient de secret.

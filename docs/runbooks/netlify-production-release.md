@@ -19,10 +19,10 @@
 
 ## Ce qui est déjà automatisé dans le dépôt
 
-- `netlify.toml` fixe `bun run build`, `.next`, Bun 1.3.14, Node.js 22, le
-  dossier des fonctions et `@netlify/plugin-nextjs` 5.15.13 afin que les
-  déploiements Git comme les déploiements par archive produisent le runtime
-  Next.js complet ;
+- `netlify.toml` fixe `bun run build:netlify`, `.next`, Bun 1.3.14, Node.js 22, le
+  dossier des fonctions et `@netlify/plugin-nextjs` 5.15.13. La commande
+  prépare puis vérifie les dépendances natives Linux x64 ; une archive/API
+  n’est autorisée que si elle est produite par cette commande ;
 - le worker exporte son cron `* * * * *` avec le type
   `@netlify/functions`, lit sa configuration avec `Netlify.env`, ne possède pas
   de route publique et ne renvoie aucun corps ;
@@ -48,7 +48,7 @@
 | Domaine | Action | Preuve attendue |
 | --- | --- | --- |
 | Netlify | Créer ou ouvrir le site, relier le dépôt GitHub et choisir `main` comme branche de production | Site ID, dépôt et branche visibles dans les réglages |
-| Build | Confirmer que les réglages du dashboard ne surchargent pas `netlify.toml` | Deploy log avec Bun 1.3.14, Node.js 22 et `bun run build` |
+| Build | Confirmer que les réglages du dashboard ne surchargent pas `netlify.toml` | Deploy log avec Bun 1.3.14, Node.js 22, `bun run build:netlify` et la validation des dépendances Linux |
 | Environnement | Saisir les variables et secrets par contexte | Liste des noms et portées, jamais les valeurs |
 | Région | Sélectionner une région Functions européenne disponible, au plus près du projet Supabase `eu-west-3` | Région consignée dans la fiche de release |
 | Domaine | Ajouter le domaine canonique, valider le DNS et attendre le certificat SSL Netlify | HTTPS valide sans avertissement |

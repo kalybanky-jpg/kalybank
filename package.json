@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:netlify": "bun install --frozen-lockfile --cpu=x64 --os=linux && next build && tsx scripts/verify-netlify-build.ts",
     "start": "next start",
     "brand:build": "tsx scripts/generate-brand-assets.ts",
     "brand:check": "tsx scripts/generate-brand-assets.ts --check",

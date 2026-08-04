@@ -23,7 +23,7 @@
 | Snapshot | `bun run db:snapshot` puis `bun run test` | Copie SQL et manifeste |
 | Types Supabase | `bun run db:types` | Régénération des contrats TypeScript depuis la base locale |
 | Dépendances | `bun audit` | Vulnérabilités connues |
-| Production | `bun run build` | Compilation et pré-rendu |
+| Production | `bun run build:netlify` | Compilation, pré-rendu et présence des binaires natifs Linux dans l’artefact |
 
 Bun 1.3.14 est le gestionnaire canonique déclaré dans `package.json`. Une
 installation reproductible se vérifie avec `bun install --frozen-lockfile` ;

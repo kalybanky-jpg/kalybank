@@ -1,9 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { mapBrandSettings, normalizeBankName, type BrandSettingsRow } from '@/lib/branding';
-import {
-  generateBrandRelease,
-  type BrandSource,
-} from '@/lib/server/brand-assets';
+import type { BrandSource } from '@/lib/server/brand-assets';
 import { fetchBrandRow, readBrandAsset } from '@/lib/server/branding';
 import {
   createPrivilegedClient,
@@ -35,6 +32,9 @@ interface BrandingPayload {
   reversedLogoPath?: unknown;
   faviconPath?: unknown;
 }
+
+type GenerateBrandRelease =
+  typeof import('@/lib/server/brand-assets').generateBrandRelease;
 
 function optionalStagingPath(value: unknown, key: string) {
   if (value === null || value === undefined || value === '') return null;
@@ -215,6 +215,20 @@ export async function PUT(request: NextRequest) {
     return noStoreJson(
       { error: 'La marque a été modifiée dans une autre session. Rechargez la page.' },
       409,
+    );
+  }
+
+  let generateBrandRelease: GenerateBrandRelease;
+  try {
+    // Keep the native image pipeline out of unauthenticated requests and
+    // method probes. Netlify loads it only after origin, auth and role checks.
+    ({ generateBrandRelease } = await import('@/lib/server/brand-assets'));
+  } catch {
+    console.error(JSON.stringify({ event: 'brand_asset_pipeline_unavailable' }));
+    await removeStagedSources(worker, stagedPaths);
+    return noStoreJson(
+      { error: 'Le traitement des images est temporairement indisponible.' },
+      503,
     );
   }
 

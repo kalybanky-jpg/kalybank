@@ -19,6 +19,10 @@ const nextConfig: NextConfig = {
       './assets/fonts/NotoSans-Bold.ttf',
       './public/brand/monalyz/monalyz-wordmark-reversed-white.png',
     ],
+    '/api/admin/branding': [
+      './node_modules/@img/sharp-linux-x64/lib/**/*.node',
+      './node_modules/@img/sharp-libvips-linux-x64/lib/**/*.so*',
+    ],
   },
   async headers() {
     return [

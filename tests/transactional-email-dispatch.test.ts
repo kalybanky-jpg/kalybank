@@ -71,8 +71,22 @@ function clientWithCompletions(
 }
 
 test('le worker Netlify est planifié sans route publique et utilise les runtimes figés', async () => {
-  const [configuration, worker] = await Promise.all([
+  const [
+    configuration,
+    workflow,
+    nextConfiguration,
+    packageManifest,
+    buildVerification,
+    worker,
+  ] = await Promise.all([
     readFile(path.join(process.cwd(), 'netlify.toml'), 'utf8'),
+    readFile(path.join(process.cwd(), '.github/workflows/ci.yml'), 'utf8'),
+    readFile(path.join(process.cwd(), 'next.config.ts'), 'utf8'),
+    readFile(path.join(process.cwd(), 'package.json'), 'utf8'),
+    readFile(
+      path.join(process.cwd(), 'scripts/verify-netlify-build.ts'),
+      'utf8',
+    ),
     readFile(
       path.join(
         process.cwd(),
@@ -82,7 +96,27 @@ test('le worker Netlify est planifié sans route publique et utilise les runtime
     ),
   ]);
 
-  assert.match(configuration, /command = "bun run build"/);
+  assert.match(configuration, /command = "bun run build:netlify"/);
+  assert.match(workflow, /run: bun run build:netlify/);
+  const scripts = (JSON.parse(packageManifest) as {
+    scripts?: Record<string, string>;
+  }).scripts;
+  assert.match(
+    scripts?.['build:netlify'] ?? '',
+    /bun install --frozen-lockfile --cpu=x64 --os=linux && next build && tsx scripts\/verify-netlify-build\.ts/,
+  );
+  assert.match(buildVerification, /@img\/sharp-linux-x64/);
+  assert.match(buildVerification, /@img\/sharp-libvips-linux-x64/);
+  assert.match(buildVerification, /\\\.node\$/);
+  assert.match(buildVerification, /libvips-cpp\\\.so/);
+  assert.match(
+    nextConfiguration,
+    /sharp-linux-x64\/lib\/\*\*\/\*\.node/,
+  );
+  assert.match(
+    nextConfiguration,
+    /sharp-libvips-linux-x64\/lib\/\*\*\/\*\.so\*/,
+  );
   assert.match(configuration, /publish = "\.next"/);
   assert.match(configuration, /BUN_VERSION = "1\.3\.14"/);
   assert.match(configuration, /NODE_VERSION = "22"/);
@@ -96,6 +130,23 @@ test('le worker Netlify est planifié sans route publique et utilise les runtime
   assert.equal(TRANSACTIONAL_EMAIL_SCHEDULED_BATCH_SIZE, 5);
   assert.equal(TRANSACTIONAL_EMAIL_PROVIDER_TIMEOUT_MS, 3_000);
   assert.equal(TRANSACTIONAL_EMAIL_DISPATCH_CONCURRENCY, 2);
+});
+
+test('la route de marque diffère sharp après les contrôles de sécurité', async () => {
+  const route = await readFile(
+    path.join(process.cwd(), 'app/api/admin/branding/route.ts'),
+    'utf8',
+  );
+
+  assert.doesNotMatch(route, /import\s*\{[^}]*generateBrandRelease[^}]*\}\s*from/);
+  const roleCheck = route.indexOf("role !== 'admin'");
+  const sharpImport = route.indexOf(
+    "await import('@/lib/server/brand-assets')",
+  );
+  assert.ok(roleCheck >= 0);
+  assert.ok(sharpImport > roleCheck);
+  assert.match(route, /brand_asset_pipeline_unavailable/);
+  assert.match(route, /temporairement indisponible[\s\S]*503/);
 });
 
 test('le claim global et le claim propriétaire utilisent des RPC distinctes', async () => {

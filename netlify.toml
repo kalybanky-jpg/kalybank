@@ -1,5 +1,8 @@
 [build]
-  command = "bun run build"
+  # Manual/API deploys may be assembled on a non-Linux host. Install the
+  # target optional dependencies as well so native packages such as sharp are
+  # traced for Netlify Functions (Linux x64).
+  command = "bun run build:netlify"
   publish = ".next"
 
 [build.environment]

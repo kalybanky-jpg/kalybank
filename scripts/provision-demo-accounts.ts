@@ -33,6 +33,8 @@ class SupabaseDemoGateway implements DemoProvisioningGateway {
     return {
       display_name: attributes.displayName,
       preferred_language: "fr",
+      base_currency: "EUR",
+      preferred_currency: "EUR",
     };
   }
 

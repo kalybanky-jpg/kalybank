@@ -77,8 +77,13 @@ docs/                 Architecture et procédures d’exploitation
 
 ## État actuel
 
-Le dépôt ne contient ni configuration de plateforme de déploiement ni CI.
-Les taux de conversion sont des références statiques datées, jamais des cours
-de marché en direct. Les soldes, IBAN et documents sont officiels au sens où
-ils sont déclarés ou émis par le personnel habilité de l’établissement et
-audités dans Monalyz ; ils ne proviennent d’aucune synchronisation bancaire.
+Les conversions d’affichage utilisent l’API gratuite sans clé
+[Frankfurter v2](https://frankfurter.dev/), appelée côté serveur et mise en
+cache pendant une heure. Ses taux de référence quotidiens sont indicatifs ;
+un jeu de taux statiques daté et explicitement signalé prend le relais en cas
+d’indisponibilité. Les soldes, opérations et documents restent enregistrés
+dans leur devise d’origine : aucun taux d’affichage ne réécrit le registre.
+
+Les soldes, IBAN et documents sont officiels au sens où ils sont déclarés ou
+émis par le personnel habilité de l’établissement et audités dans Monalyz ;
+ils ne proviennent d’aucune synchronisation bancaire.

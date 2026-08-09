@@ -53,6 +53,12 @@ test("le snapshot contient le cœur du schéma Monalyz", async () => {
   const snapshot = await readFile(snapshotPath, "utf8");
 
   assert.match(snapshot, /CREATE TABLE IF NOT EXISTS "public"\."profiles"/i);
+  assert.match(snapshot, /"base_currency" "text" DEFAULT 'EUR'::"text" NOT NULL/i);
+  assert.match(snapshot, /profiles_base_currency_check/i);
+  assert.match(snapshot, /PROFILE_BASE_CURRENCY_IMMUTABLE/i);
+  assert.match(snapshot, /SIGNUP_CURRENCY_REQUIRED/i);
+  assert.match(snapshot, /SIGNUP_CURRENCY_UNSUPPORTED/i);
+  assert.match(snapshot, /LOAN_CURRENCY_MUST_MATCH_BASE/i);
   assert.match(
     snapshot,
     /CREATE TABLE IF NOT EXISTS "public"\."transfer_intents"/i,

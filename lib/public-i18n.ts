@@ -24,10 +24,13 @@ interface PublicMessages {
     subtitle: string;
     displayName: string;
     email: string;
+    baseCurrency: string;
     password: string;
     confirmPassword: string;
     displayNamePlaceholder: string;
     emailPlaceholder: string;
+    baseCurrencyPlaceholder: string;
+    baseCurrencyHint: string;
     passwordPlaceholder: string;
     confirmPasswordPlaceholder: string;
     passwordHint: string;
@@ -35,6 +38,7 @@ interface PublicMessages {
     hidePassword: string;
     submit: string;
     submitting: string;
+    baseCurrencyRequiredError: string;
     passwordPolicyError: string;
     passwordMismatchError: string;
     genericError: string;
@@ -54,6 +58,7 @@ interface PublicMessages {
     resendSuccess: string;
     resendError: string;
     backToLogin: string;
+    resetAccess: string;
   };
   adminLogin: {
     restricted: string;
@@ -126,10 +131,14 @@ export const publicMessages: Record<Language, PublicMessages> = {
         'Renseignez vos informations pour créer votre accès sécurisé aux services bancaires {bankName}.',
       displayName: 'Nom complet',
       email: 'Adresse e-mail personnelle',
+      baseCurrency: 'Devise de base',
       password: 'Mot de passe',
       confirmPassword: 'Confirmation du mot de passe',
       displayNamePlaceholder: 'Prénom et nom',
       emailPlaceholder: 'vous@exemple.com',
+      baseCurrencyPlaceholder: 'Sélectionnez votre devise',
+      baseCurrencyHint:
+        'Cette devise définira votre compte principal et ne pourra plus être modifiée.',
       passwordPlaceholder: 'Choisissez un mot de passe sécurisé',
       confirmPasswordPlaceholder: 'Confirmez votre mot de passe',
       passwordHint:
@@ -138,13 +147,15 @@ export const publicMessages: Record<Language, PublicMessages> = {
       hidePassword: 'Masquer le mot de passe',
       submit: 'Créer un compte',
       submitting: 'Création du compte…',
+      baseCurrencyRequiredError:
+        'Sélectionnez une devise pour poursuivre votre inscription.',
       passwordPolicyError:
         'Le mot de passe doit comporter au moins 10 caractères, dont une lettre et un chiffre.',
       passwordMismatchError: 'Les mots de passe ne correspondent pas.',
       genericError: 'Création du compte impossible.',
-      checkEmailTitle: 'Saisissez votre code de confirmation',
+      checkEmailTitle: 'Vérifiez votre demande d’inscription',
       checkEmailBody:
-        'Un code à 6 chiffres a été envoyé à {email}. Saisissez-le ci-dessous pour confirmer votre adresse et poursuivre votre inscription.',
+        'Si cette adresse peut être inscrite, un code à 6 chiffres a été envoyé à {email}. Saisissez-le ci-dessous. Si aucun code n’arrive, cette adresse peut déjà être associée à un compte : connectez-vous ou réinitialisez votre mot de passe.',
       otpLabel: 'Code reçu par e-mail',
       otpPlaceholder: '000000',
       otpHint: 'Ce code est personnel. Ne le communiquez jamais à un tiers.',
@@ -156,9 +167,11 @@ export const publicMessages: Record<Language, PublicMessages> = {
       resendAction: 'Renvoyer le code',
       resending: 'Envoi…',
       resendCooldown: 'Nouvel envoi possible dans {seconds} s',
-      resendSuccess: 'Un nouveau code vient de vous être envoyé.',
+      resendSuccess:
+        'Si un code peut être envoyé pour cette demande, un nouvel envoi vient d’être lancé.',
       resendError: 'Le code n’a pas pu être renvoyé. Réessayez dans quelques instants.',
       backToLogin: 'Revenir à la connexion',
+      resetAccess: 'Réinitialiser mon mot de passe',
     },
     adminLogin: {
       restricted: 'Accès réservé au chef d’agence',
@@ -237,10 +250,14 @@ export const publicMessages: Record<Language, PublicMessages> = {
         'Enter your details to create secure access to {bankName} banking services.',
       displayName: 'Full name',
       email: 'Personal email address',
+      baseCurrency: 'Base currency',
       password: 'Password',
       confirmPassword: 'Password confirmation',
       displayNamePlaceholder: 'First and last name',
       emailPlaceholder: 'you@example.com',
+      baseCurrencyPlaceholder: 'Select your currency',
+      baseCurrencyHint:
+        'This currency will define your main account and cannot be changed later.',
       passwordPlaceholder: 'Choose a secure password',
       confirmPasswordPlaceholder: 'Confirm your password',
       passwordHint:
@@ -249,13 +266,15 @@ export const publicMessages: Record<Language, PublicMessages> = {
       hidePassword: 'Hide password',
       submit: 'Create an account',
       submitting: 'Creating your account…',
+      baseCurrencyRequiredError:
+        'Select a currency to continue your registration.',
       passwordPolicyError:
         'The password must contain at least 10 characters, including a letter and a number.',
       passwordMismatchError: 'The passwords do not match.',
       genericError: 'Unable to create the account.',
-      checkEmailTitle: 'Enter your confirmation code',
+      checkEmailTitle: 'Check your registration request',
       checkEmailBody:
-        'A 6-digit code was sent to {email}. Enter it below to confirm your address and continue registration.',
+        'If this address can be registered, a 6-digit code was sent to {email}. Enter it below. If no code arrives, this address may already be associated with an account: sign in or reset your password.',
       otpLabel: 'Code received by email',
       otpPlaceholder: '000000',
       otpHint: 'This code is personal. Never share it with anyone.',
@@ -267,9 +286,11 @@ export const publicMessages: Record<Language, PublicMessages> = {
       resendAction: 'Resend code',
       resending: 'Sending…',
       resendCooldown: 'You can resend a code in {seconds}s',
-      resendSuccess: 'A new code has just been sent to you.',
+      resendSuccess:
+        'If a code can be sent for this request, a new delivery has just been started.',
       resendError: 'The code could not be resent. Try again in a moment.',
       backToLogin: 'Back to sign in',
+      resetAccess: 'Reset my password',
     },
     adminLogin: {
       restricted: 'Branch manager access only',
@@ -349,10 +370,14 @@ export const publicMessages: Record<Language, PublicMessages> = {
         'Geben Sie Ihre Daten ein, um einen sicheren Zugang zu den Bankdienstleistungen von {bankName} einzurichten.',
       displayName: 'Vollständiger Name',
       email: 'Persönliche E-Mail-Adresse',
+      baseCurrency: 'Basiswährung',
       password: 'Passwort',
       confirmPassword: 'Passwortbestätigung',
       displayNamePlaceholder: 'Vor- und Nachname',
       emailPlaceholder: 'sie@beispiel.de',
+      baseCurrencyPlaceholder: 'Währung auswählen',
+      baseCurrencyHint:
+        'Diese Währung legt Ihr Hauptkonto fest und kann später nicht mehr geändert werden.',
       passwordPlaceholder: 'Wählen Sie ein sicheres Passwort',
       confirmPasswordPlaceholder: 'Bestätigen Sie Ihr Passwort',
       passwordHint:
@@ -361,13 +386,15 @@ export const publicMessages: Record<Language, PublicMessages> = {
       hidePassword: 'Passwort ausblenden',
       submit: 'Konto erstellen',
       submitting: 'Konto wird erstellt…',
+      baseCurrencyRequiredError:
+        'Wählen Sie eine Währung aus, um die Registrierung fortzusetzen.',
       passwordPolicyError:
         'Das Passwort muss mindestens 10 Zeichen sowie einen Buchstaben und eine Zahl enthalten.',
       passwordMismatchError: 'Die Passwörter stimmen nicht überein.',
       genericError: 'Das Konto konnte nicht erstellt werden.',
-      checkEmailTitle: 'Bestätigungscode eingeben',
+      checkEmailTitle: 'Registrierungsanfrage prüfen',
       checkEmailBody:
-        'Ein 6-stelliger Code wurde an {email} gesendet. Geben Sie ihn unten ein, um Ihre Adresse zu bestätigen und die Registrierung fortzusetzen.',
+        'Wenn diese Adresse registriert werden kann, wurde ein 6-stelliger Code an {email} gesendet. Geben Sie ihn unten ein. Wenn kein Code eintrifft, ist diese Adresse möglicherweise bereits mit einem Konto verknüpft: Melden Sie sich an oder setzen Sie Ihr Passwort zurück.',
       otpLabel: 'Per E-Mail erhaltener Code',
       otpPlaceholder: '000000',
       otpHint: 'Dieser Code ist persönlich. Geben Sie ihn niemals an Dritte weiter.',
@@ -379,9 +406,11 @@ export const publicMessages: Record<Language, PublicMessages> = {
       resendAction: 'Code erneut senden',
       resending: 'Wird gesendet…',
       resendCooldown: 'Neuer Code in {seconds} Sek. möglich',
-      resendSuccess: 'Ein neuer Code wurde Ihnen soeben gesendet.',
+      resendSuccess:
+        'Wenn für diese Anfrage ein Code gesendet werden kann, wurde ein neuer Versand gestartet.',
       resendError: 'Der Code konnte nicht erneut gesendet werden. Versuchen Sie es später noch einmal.',
       backToLogin: 'Zurück zur Anmeldung',
+      resetAccess: 'Passwort zurücksetzen',
     },
     adminLogin: {
       restricted: 'Nur für Filialleiter',
@@ -460,10 +489,14 @@ export const publicMessages: Record<Language, PublicMessages> = {
         'Introduzca sus datos para crear un acceso seguro a los servicios bancarios de {bankName}.',
       displayName: 'Nombre completo',
       email: 'Correo electrónico personal',
+      baseCurrency: 'Moneda base',
       password: 'Contraseña',
       confirmPassword: 'Confirmación de la contraseña',
       displayNamePlaceholder: 'Nombre y apellidos',
       emailPlaceholder: 'usted@ejemplo.com',
+      baseCurrencyPlaceholder: 'Seleccione su moneda',
+      baseCurrencyHint:
+        'Esta moneda definirá su cuenta principal y no podrá modificarse posteriormente.',
       passwordPlaceholder: 'Elija una contraseña segura',
       confirmPasswordPlaceholder: 'Confirme su contraseña',
       passwordHint:
@@ -472,13 +505,15 @@ export const publicMessages: Record<Language, PublicMessages> = {
       hidePassword: 'Ocultar contraseña',
       submit: 'Crear una cuenta',
       submitting: 'Creando la cuenta…',
+      baseCurrencyRequiredError:
+        'Seleccione una moneda para continuar con el registro.',
       passwordPolicyError:
         'La contraseña debe tener al menos 10 caracteres, incluida una letra y un número.',
       passwordMismatchError: 'Las contraseñas no coinciden.',
       genericError: 'No se pudo crear la cuenta.',
-      checkEmailTitle: 'Introduzca su código de confirmación',
+      checkEmailTitle: 'Compruebe su solicitud de registro',
       checkEmailBody:
-        'Se ha enviado un código de 6 dígitos a {email}. Introdúzcalo para confirmar su dirección y continuar el registro.',
+        'Si esta dirección puede registrarse, se ha enviado un código de 6 dígitos a {email}. Introdúzcalo a continuación. Si no llega ningún código, es posible que esta dirección ya esté asociada a una cuenta: inicie sesión o restablezca su contraseña.',
       otpLabel: 'Código recibido por correo',
       otpPlaceholder: '000000',
       otpHint: 'Este código es personal. No lo comparta nunca con nadie.',
@@ -490,9 +525,11 @@ export const publicMessages: Record<Language, PublicMessages> = {
       resendAction: 'Reenviar el código',
       resending: 'Enviando…',
       resendCooldown: 'Podrá reenviar un código en {seconds} s',
-      resendSuccess: 'Se le acaba de enviar un nuevo código.',
+      resendSuccess:
+        'Si se puede enviar un código para esta solicitud, se acaba de iniciar un nuevo envío.',
       resendError: 'No se pudo reenviar el código. Inténtelo de nuevo en unos instantes.',
       backToLogin: 'Volver al inicio de sesión',
+      resetAccess: 'Restablecer mi contraseña',
     },
     adminLogin: {
       restricted: 'Acceso exclusivo para el director de sucursal',

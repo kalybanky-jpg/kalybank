@@ -21,7 +21,11 @@ import {
   WalletCards,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
-import { formatDirectCurrency } from '@/lib/currency';
+import {
+  convertAnyAmount,
+  formatDirectCurrency,
+  sumConvertedAmounts,
+} from '@/lib/currency';
 import { formatLocalizedDate, formatLocalizedPercent } from '@/lib/language';
 import {
   accountTypeLabel,
@@ -64,6 +68,8 @@ export default function UserDashboard() {
     language,
     activeTab,
     setActiveTab,
+    currency,
+    rates,
     accounts,
     transactions,
     pendingTransfers,
@@ -88,11 +94,24 @@ export default function UserDashboard() {
 
   const currentAccounts = accounts.filter((account) => account.type === 'courant');
   const currentAccount = currentAccounts[0];
-  const currency = currentAccount?.currency ?? 'EUR';
-  const totalBalance = currentAccounts.reduce((sum, account) => sum + account.balance, 0);
-  const monthlyCredits = transactions
-    .filter((transaction) => transaction.type === 'credit')
-    .reduce((sum, transaction) => sum + Math.abs(transaction.amount), 0);
+  const totalBalance = sumConvertedAmounts(
+    currentAccounts.map((account) => ({
+      amount: account.balance,
+      currency: account.currency,
+    })),
+    currency,
+    rates,
+  );
+  const monthlyCredits = sumConvertedAmounts(
+    transactions
+      .filter((transaction) => transaction.type === 'credit')
+      .map((transaction) => ({
+        amount: Math.abs(transaction.amount),
+        currency: transaction.currency ?? currency,
+      })),
+    currency,
+    rates,
+  );
   const activeLoan = loans.find((loan) => !['refuse', 'decaisse'].includes(loan.status)) ?? loans[0];
   const trackedTransfer =
     pendingTransfers.find((transfer) => !['valide', 'rejete'].includes(transfer.status)) ??
@@ -108,8 +127,12 @@ export default function UserDashboard() {
       autorisationFinale: 'en_attente' as const,
     };
 
-  const money = (amount: number, moneyCurrency = currency) =>
-    formatDirectCurrency(amount, moneyCurrency, language);
+  const money = (amount: number, sourceCurrency = currency) =>
+    formatDirectCurrency(
+      convertAnyAmount(amount, sourceCurrency, currency, rates),
+      currency,
+      language,
+    );
 
   return (
     <div className="mx-auto max-w-[1320px] px-4 pb-7 sm:px-7 lg:px-10">

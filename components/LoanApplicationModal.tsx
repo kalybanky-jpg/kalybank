@@ -38,7 +38,7 @@ function alignDurationToSettings(
 export default function LoanApplicationModal() {
   const {
     language,
-    currency,
+    baseCurrency,
     loanProductSettings,
     isLoanModalOpen,
     setIsLoanModalOpen,
@@ -57,7 +57,9 @@ export default function LoanApplicationModal() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const loanSettings = loanProductSettings.find((settings) => settings.currency === currency);
+  const loanSettings = loanProductSettings.find(
+    (settings) => settings.currency === baseCurrency,
+  );
   const isLoanAvailable = loanSettings?.isActive === true;
   const minimumAmount = loanSettings?.minimumAmount ?? 0;
   const maximumAmount = loanSettings?.maximumAmount ?? 0;
@@ -84,7 +86,7 @@ export default function LoanApplicationModal() {
   }).format(annualRate);
 
   const estimatedMonthlyPayment = isLoanAvailable
-    ? calculateLoanMonthlyPayment(requestedAmount, annualRate, durationMonths, currency)
+    ? calculateLoanMonthlyPayment(requestedAmount, annualRate, durationMonths, baseCurrency)
     : 0;
 
   const handleNextStep = () => {
@@ -127,7 +129,7 @@ export default function LoanApplicationModal() {
         clientEmail: '',
         requestedAmount,
         approvedAmount: 0,
-        currency,
+        currency: baseCurrency,
         durationMonths,
         monthlyPayment: estimatedMonthlyPayment,
         motive: loanMotiveLabel('fr', motiveCode),
@@ -322,7 +324,7 @@ export default function LoanApplicationModal() {
                       <div className="flex items-center justify-between">
                         <span className="font-bold text-slate-800">{t.requestedAmount}</span>
                         <span className="text-base font-extrabold text-emerald-700">
-                          {formatDirectCurrency(requestedAmount, currency, language)}
+                          {formatDirectCurrency(requestedAmount, baseCurrency, language)}
                         </span>
                       </div>
                       <input
@@ -338,19 +340,19 @@ export default function LoanApplicationModal() {
                         }
                         id="loan-amount-slider"
                         aria-label={t.requestedAmount}
-                        aria-valuetext={formatDirectCurrency(requestedAmount, currency, language)}
+                        aria-valuetext={formatDirectCurrency(requestedAmount, baseCurrency, language)}
                         className="w-full accent-emerald-600 cursor-pointer"
                       />
                       <div className="flex justify-between text-[10px] text-slate-500 font-bold">
-                        <span>{formatDirectCurrency(minimumAmount, currency, language)}</span>
+                        <span>{formatDirectCurrency(minimumAmount, baseCurrency, language)}</span>
                         <span>
                           {formatDirectCurrency(
                             minimumAmount + (maximumAmount - minimumAmount) / 2,
-                            currency,
+                            baseCurrency,
                             language,
                           )}
                         </span>
-                        <span>{formatDirectCurrency(maximumAmount, currency, language)}</span>
+                        <span>{formatDirectCurrency(maximumAmount, baseCurrency, language)}</span>
                       </div>
                     </div>
 
@@ -398,7 +400,7 @@ export default function LoanApplicationModal() {
                         <div>
                           <p className="text-[10px] sm:text-xs text-emerald-200 font-bold">{t.monthlyPaymentEstimated}</p>
                           <p className="text-base sm:text-lg font-extrabold text-emerald-300">
-                            {formatDirectCurrency(estimatedMonthlyPayment, currency, language)} {copy.loanModal.perMonth}
+                            {formatDirectCurrency(estimatedMonthlyPayment, baseCurrency, language)} {copy.loanModal.perMonth}
                           </p>
                         </div>
                       </div>

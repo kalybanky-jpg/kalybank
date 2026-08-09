@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useAppStore } from '@/lib/store';
-import { formatDirectCurrency } from '@/lib/currency';
+import { convertAnyAmount, formatDirectCurrency } from '@/lib/currency';
 import { bankingMessages } from '@/lib/banking-i18n';
 import { Clock, Search, Send } from 'lucide-react';
 import { formatLocalizedDateTime, formatLocalizedPercent } from '@/lib/language';
@@ -11,12 +11,20 @@ import { useBranded } from '@/components/brand/BrandProvider';
 export default function UserTransfersView() {
   const {
     language,
+    currency,
+    rates,
     pendingTransfers,
     accounts,
     setIsTransferModalOpen,
   } = useAppStore();
   const t = useBranded(bankingMessages[language]);
   const [searchQuery, setSearchQuery] = useState('');
+  const displayMoney = (amount: number, sourceCurrency: string) =>
+    formatDirectCurrency(
+      convertAnyAmount(amount, sourceCurrency, currency, rates),
+      currency,
+      language,
+    );
 
   const filtered = pendingTransfers.filter((transfer) => {
     const query = searchQuery.toLowerCase();
@@ -70,7 +78,7 @@ export default function UserTransfersView() {
                 </div>
                 <div className="sm:text-right">
                   <p className="font-extrabold text-blue-700">
-                    {formatDirectCurrency(transfer.amount, transfer.currency, language)}
+                    {displayMoney(transfer.amount, transfer.currency)}
                   </p>
                   <p className="text-[10px] text-slate-500">
                     {formatLocalizedDateTime(transfer.date, language)}

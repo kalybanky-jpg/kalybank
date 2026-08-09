@@ -2,13 +2,22 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, KeyRound, Mail, RefreshCw, UserRound } from 'lucide-react';
+import {
+  ArrowRight,
+  CircleDollarSign,
+  KeyRound,
+  Mail,
+  RefreshCw,
+  UserRound,
+} from 'lucide-react';
 import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import LanguageSelector from '@/components/LanguageSelector';
 import { useAppStore } from '@/lib/store';
 import { publicMessages } from '@/lib/public-i18n';
 import { registrationLanguageMetadata } from '@/lib/language';
+import { isSupportedCurrency, SUPPORTED_CURRENCIES } from '@/lib/currency';
+import type { Currency } from '@/lib/types';
 import PasswordField from '@/components/auth/PasswordField';
 import BrandLogo from '@/components/brand/BrandLogo';
 import { useBranded } from '@/components/brand/BrandProvider';
@@ -23,6 +32,7 @@ export default function RegisterPage() {
   const copy = useBranded(publicMessages[language].register);
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
+  const [baseCurrency, setBaseCurrency] = useState<Currency | ''>('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
@@ -33,6 +43,7 @@ export default function RegisterPage() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
+  const baseCurrencyInvalid = error === copy.baseCurrencyRequiredError;
   const passwordPolicyInvalid = error === copy.passwordPolicyError;
   const confirmationInvalid = error === copy.passwordMismatchError;
 
@@ -48,6 +59,10 @@ export default function RegisterPage() {
     event.preventDefault();
     setError('');
 
+    if (!isSupportedCurrency(baseCurrency)) {
+      setError(copy.baseCurrencyRequiredError);
+      return;
+    }
     if (password.length < 10 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
       setError(copy.passwordPolicyError);
       return;
@@ -64,7 +79,11 @@ export default function RegisterPage() {
         email: email.trim().toLowerCase(),
         password,
         options: {
-          data: registrationLanguageMetadata(displayName, language),
+          data: {
+            ...registrationLanguageMetadata(displayName, language),
+            base_currency: baseCurrency,
+            preferred_currency: baseCurrency,
+          },
         },
       });
       if (signUpError) throw signUpError;
@@ -73,6 +92,7 @@ export default function RegisterPage() {
         window.location.assign('/onboarding');
         return;
       }
+      if (!data.user) throw new Error('Utilisateur absent après inscription.');
       setSubmitted(true);
       setResendCooldown(60);
     } catch {
@@ -229,6 +249,12 @@ export default function RegisterPage() {
               >
                 {copy.backToLogin}
               </Link>
+              <Link
+                href="/reset-pin"
+                className="block text-center text-xs font-bold text-blue-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
+              >
+                {copy.resetAccess}
+              </Link>
             </form>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-5" aria-busy={isLoading}>
@@ -281,6 +307,32 @@ export default function RegisterPage() {
                     className="w-full rounded-xl border border-slate-300 bg-slate-50 py-3 pl-10 pr-4 text-sm normal-case tracking-normal text-slate-950 outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30"
                   />
                 </span>
+              </div>
+              <div>
+                <label htmlFor="register-base-currency" className="block text-xs font-bold text-slate-700">
+                  {copy.baseCurrency}
+                </label>
+                <span className="relative mt-1.5 block">
+                  <CircleDollarSign aria-hidden="true" className="pointer-events-none absolute left-3.5 top-3.5 h-4 w-4 text-slate-500" />
+                  <select
+                    id="register-base-currency"
+                    name="baseCurrency"
+                    required
+                    value={baseCurrency}
+                    onChange={(event) => setBaseCurrency(event.target.value as Currency | '')}
+                    aria-describedby={`register-base-currency-hint${baseCurrencyInvalid ? ' register-error' : ''}`}
+                    aria-invalid={baseCurrencyInvalid}
+                    className="w-full appearance-none rounded-xl border border-slate-300 bg-slate-50 py-3 pl-10 pr-4 text-sm text-slate-950 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30"
+                  >
+                    <option value="" disabled>{copy.baseCurrencyPlaceholder}</option>
+                    {SUPPORTED_CURRENCIES.map((currency) => (
+                      <option key={currency} value={currency}>{currency}</option>
+                    ))}
+                  </select>
+                </span>
+                <p id="register-base-currency-hint" className="mt-2 text-xs leading-relaxed text-slate-600">
+                  {copy.baseCurrencyHint}
+                </p>
               </div>
               <PasswordField
                 id="register-password"

@@ -170,7 +170,13 @@ export const translations: Record<Language, Record<string, string>> = {
     close: 'Fermer',
 
     // Currency Switcher
+    baseCurrency: 'Devise de base',
+    baseCurrencyHint: 'Définie à l’inscription, cette devise ne peut pas être modifiée.',
     currencySelector: "Devise d'affichage",
+    displayCurrencyHint: "Ce choix est enregistré automatiquement et convertit seulement les montants affichés ; les valeurs enregistrées restent dans leur devise d’origine.",
+    displayCurrencySaving: "Enregistrement de la devise d’affichage…",
+    displayCurrencySaved: "Devise d’affichage mise à jour.",
+    displayCurrencySaveError: "La devise d’affichage n’a pas pu être enregistrée. Le choix précédent a été restauré.",
     liveRatesUpdated: 'Taux de change en direct mis à jour',
 
     // Supabase & Settings
@@ -349,7 +355,13 @@ export const translations: Record<Language, Record<string, string>> = {
     close: 'Close',
 
     // Currency Switcher
+    baseCurrency: 'Base currency',
+    baseCurrencyHint: 'Set during registration, this currency cannot be changed.',
     currencySelector: 'Display currency',
+    displayCurrencyHint: 'This choice is saved automatically and converts displayed amounts only; stored values remain in their original currency.',
+    displayCurrencySaving: 'Saving display currency…',
+    displayCurrencySaved: 'Display currency updated.',
+    displayCurrencySaveError: 'The display currency could not be saved. The previous choice has been restored.',
     liveRatesUpdated: 'Live exchange rates updated',
 
     // Supabase & Settings
@@ -494,7 +506,13 @@ export const translations: Record<Language, Record<string, string>> = {
     noEmailsSent: 'Noch keine E-Mails gesendet.',
     viewEmailBody: 'E-Mail-Inhalt anzeigen',
     close: 'Schließen',
+    baseCurrency: 'Basiswährung',
+    baseCurrencyHint: 'Diese bei der Registrierung festgelegte Währung kann nicht geändert werden.',
     currencySelector: 'Anzeigewährung',
+    displayCurrencyHint: 'Diese Auswahl wird automatisch gespeichert und rechnet nur angezeigte Beträge um; gespeicherte Werte bleiben in ihrer ursprünglichen Währung.',
+    displayCurrencySaving: 'Anzeigewährung wird gespeichert…',
+    displayCurrencySaved: 'Anzeigewährung aktualisiert.',
+    displayCurrencySaveError: 'Die Anzeigewährung konnte nicht gespeichert werden. Die vorherige Auswahl wurde wiederhergestellt.',
     liveRatesUpdated: 'Live-Wechselkurse aktualisiert',
     supabaseConfig: 'Supabase / Datenbank-Konfiguration',
     supabaseStatus: 'Backend-Status',
@@ -637,7 +655,13 @@ export const translations: Record<Language, Record<string, string>> = {
     noEmailsSent: 'No hay correos enviados por el momento.',
     viewEmailBody: 'Ver contenido del correo',
     close: 'Cerrar',
+    baseCurrency: 'Moneda base',
+    baseCurrencyHint: 'Esta moneda, definida durante el registro, no se puede modificar.',
     currencySelector: 'Moneda de visualización',
+    displayCurrencyHint: 'Esta opción se guarda automáticamente y solo convierte los importes mostrados; los valores guardados permanecen en su moneda original.',
+    displayCurrencySaving: 'Guardando la moneda de visualización…',
+    displayCurrencySaved: 'Moneda de visualización actualizada.',
+    displayCurrencySaveError: 'No se pudo guardar la moneda de visualización. Se ha restaurado la opción anterior.',
     liveRatesUpdated: 'Tipos de cambio en vivo actualizados',
     supabaseConfig: 'Configuración de Supabase / Base de datos',
     supabaseStatus: 'Estado del backend',

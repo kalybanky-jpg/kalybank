@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import { isPublicSupabaseConfigured } from '@/lib/supabase/config';
 import BrandSettingsEditor from '@/components/brand/BrandSettingsEditor';
+import type { ExchangeRateSnapshot } from '@/lib/currency';
+import WebPushSettings from '@/components/support/WebPushSettings';
 
 const LOAN_CURRENCIES = ['EUR', 'USD', 'CAD', 'CHF', 'GBP'] as const;
 type LoanCurrency = (typeof LOAN_CURRENCIES)[number];
@@ -72,6 +74,9 @@ export default function AdminSettingsView() {
     message: string;
   } | null>(null);
   const prefix = draftPrefix ?? accountNumberConfiguration?.prefix ?? '';
+  const rateSnapshot = rates as typeof rates & Partial<ExchangeRateSnapshot>;
+  const rateProvider = rateSnapshot.provider ?? 'Source non renseignée';
+  const rateDate = rateSnapshot.date ?? rates.updatedAt.slice(0, 10);
 
   const selectedLoanSettings = useMemo(
     () =>
@@ -241,6 +246,7 @@ export default function AdminSettingsView() {
 
       <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <BrandSettingsEditor />
+        <WebPushSettings className="md:col-span-2" />
         <form
           onSubmit={submitLoanSettings}
           className="bg-white rounded-3xl border border-slate-200 p-6 md:col-span-2"
@@ -600,12 +606,31 @@ export default function AdminSettingsView() {
           <ShieldCheck className="w-8 h-8 text-blue-600" />
           <h2 className="font-extrabold text-slate-900 mt-4">Source des taux</h2>
           <p className="text-xs text-slate-500 mt-1">
-            Baseline interne datée du {new Date(rates.updatedAt).toLocaleDateString('fr-FR')}.
+            {rateProvider} · taux du{' '}
+            {new Date(`${rateDate}T00:00:00.000Z`).toLocaleDateString('fr-FR', {
+              timeZone: 'UTC',
+            })}.
           </p>
-          <p className="text-[11px] text-slate-500 mt-3">
-            Aucun service bancaire ou de marché n&apos;est appelé. Les conversions
-            sont indicatives et leur taux est figé avec chaque instruction.
+          <p
+            className={`mt-3 text-[11px] ${
+              rateSnapshot.fallback ? 'text-amber-700' : 'text-slate-500'
+            }`}
+          >
+            {rateSnapshot.fallback
+              ? `Mode de secours actif. ${
+                  rateSnapshot.fallbackReason ??
+                  'Les taux embarqués sont utilisés temporairement.'
+                }`
+              : 'Taux de référence quotidiens récupérés côté serveur et mis en cache pendant une heure.'}
           </p>
+          <a
+            href="https://frankfurter.dev/"
+            target="_blank"
+            rel="noreferrer"
+            className="mt-3 inline-block text-[11px] font-bold text-blue-600 hover:text-blue-800"
+          >
+            Documentation officielle Frankfurter
+          </a>
         </article>
       </section>
     </div>

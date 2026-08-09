@@ -30,7 +30,9 @@
     "auth:email:configure:brevo": "tsx --env-file=.env.email.brevo.local scripts/configure-supabase-auth-email.ts brevo",
     "demo:provision": "tsx scripts/provision-demo-accounts.ts",
     "documents:reissue:check": "tsx --env-file=.env scripts/reissue-localized-official-documents.ts",
-    "documents:reissue:apply": "tsx --env-file=.env scripts/reissue-localized-official-documents.ts --apply"
+    "documents:reissue:apply": "tsx --env-file=.env scripts/reissue-localized-official-documents.ts --apply",
+    "support:keys": "tsx scripts/generate-vapid-keys.ts",
+    "support:vapid": "tsx scripts/generate-vapid-keys.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "5.5.7",

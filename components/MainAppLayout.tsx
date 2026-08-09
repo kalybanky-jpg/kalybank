@@ -10,9 +10,9 @@ import WireTransferModal from '@/components/WireTransferModal';
 import LoanApplicationModal from '@/components/LoanApplicationModal';
 import NotificationsDrawer from '@/components/NotificationsDrawer';
 import AccountStatementsModal from '@/components/AccountStatementsModal';
-import ContactModal from '@/components/ContactModal';
 import { extraUserMessages } from '@/lib/user-i18n';
 import { useBranded } from '@/components/brand/BrandProvider';
+import { SupportProvider } from '@/components/support/SupportProvider';
 
 interface MainAppLayoutProps {
   forcedRole?: 'user' | 'admin';
@@ -51,30 +51,31 @@ export default function MainAppLayout({ forcedRole }: MainAppLayoutProps) {
   }
 
   return (
-    <div className="min-h-screen bg-[#f7f8fc] flex text-slate-800 font-sans antialiased selection:bg-[#4b2df1] selection:text-white">
-      {/* Sidebar */}
-      <Sidebar
-        isOpenOnMobile={isMobileSidebarOpen}
-        onCloseMobile={() => setIsMobileSidebarOpen(false)}
-      />
+    <SupportProvider>
+      <div className="min-h-screen bg-[#f7f8fc] flex text-slate-800 font-sans antialiased selection:bg-[#4b2df1] selection:text-white">
+        {/* Sidebar */}
+        <Sidebar
+          isOpenOnMobile={isMobileSidebarOpen}
+          onCloseMobile={() => setIsMobileSidebarOpen(false)}
+        />
 
-      {/* Main Workspace Column */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-screen overflow-x-hidden">
-        {/* Sticky Header */}
-        <Header onToggleMobileMenu={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)} />
+        {/* Main Workspace Column */}
+        <div className="flex-1 flex flex-col min-w-0 min-h-screen overflow-x-hidden">
+          {/* Sticky Header */}
+          <Header onToggleMobileMenu={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)} />
 
-        {/* Dynamic View Content */}
-        <main className="flex-1">
-          {currentRole === 'admin' ? <AdminDashboard /> : <UserDashboard />}
-        </main>
+          {/* Dynamic View Content */}
+          <main className="flex-1">
+            {currentRole === 'admin' ? <AdminDashboard /> : <UserDashboard />}
+          </main>
+        </div>
+
+        {/* Modals & Drawers */}
+        <WireTransferModal />
+        <LoanApplicationModal />
+        <NotificationsDrawer />
+        <AccountStatementsModal />
       </div>
-
-      {/* Modals & Drawers */}
-      <WireTransferModal />
-      <LoanApplicationModal />
-      <NotificationsDrawer />
-      <AccountStatementsModal />
-      <ContactModal />
-    </div>
+    </SupportProvider>
   );
 }

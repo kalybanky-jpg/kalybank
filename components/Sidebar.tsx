@@ -22,9 +22,10 @@ import { motion } from 'motion/react';
 import { useAppStore } from '@/lib/store';
 import { translations } from '@/lib/i18n';
 import { extraUserMessages } from '@/lib/user-i18n';
-import { createClient } from '@/lib/supabase/client';
 import BrandLogo from '@/components/brand/BrandLogo';
 import { useBranded } from '@/components/brand/BrandProvider';
+import SupportButton from '@/components/support/SupportButton';
+import { useSupport } from '@/components/support/SupportProvider';
 
 interface SidebarProps {
   isOpenOnMobile?: boolean;
@@ -37,8 +38,8 @@ export default function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps)
     role,
     activeTab,
     setActiveTab,
-    setIsContactModalOpen,
   } = useAppStore();
+  const { signOut, isSigningOut } = useSupport();
   const effectiveLanguage = role === 'admin' ? 'fr' : language;
   const t = useBranded(translations[effectiveLanguage] || translations.fr);
   const shell = useBranded(extraUserMessages[effectiveLanguage].shell);
@@ -150,24 +151,20 @@ export default function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps)
           <p className="mt-1.5 text-[11px] leading-5 text-white/66">
             {role === 'admin' ? shell.adminHelp : shell.userHelp}
           </p>
-          <button
-            type="button"
-            onClick={() => setIsContactModalOpen(true)}
+          <SupportButton
+            variant="sidebar"
             id="help-contact-us-btn"
-            className="mt-4 rounded-md bg-gradient-to-r from-[#6044ff] to-[#4128ef] px-5 py-2.5 text-[11px] font-semibold text-white shadow-lg shadow-indigo-950/30 hover:brightness-110"
-          >
-            {shell.contact}
-          </button>
+            className="mt-4"
+          />
         </div>
 
         <button
           type="button"
-          onClick={async () => {
-            await createClient().auth.signOut();
-            window.location.replace('/login');
-          }}
+          onClick={() => void signOut()}
+          disabled={isSigningOut}
+          aria-busy={isSigningOut}
           id="sidebar-logout-btn"
-          className="flex w-full items-center gap-4 rounded-xl px-3 py-3 text-[13px] font-medium text-white/82 transition hover:bg-white/[0.07] hover:text-white"
+          className="flex w-full items-center gap-4 rounded-xl px-3 py-3 text-[13px] font-medium text-white/82 transition hover:bg-white/[0.07] hover:text-white disabled:cursor-wait disabled:opacity-60"
         >
           <LogOut className="h-5 w-5" strokeWidth={1.8} />
           <span>{t.logout}</span>

@@ -27,7 +27,6 @@ import { Dialog, DialogBackdrop, DialogPanel } from '@/components/ui/Dialog';
 export default function WireTransferModal() {
   const {
     language,
-    currency,
     rates,
     accounts,
     isTransferModalOpen,
@@ -98,7 +97,9 @@ export default function WireTransferModal() {
   const sourceAccount = accounts.find((a) => a.id === sourceAccountId) || accounts[0];
 
   // Convert amount from source account currency to target currency using convertAnyAmount
-  const convertedTargetAmount = convertAnyAmount(numericAmount, sourceAccount?.currency, targetCurr, rates);
+  const convertedTargetAmount = sourceAccount
+    ? convertAnyAmount(numericAmount, sourceAccount.currency, targetCurr, rates)
+    : 0;
 
   const handleNextStep = () => {
     const newErrors: Record<string, string> = {};
@@ -968,7 +969,14 @@ export default function WireTransferModal() {
                     <div className="bg-blue-900 text-white p-4 rounded-2xl space-y-3 border border-blue-800 shadow-md">
                       <div className="flex items-center justify-end">
                         <span className="text-[10px] text-emerald-300 font-mono font-bold">
-                          1 {sourceAccount?.currency} = {convertAnyAmount(1, sourceAccount?.currency, targetCurr, rates).toFixed(4)} {targetCurr}
+                          {sourceAccount
+                            ? `1 ${sourceAccount.currency} = ${convertAnyAmount(
+                                1,
+                                sourceAccount.currency,
+                                targetCurr,
+                                rates,
+                              ).toFixed(4)} ${targetCurr}`
+                            : copy.common.unavailable}
                         </span>
                       </div>
 

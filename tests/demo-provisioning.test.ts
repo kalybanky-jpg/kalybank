@@ -42,6 +42,8 @@ class FakeDemoGateway implements DemoProvisioningGateway {
       userMetadata: {
         display_name: attributes.displayName,
         preferred_language: "fr",
+        base_currency: "EUR",
+        preferred_currency: "EUR",
       },
       appMetadata: {
         monalyz_demo: true,
@@ -63,6 +65,8 @@ class FakeDemoGateway implements DemoProvisioningGateway {
       userMetadata: {
         display_name: attributes.displayName,
         preferred_language: "fr",
+        base_currency: "EUR",
+        preferred_currency: "EUR",
       },
       appMetadata: {
         monalyz_demo: true,

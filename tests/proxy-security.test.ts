@@ -96,6 +96,50 @@ function assertSecurityHeaders(response: NextResponse) {
   );
 }
 
+function cspDirective(response: NextResponse, name: string) {
+  return (response.headers.get('content-security-policy') ?? '')
+    .split(';')
+    .map((directive) => directive.trim())
+    .find((directive) => directive.startsWith(`${name} `));
+}
+
+function assertTawkContentSecurityPolicy(response: NextResponse) {
+  const script = cspDirective(response, 'script-src') ?? '';
+  assert.match(script, /https:\/\/\*\.tawk\.to/);
+  assert.match(script, /https:\/\/cdn\.jsdelivr\.net/);
+
+  assert.equal(
+    cspDirective(response, 'style-src'),
+    "style-src 'self' 'unsafe-inline' https://*.tawk.to https://fonts.googleapis.com https://cdn.jsdelivr.net",
+  );
+  assert.equal(
+    cspDirective(response, 'font-src'),
+    "font-src 'self' data: https://*.tawk.to https://fonts.gstatic.com",
+  );
+  assert.equal(
+    cspDirective(response, 'frame-src'),
+    'frame-src https://*.tawk.to',
+  );
+  assert.equal(
+    cspDirective(response, 'form-action'),
+    "form-action 'self' https://*.tawk.to",
+  );
+
+  const images = cspDirective(response, 'img-src') ?? '';
+  for (const source of [
+    'https://*.tawk.to',
+    'https://cdn.jsdelivr.net',
+    'https://tawk.link',
+    'https://s3.amazonaws.com',
+  ]) {
+    assert.ok(images.includes(source), `img-src should allow ${source}`);
+  }
+
+  const connections = cspDirective(response, 'connect-src') ?? '';
+  assert.ok(connections.includes('https://*.tawk.to'));
+  assert.ok(connections.includes('wss://*.tawk.to'));
+}
+
 function assertSupabaseResponseMutations(response: NextResponse) {
   assert.deepEqual(response.headers.getSetCookie(), EXPECTED_SET_COOKIE);
   assert.equal(response.headers.get('cache-control'), SUPABASE_HEADERS['Cache-Control']);
@@ -119,6 +163,7 @@ test('Next headers and Proxy share the self-only camera policy', async () => {
     createDependencies({ authenticated: false, emitSession: false }),
   );
   assertSecurityHeaders(response);
+  assertTawkContentSecurityPolicy(response);
 });
 
 test('Supabase response mutations are recorded immutably and replayed exactly', () => {

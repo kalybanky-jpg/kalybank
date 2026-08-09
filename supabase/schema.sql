@@ -1,8 +1,8 @@
 -- Monalyz DATABASE SCHEMA SNAPSHOT
 -- GENERATED FILE: run `npx bun run db:snapshot`; do not edit manually.
 -- remote-project-ref: qljqldhvbakornnpalua
--- migration-manifest-sha256: 2f077f8e5094274d7284eef53d1ea61774cc612137678af610fbb78ca496ebe3
--- migrations: 20260728060744_kaly_secure_external_financial_workflows.sql, 20260728061308_add_missing_foreign_key_indexes.sql, 20260728065832_rename_brand_to_monalyz.sql, 20260728092751_simplify_branch_manager_financial_workflows.sql, 20260728094442_add_outbox_claimed_by_index.sql, 20260728150934_add_profile_preferred_language.sql, 20260728151335_grant_profile_preferences_update.sql, 20260728173319_provision_demo_accounts.sql, 20260728183213_fix_demo_provisioner_uuid_literals.sql, 20260729115445_add_official_accounts_and_ledger.sql, 20260729115451_wire_ledger_to_financial_workflows.sql, 20260729115458_add_official_documents_and_demo_fixtures.sql, 20260730123059_automatic_account_numbers.sql, 20260730162101_kyc_workflow_and_internal_account.sql, 20260730170000_sequential_transfer_checks.sql, 20260731120000_user_localization_contract.sql, 20260801091705_configure_loan_products.sql, 20260801095428_dynamic_brand_settings.sql, 20260801163432_secure_brand_snapshot_function.sql, 20260803074608_scope_transactional_email_claims.sql, 20260803112108_harden_function_privileges_and_upload_staging.sql
+-- migration-manifest-sha256: 9650ab89a2a43f1b872d3c38fd9a5c1c6bb88d6cd2aa4e1a732880f705104168
+-- migrations: 20260728060744_kaly_secure_external_financial_workflows.sql, 20260728061308_add_missing_foreign_key_indexes.sql, 20260728065832_rename_brand_to_monalyz.sql, 20260728092751_simplify_branch_manager_financial_workflows.sql, 20260728094442_add_outbox_claimed_by_index.sql, 20260728150934_add_profile_preferred_language.sql, 20260728151335_grant_profile_preferences_update.sql, 20260728173319_provision_demo_accounts.sql, 20260728183213_fix_demo_provisioner_uuid_literals.sql, 20260729115445_add_official_accounts_and_ledger.sql, 20260729115451_wire_ledger_to_financial_workflows.sql, 20260729115458_add_official_documents_and_demo_fixtures.sql, 20260730123059_automatic_account_numbers.sql, 20260730162101_kyc_workflow_and_internal_account.sql, 20260730170000_sequential_transfer_checks.sql, 20260731120000_user_localization_contract.sql, 20260801091705_configure_loan_products.sql, 20260801095428_dynamic_brand_settings.sql, 20260801163432_secure_brand_snapshot_function.sql, 20260803074608_scope_transactional_email_claims.sql, 20260803112108_harden_function_privileges_and_upload_staging.sql, 20260808112503_persist_signup_preferred_currency.sql, 20260808115958_add_tawk_support_backend.sql
 -- schema-only: true
 -- production-data-included: false
 -- schemas: public, private
@@ -208,6 +208,23 @@ $$;
 
 
 ALTER FUNCTION "private"."claim_transactional_emails_internal"("p_limit" integer, "p_recipient_id" "uuid") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "private"."enforce_profile_base_currency_immutability"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    SET "search_path" TO ''
+    AS $$
+begin
+  if new.base_currency is distinct from old.base_currency then
+    raise exception 'PROFILE_BASE_CURRENCY_IMMUTABLE' using errcode = '55000';
+  end if;
+
+  return new;
+end;
+$$;
+
+
+ALTER FUNCTION "private"."enforce_profile_base_currency_immutability"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "private"."enqueue_financial_workflow_email"() RETURNS "trigger"
@@ -705,17 +722,37 @@ CREATE OR REPLACE FUNCTION "private"."handle_new_user"() RETURNS "trigger"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
+declare
+  signup_currency text;
 begin
+  signup_currency := upper(trim(coalesce(
+    new.raw_user_meta_data ->> 'base_currency',
+    new.raw_user_meta_data ->> 'preferred_currency',
+    ''
+  )));
+
+  if signup_currency = '' then
+    raise exception 'SIGNUP_CURRENCY_REQUIRED' using errcode = '22023';
+  end if;
+
+  if signup_currency not in ('EUR', 'USD', 'CAD', 'CHF', 'GBP') then
+    raise exception 'SIGNUP_CURRENCY_UNSUPPORTED' using errcode = '22023';
+  end if;
+
   insert into public.profiles (
     user_id,
     email,
     display_name,
+    base_currency,
+    preferred_currency,
     preferred_language
   )
   values (
     new.id,
     coalesce(new.email, ''),
     trim(coalesce(new.raw_user_meta_data ->> 'display_name', '')),
+    signup_currency,
+    signup_currency,
     case
       when new.raw_user_meta_data ->> 'preferred_language'
         in ('fr', 'en', 'de', 'es')
@@ -1059,6 +1096,24 @@ $$;
 ALTER FUNCTION "private"."remove_iban_from_new_official_document"() OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "private"."retire_support_user_identity"() RETURNS "trigger"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+begin
+  update public.support_user_identities
+  set valid_to = greatest(statement_timestamp(), valid_from)
+  where user_id = old.id
+    and valid_to is null;
+
+  return old;
+end;
+$$;
+
+
+ALTER FUNCTION "private"."retire_support_user_identity"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "private"."set_updated_at"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     SET "search_path" TO ''
@@ -1098,6 +1153,57 @@ $$;
 
 
 ALTER FUNCTION "private"."snapshot_official_document_brand"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "private"."sync_support_user_identity"() RETURNS "trigger"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $_$
+declare
+  normalized_new_email text := lower(btrim(coalesce(new.email, '')));
+  changed_at timestamptz := statement_timestamp();
+begin
+  update public.support_user_identities
+  set valid_to = greatest(changed_at, valid_from)
+  where user_id = new.id
+    and valid_to is null
+    and normalized_email is distinct from normalized_new_email;
+
+  if normalized_new_email = '' then
+    return new;
+  end if;
+
+  if char_length(normalized_new_email) > 254
+     or normalized_new_email !~ '^[^[:space:]@]+@[^[:space:]@]+$'
+  then
+    raise exception 'INVALID_SUPPORT_IDENTITY_EMAIL' using errcode = '22023';
+  end if;
+
+  if not exists (
+    select 1
+    from public.support_user_identities
+    where user_id = new.id
+      and normalized_email = normalized_new_email
+      and valid_to is null
+  ) then
+    insert into public.support_user_identities (
+      user_id,
+      normalized_email,
+      valid_from
+    )
+    values (
+      new.id,
+      normalized_new_email,
+      changed_at
+    );
+  end if;
+
+  return new;
+end;
+$_$;
+
+
+ALTER FUNCTION "private"."sync_support_user_identity"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "private"."validate_financial_ledger_entry"() RETURNS "trigger"
@@ -3192,6 +3298,42 @@ $$;
 ALTER FUNCTION "public"."branch_manager_revoke_official_document"("p_document_id" "uuid", "p_reason" "text") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."claim_support_transcript"("p_transcript_id" "uuid", "p_claim_token" "uuid") RETURNS boolean
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare
+  worker_role text := coalesce((select auth.jwt() ->> 'role'), '');
+  claimed_count integer;
+begin
+  if worker_role <> 'service_role' then
+    raise exception 'SUPPORT_WORKER_PERMISSION_REQUIRED' using errcode = '42501';
+  end if;
+
+  if p_transcript_id is null or p_claim_token is null then
+    raise exception 'INVALID_SUPPORT_TRANSCRIPT_CLAIM' using errcode = '22023';
+  end if;
+
+  update public.support_transcripts
+  set
+    processing_token = p_claim_token,
+    processing_started_at = now()
+  where id = p_transcript_id
+    and completed_at is null
+    and (
+      processing_token is null
+      or processing_started_at < now() - interval '5 minutes'
+    );
+
+  get diagnostics claimed_count = row_count;
+  return claimed_count = 1;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."claim_support_transcript"("p_transcript_id" "uuid", "p_claim_token" "uuid") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."claim_transactional_emails"("p_limit" integer DEFAULT 10) RETURNS SETOF "public"."transactional_email_outbox"
     LANGUAGE "sql" SECURITY DEFINER
     SET "search_path" TO ''
@@ -3577,7 +3719,7 @@ begin
         kyc_row.owner_id,
         'Compte courant',
         'internally_reconciled',
-        profile_row.preferred_currency,
+        profile_row.base_currency,
         0,
         0,
         now(),
@@ -4510,6 +4652,183 @@ $$;
 ALTER FUNCTION "public"."record_financial_position"("p_owner_id" "uuid", "p_label" "text", "p_currency" "text", "p_amount_minor" bigint, "p_as_of" timestamp with time zone, "p_external_identifier_masked" "text", "p_reason" "text") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."register_push_subscription"("p_expected_user_id" "uuid", "p_endpoint" "text", "p_p256dh" "text", "p_auth_key" "text", "p_expiration_time" bigint DEFAULT NULL::bigint, "p_user_agent" "text" DEFAULT NULL::"text") RETURNS "uuid"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $_$
+declare
+  caller_id uuid := private.ensure_active_user();
+  normalized_endpoint text := btrim(coalesce(p_endpoint, ''));
+  normalized_p256dh text := btrim(coalesce(p_p256dh, ''));
+  normalized_auth_key text := btrim(coalesce(p_auth_key, ''));
+  normalized_user_agent text := nullif(btrim(coalesce(p_user_agent, '')), '');
+  calculated_hash text;
+  existing_subscription public.push_subscriptions;
+  subscription_id uuid;
+  subscription_count integer;
+begin
+  if p_expected_user_id is null or p_expected_user_id <> caller_id then
+    raise exception 'PUSH_SUBSCRIPTION_ACCOUNT_CHANGED' using errcode = '42501';
+  end if;
+
+  if char_length(normalized_endpoint) not between 20 and 2048
+     or (
+       lower(normalized_endpoint) !~ '^https://fcm\.googleapis\.com(:443)?/'
+       and lower(normalized_endpoint) !~ '^https://updates\.push\.services\.mozilla\.com(:443)?/'
+       and lower(normalized_endpoint) !~ '^https://([a-z0-9-]+\.)*push\.apple\.com(:443)?/'
+       and lower(normalized_endpoint) !~ '^https://([a-z0-9-]+\.)*notify\.windows\.com(:443)?/'
+     )
+  then
+    raise exception 'INVALID_PUSH_ENDPOINT' using errcode = '22023';
+  end if;
+
+  if char_length(normalized_p256dh) not between 40 and 200
+     or normalized_p256dh !~ '^[A-Za-z0-9_-]+={0,2}$'
+     or char_length(normalized_auth_key) not between 10 and 100
+     or normalized_auth_key !~ '^[A-Za-z0-9_-]+={0,2}$'
+     or (p_expiration_time is not null and p_expiration_time <= 0)
+     or (normalized_user_agent is not null and char_length(normalized_user_agent) > 500)
+  then
+    raise exception 'INVALID_PUSH_SUBSCRIPTION' using errcode = '22023';
+  end if;
+
+  calculated_hash := encode(
+    extensions.digest(convert_to(normalized_endpoint, 'UTF8'), 'sha256'),
+    'hex'
+  );
+
+  -- Serialize registration, rebind and device-limit checks for this user.
+  -- Without this row lock two new endpoints could both observe count < 20.
+  perform 1
+  from public.profiles
+  where user_id = caller_id
+  for update;
+
+  if not found then
+    raise exception 'PROFILE_NOT_FOUND' using errcode = 'P0002';
+  end if;
+
+  select subscription.*
+  into existing_subscription
+  from public.push_subscriptions as subscription
+  where subscription.endpoint_hash = calculated_hash
+  for update;
+
+  if found then
+    if existing_subscription.endpoint is distinct from normalized_endpoint then
+      raise exception 'PUSH_ENDPOINT_HASH_COLLISION' using errcode = '23505';
+    end if;
+
+    -- Rebinding a browser endpoint between successive authenticated users is
+    -- allowed only when both browser-held subscription secrets still match.
+    if existing_subscription.user_id <> caller_id
+       and (
+         existing_subscription.p256dh is distinct from normalized_p256dh
+         or existing_subscription.auth_key is distinct from normalized_auth_key
+       )
+    then
+      raise exception 'PUSH_SUBSCRIPTION_OWNERSHIP_MISMATCH' using errcode = '42501';
+    end if;
+
+    if existing_subscription.user_id <> caller_id then
+      select count(*)
+      into subscription_count
+      from public.push_subscriptions
+      where user_id = caller_id;
+
+      if subscription_count >= 20 then
+        raise exception 'PUSH_SUBSCRIPTION_LIMIT_REACHED' using errcode = '54000';
+      end if;
+    end if;
+
+    update public.push_subscriptions
+    set
+      user_id = caller_id,
+      p256dh = normalized_p256dh,
+      auth_key = normalized_auth_key,
+      expiration_time = p_expiration_time,
+      user_agent = normalized_user_agent,
+      last_success_at = case
+        when existing_subscription.user_id = caller_id then last_success_at
+        else null
+      end,
+      failure_count = 0,
+      last_error = null
+    where id = existing_subscription.id
+    returning id into subscription_id;
+
+    return subscription_id;
+  end if;
+
+  select count(*)
+  into subscription_count
+  from public.push_subscriptions
+  where user_id = caller_id;
+
+  if subscription_count >= 20 then
+    raise exception 'PUSH_SUBSCRIPTION_LIMIT_REACHED' using errcode = '54000';
+  end if;
+
+  insert into public.push_subscriptions (
+    user_id,
+    endpoint,
+    endpoint_hash,
+    p256dh,
+    auth_key,
+    expiration_time,
+    user_agent
+  )
+  values (
+    caller_id,
+    normalized_endpoint,
+    calculated_hash,
+    normalized_p256dh,
+    normalized_auth_key,
+    p_expiration_time,
+    normalized_user_agent
+  )
+  returning id into subscription_id;
+
+  return subscription_id;
+end;
+$_$;
+
+
+ALTER FUNCTION "public"."register_push_subscription"("p_expected_user_id" "uuid", "p_endpoint" "text", "p_p256dh" "text", "p_auth_key" "text", "p_expiration_time" bigint, "p_user_agent" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."release_support_transcript_claim"("p_transcript_id" "uuid", "p_claim_token" "uuid", "p_completed" boolean DEFAULT false) RETURNS boolean
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare
+  worker_role text := coalesce((select auth.jwt() ->> 'role'), '');
+  released_count integer;
+begin
+  if worker_role <> 'service_role' then
+    raise exception 'SUPPORT_WORKER_PERMISSION_REQUIRED' using errcode = '42501';
+  end if;
+
+  update public.support_transcripts
+  set
+    processing_token = null,
+    processing_started_at = null,
+    completed_at = case
+      when coalesce(p_completed, false) then coalesce(completed_at, now())
+      else completed_at
+    end
+  where id = p_transcript_id
+    and processing_token = p_claim_token;
+
+  get diagnostics released_count = row_count;
+  return released_count = 1;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."release_support_transcript_claim"("p_transcript_id" "uuid", "p_claim_token" "uuid", "p_completed" boolean) OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."request_kyc_information"("p_kyc_id" "uuid", "p_requested_items" "text"[], "p_reason_code" "text", "p_note" "text", "p_due_at" timestamp with time zone) RETURNS "public"."kyc_applications"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
@@ -5124,8 +5443,10 @@ CREATE TABLE IF NOT EXISTS "public"."profiles" (
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "preferred_language" "text" DEFAULT 'fr'::"text" NOT NULL,
+    "base_currency" "text" DEFAULT 'EUR'::"text" NOT NULL,
     CONSTRAINT "profiles_access_status_check" CHECK (("access_status" = ANY (ARRAY['active'::"text", 'frozen'::"text"]))),
-    CONSTRAINT "profiles_preferred_currency_check" CHECK (("preferred_currency" ~ '^[A-Z]{3}$'::"text")),
+    CONSTRAINT "profiles_base_currency_check" CHECK (("base_currency" = ANY (ARRAY['EUR'::"text", 'USD'::"text", 'CAD'::"text", 'CHF'::"text", 'GBP'::"text"]))),
+    CONSTRAINT "profiles_preferred_currency_check" CHECK (("preferred_currency" = ANY (ARRAY['EUR'::"text", 'USD'::"text", 'CAD'::"text", 'CHF'::"text", 'GBP'::"text"]))),
     CONSTRAINT "profiles_preferred_language_allowed" CHECK (("preferred_language" = ANY (ARRAY['fr'::"text", 'en'::"text", 'de'::"text", 'es'::"text"])))
 );
 
@@ -5287,6 +5608,7 @@ CREATE OR REPLACE FUNCTION "public"."submit_loan_application"("p_requested_amoun
     AS $$
 declare
   caller_id uuid := private.ensure_active_user();
+  caller_base_currency text;
   loan_row public.loan_applications;
   product_settings public.loan_product_settings;
   new_loan_id uuid := gen_random_uuid();
@@ -5299,6 +5621,15 @@ declare
 begin
   if p_idempotency_key is null then
     raise exception 'INVALID_IDEMPOTENCY_KEY' using errcode = '22023';
+  end if;
+
+  select profile.base_currency
+  into caller_base_currency
+  from public.profiles as profile
+  where profile.user_id = caller_id;
+
+  if normalized_currency is distinct from caller_base_currency then
+    raise exception 'LOAN_CURRENCY_MUST_MATCH_BASE' using errcode = '22023';
   end if;
 
   select *
@@ -5927,6 +6258,49 @@ $$;
 ALTER FUNCTION "public"."transition_transfer"("p_transfer_id" "uuid", "p_action" "text", "p_reason" "text", "p_external_reference" "text", "p_evidence_object_path" "text", "p_executed_at" timestamp with time zone) OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."unregister_push_subscription"("p_expected_user_id" "uuid", "p_endpoint" "text") RETURNS boolean
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare
+  caller_id uuid := (select auth.uid());
+  normalized_endpoint text := btrim(coalesce(p_endpoint, ''));
+  calculated_hash text;
+  deleted_count integer;
+begin
+  if caller_id is null then
+    raise exception 'AUTHENTICATION_REQUIRED' using errcode = '42501';
+  end if;
+
+  if p_expected_user_id is null or p_expected_user_id <> caller_id then
+    raise exception 'PUSH_SUBSCRIPTION_ACCOUNT_CHANGED' using errcode = '42501';
+  end if;
+
+  if char_length(normalized_endpoint) not between 20 and 2048
+     or normalized_endpoint !~ '^https://'
+  then
+    raise exception 'INVALID_PUSH_ENDPOINT' using errcode = '22023';
+  end if;
+
+  calculated_hash := encode(
+    extensions.digest(convert_to(normalized_endpoint, 'UTF8'), 'sha256'),
+    'hex'
+  );
+
+  delete from public.push_subscriptions
+  where user_id = caller_id
+    and endpoint_hash = calculated_hash
+    and endpoint = normalized_endpoint;
+
+  get diagnostics deleted_count = row_count;
+  return deleted_count = 1;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."unregister_push_subscription"("p_expected_user_id" "uuid", "p_endpoint" "text") OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."kyc_review_checklists" (
     "kyc_id" "uuid" NOT NULL,
     "document_quality" "text" DEFAULT 'pending'::"text" NOT NULL,
@@ -6358,6 +6732,38 @@ CREATE TABLE IF NOT EXISTS "public"."notifications" (
 ALTER TABLE "public"."notifications" OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "public"."push_subscriptions" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "user_id" "uuid" NOT NULL,
+    "endpoint" "text" NOT NULL,
+    "endpoint_hash" "text" NOT NULL,
+    "p256dh" "text" NOT NULL,
+    "auth_key" "text" NOT NULL,
+    "expiration_time" bigint,
+    "user_agent" "text",
+    "last_success_at" timestamp with time zone,
+    "failure_count" integer DEFAULT 0 NOT NULL,
+    "last_error" "text",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "push_subscriptions_auth_key_check" CHECK (((("char_length"("auth_key") >= 10) AND ("char_length"("auth_key") <= 100)) AND ("auth_key" ~ '^[A-Za-z0-9_-]+={0,2}$'::"text"))),
+    CONSTRAINT "push_subscriptions_endpoint_check" CHECK (((("char_length"("endpoint") >= 20) AND ("char_length"("endpoint") <= 2048)) AND ("endpoint" ~ '^https://'::"text"))),
+    CONSTRAINT "push_subscriptions_endpoint_hash_check" CHECK (("endpoint_hash" ~ '^[0-9a-f]{64}$'::"text")),
+    CONSTRAINT "push_subscriptions_expiration_check" CHECK ((("expiration_time" IS NULL) OR ("expiration_time" > 0))),
+    CONSTRAINT "push_subscriptions_failure_count_check" CHECK ((("failure_count" >= 0) AND ("failure_count" <= 1000000))),
+    CONSTRAINT "push_subscriptions_last_error_check" CHECK ((("last_error" IS NULL) OR ("char_length"("last_error") <= 1000))),
+    CONSTRAINT "push_subscriptions_p256dh_check" CHECK (((("char_length"("p256dh") >= 40) AND ("char_length"("p256dh") <= 200)) AND ("p256dh" ~ '^[A-Za-z0-9_-]+={0,2}$'::"text"))),
+    CONSTRAINT "push_subscriptions_user_agent_check" CHECK ((("user_agent" IS NULL) OR ("char_length"("user_agent") <= 500)))
+);
+
+
+ALTER TABLE "public"."push_subscriptions" OWNER TO "postgres";
+
+
+COMMENT ON TABLE "public"."push_subscriptions" IS 'Server-managed Web Push subscriptions; one endpoint belongs to exactly one current user.';
+
+
+
 CREATE TABLE IF NOT EXISTS "public"."staff_members" (
     "user_id" "uuid" NOT NULL,
     "role" "text" NOT NULL,
@@ -6369,6 +6775,112 @@ CREATE TABLE IF NOT EXISTS "public"."staff_members" (
 
 
 ALTER TABLE "public"."staff_members" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."support_push_deliveries" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "transcript_id" "uuid" NOT NULL,
+    "subscription_id" "uuid",
+    "endpoint_hash_snapshot" "text" NOT NULL,
+    "status" "text" DEFAULT 'pending'::"text" NOT NULL,
+    "attempts" integer DEFAULT 0 NOT NULL,
+    "last_http_status" integer,
+    "last_error" "text",
+    "sent_at" timestamp with time zone,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "support_push_deliveries_attempts_check" CHECK ((("attempts" >= 0) AND ("attempts" <= 100))),
+    CONSTRAINT "support_push_deliveries_endpoint_hash_check" CHECK (("endpoint_hash_snapshot" ~ '^[0-9a-f]{64}$'::"text")),
+    CONSTRAINT "support_push_deliveries_http_status_check" CHECK ((("last_http_status" IS NULL) OR (("last_http_status" >= 100) AND ("last_http_status" <= 599)))),
+    CONSTRAINT "support_push_deliveries_last_error_check" CHECK ((("last_error" IS NULL) OR ("char_length"("last_error") <= 1000))),
+    CONSTRAINT "support_push_deliveries_sent_check" CHECK ((("status" = 'sent'::"text") = ("sent_at" IS NOT NULL))),
+    CONSTRAINT "support_push_deliveries_status_check" CHECK (("status" = ANY (ARRAY['pending'::"text", 'failed'::"text", 'sent'::"text", 'expired'::"text", 'invalid'::"text"])))
+);
+
+
+ALTER TABLE "public"."support_push_deliveries" OWNER TO "postgres";
+
+
+COMMENT ON TABLE "public"."support_push_deliveries" IS 'Per-device idempotent Web Push delivery state for support transcripts.';
+
+
+
+CREATE TABLE IF NOT EXISTS "public"."support_transcripts" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "user_id" "uuid",
+    "tawk_event_id" "text" NOT NULL,
+    "tawk_property_id" "text" NOT NULL,
+    "tawk_chat_id" "text" NOT NULL,
+    "visitor_email_normalized" "text",
+    "identity_status" "text" NOT NULL,
+    "identity_error" "text",
+    "notification_email" "text",
+    "notification_language" "text",
+    "notification_display_name" "text",
+    "event_at" timestamp with time zone NOT NULL,
+    "payload" "jsonb" NOT NULL,
+    "raw_body" "text" NOT NULL,
+    "raw_body_sha256" "text" NOT NULL,
+    "email_request_payload" "jsonb",
+    "email_status" "text" DEFAULT 'pending'::"text" NOT NULL,
+    "email_attempts" integer DEFAULT 0 NOT NULL,
+    "email_provider_message_id" "text",
+    "email_last_error" "text",
+    "email_sent_at" timestamp with time zone,
+    "processing_token" "uuid",
+    "processing_started_at" timestamp with time zone,
+    "completed_at" timestamp with time zone,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "support_transcripts_chat_id_check" CHECK ((("char_length"("tawk_chat_id") >= 1) AND ("char_length"("tawk_chat_id") <= 200))),
+    CONSTRAINT "support_transcripts_email_attempts_check" CHECK ((("email_attempts" >= 0) AND ("email_attempts" <= 100))),
+    CONSTRAINT "support_transcripts_email_identity_check" CHECK ((("email_status" = 'skipped'::"text") = ("identity_status" <> 'resolved'::"text"))),
+    CONSTRAINT "support_transcripts_email_last_error_check" CHECK ((("email_last_error" IS NULL) OR ("char_length"("email_last_error") <= 1000))),
+    CONSTRAINT "support_transcripts_email_provider_id_check" CHECK ((("email_provider_message_id" IS NULL) OR ("char_length"("email_provider_message_id") <= 500))),
+    CONSTRAINT "support_transcripts_email_request_check" CHECK ((("email_request_payload" IS NULL) OR (("identity_status" = 'resolved'::"text") AND ("notification_email" IS NOT NULL) AND ("jsonb_typeof"("email_request_payload") = 'object'::"text")))),
+    CONSTRAINT "support_transcripts_email_sent_check" CHECK ((("email_status" = 'sent'::"text") = ("email_sent_at" IS NOT NULL))),
+    CONSTRAINT "support_transcripts_email_status_check" CHECK (("email_status" = ANY (ARRAY['pending'::"text", 'failed'::"text", 'permanent_failed'::"text", 'sent'::"text", 'skipped'::"text"]))),
+    CONSTRAINT "support_transcripts_event_id_check" CHECK ((("char_length"("tawk_event_id") >= 1) AND ("char_length"("tawk_event_id") <= 200))),
+    CONSTRAINT "support_transcripts_identity_consistency_check" CHECK (((("identity_status" = 'resolved'::"text") AND ("user_id" IS NOT NULL)) OR (("identity_status" <> 'resolved'::"text") AND ("user_id" IS NULL)))),
+    CONSTRAINT "support_transcripts_identity_error_check" CHECK ((("identity_error" IS NULL) OR ("char_length"("identity_error") <= 1000))),
+    CONSTRAINT "support_transcripts_identity_status_check" CHECK (("identity_status" = ANY (ARRAY['resolved'::"text", 'missing_email'::"text", 'not_found'::"text", 'ambiguous'::"text"]))),
+    CONSTRAINT "support_transcripts_notification_email_check" CHECK ((("notification_email" IS NULL) OR (("notification_email" = "lower"("btrim"("notification_email"))) AND (("char_length"("notification_email") >= 3) AND ("char_length"("notification_email") <= 254)) AND ("notification_email" ~ '^[^[:space:]@]+@[^[:space:]@]+$'::"text")))),
+    CONSTRAINT "support_transcripts_notification_language_check" CHECK ((("notification_language" IS NULL) OR (("notification_language" = "lower"("btrim"("notification_language"))) AND (("char_length"("notification_language") >= 2) AND ("char_length"("notification_language") <= 35))))),
+    CONSTRAINT "support_transcripts_notification_name_check" CHECK ((("notification_display_name" IS NULL) OR ("char_length"("notification_display_name") <= 200))),
+    CONSTRAINT "support_transcripts_notification_snapshot_check" CHECK (((("notification_email" IS NULL) = ("notification_language" IS NULL)) AND (("notification_email" IS NOT NULL) OR ("notification_display_name" IS NULL)) AND (("identity_status" = 'resolved'::"text") OR ("notification_email" IS NULL)))),
+    CONSTRAINT "support_transcripts_payload_check" CHECK (("jsonb_typeof"("payload") = 'object'::"text")),
+    CONSTRAINT "support_transcripts_processing_check" CHECK (((("processing_token" IS NULL) = ("processing_started_at" IS NULL)) AND (("identity_status" = 'resolved'::"text") OR ("processing_token" IS NULL)))),
+    CONSTRAINT "support_transcripts_property_id_check" CHECK ((("char_length"("tawk_property_id") >= 1) AND ("char_length"("tawk_property_id") <= 200))),
+    CONSTRAINT "support_transcripts_raw_body_check" CHECK ((("octet_length"("raw_body") >= 2) AND ("octet_length"("raw_body") <= 5242880))),
+    CONSTRAINT "support_transcripts_raw_hash_check" CHECK (("raw_body_sha256" ~ '^[0-9a-f]{64}$'::"text")),
+    CONSTRAINT "support_transcripts_visitor_email_check" CHECK ((("visitor_email_normalized" IS NULL) OR (("visitor_email_normalized" = "lower"("btrim"("visitor_email_normalized"))) AND (("char_length"("visitor_email_normalized") >= 3) AND ("char_length"("visitor_email_normalized") <= 254)))))
+);
+
+
+ALTER TABLE "public"."support_transcripts" OWNER TO "postgres";
+
+
+COMMENT ON TABLE "public"."support_transcripts" IS 'Signed and idempotent tawk.to chat transcript archive.';
+
+
+
+CREATE TABLE IF NOT EXISTS "public"."support_user_identities" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "user_id" "uuid" NOT NULL,
+    "normalized_email" "text" NOT NULL,
+    "valid_from" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "valid_to" timestamp with time zone,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "support_user_identities_email_check" CHECK ((("normalized_email" = "lower"("btrim"("normalized_email"))) AND (("char_length"("normalized_email") >= 3) AND ("char_length"("normalized_email") <= 254)) AND ("normalized_email" ~ '^[^[:space:]@]+@[^[:space:]@]+$'::"text"))),
+    CONSTRAINT "support_user_identities_validity_check" CHECK ((("valid_to" IS NULL) OR ("valid_to" >= "valid_from")))
+);
+
+
+ALTER TABLE "public"."support_user_identities" OWNER TO "postgres";
+
+
+COMMENT ON TABLE "public"."support_user_identities" IS 'Server-only, versioned auth e-mail mapping for fail-closed tawk.to transcript correlation.';
+
 
 
 CREATE TABLE IF NOT EXISTS "public"."transfer_events" (
@@ -6570,8 +7082,48 @@ ALTER TABLE ONLY "public"."profiles"
 
 
 
+ALTER TABLE ONLY "public"."push_subscriptions"
+    ADD CONSTRAINT "push_subscriptions_endpoint_hash_key" UNIQUE ("endpoint_hash");
+
+
+
+ALTER TABLE ONLY "public"."push_subscriptions"
+    ADD CONSTRAINT "push_subscriptions_pkey" PRIMARY KEY ("id");
+
+
+
 ALTER TABLE ONLY "public"."staff_members"
     ADD CONSTRAINT "staff_members_pkey" PRIMARY KEY ("user_id");
+
+
+
+ALTER TABLE ONLY "public"."support_push_deliveries"
+    ADD CONSTRAINT "support_push_deliveries_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."support_push_deliveries"
+    ADD CONSTRAINT "support_push_deliveries_transcript_endpoint_key" UNIQUE ("transcript_id", "endpoint_hash_snapshot");
+
+
+
+ALTER TABLE ONLY "public"."support_transcripts"
+    ADD CONSTRAINT "support_transcripts_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."support_transcripts"
+    ADD CONSTRAINT "support_transcripts_raw_hash_key" UNIQUE ("raw_body_sha256");
+
+
+
+ALTER TABLE ONLY "public"."support_transcripts"
+    ADD CONSTRAINT "support_transcripts_tawk_event_id_key" UNIQUE ("tawk_event_id");
+
+
+
+ALTER TABLE ONLY "public"."support_user_identities"
+    ADD CONSTRAINT "support_user_identities_pkey" PRIMARY KEY ("id");
 
 
 
@@ -6787,6 +7339,42 @@ CREATE UNIQUE INDEX "profiles_email_lower_idx" ON "public"."profiles" USING "btr
 
 
 
+CREATE INDEX "push_subscriptions_user_updated_idx" ON "public"."push_subscriptions" USING "btree" ("user_id", "updated_at" DESC);
+
+
+
+CREATE INDEX "support_push_deliveries_subscription_idx" ON "public"."support_push_deliveries" USING "btree" ("subscription_id") WHERE ("subscription_id" IS NOT NULL);
+
+
+
+CREATE INDEX "support_push_deliveries_transcript_status_idx" ON "public"."support_push_deliveries" USING "btree" ("transcript_id", "status");
+
+
+
+CREATE INDEX "support_transcripts_chat_idx" ON "public"."support_transcripts" USING "btree" ("tawk_property_id", "tawk_chat_id");
+
+
+
+CREATE INDEX "support_transcripts_incomplete_idx" ON "public"."support_transcripts" USING "btree" ("updated_at") WHERE ("completed_at" IS NULL);
+
+
+
+CREATE INDEX "support_transcripts_user_created_idx" ON "public"."support_transcripts" USING "btree" ("user_id", "created_at" DESC);
+
+
+
+CREATE UNIQUE INDEX "support_user_identities_active_email_uidx" ON "public"."support_user_identities" USING "btree" ("normalized_email") WHERE ("valid_to" IS NULL);
+
+
+
+CREATE UNIQUE INDEX "support_user_identities_active_user_uidx" ON "public"."support_user_identities" USING "btree" ("user_id") WHERE ("valid_to" IS NULL);
+
+
+
+CREATE INDEX "support_user_identities_email_history_idx" ON "public"."support_user_identities" USING "btree" ("normalized_email", "valid_from" DESC);
+
+
+
 CREATE INDEX "transactional_email_outbox_claimed_by_idx" ON "public"."transactional_email_outbox" USING "btree" ("claimed_by") WHERE ("claimed_by" IS NOT NULL);
 
 
@@ -6927,11 +7515,27 @@ CREATE OR REPLACE TRIGGER "official_documents_set_updated_at" BEFORE UPDATE ON "
 
 
 
+CREATE OR REPLACE TRIGGER "profiles_enforce_base_currency_immutability" BEFORE UPDATE OF "base_currency" ON "public"."profiles" FOR EACH ROW EXECUTE FUNCTION "private"."enforce_profile_base_currency_immutability"();
+
+
+
 CREATE OR REPLACE TRIGGER "profiles_set_updated_at" BEFORE UPDATE ON "public"."profiles" FOR EACH ROW EXECUTE FUNCTION "private"."set_updated_at"();
 
 
 
+CREATE OR REPLACE TRIGGER "push_subscriptions_set_updated_at" BEFORE UPDATE ON "public"."push_subscriptions" FOR EACH ROW EXECUTE FUNCTION "private"."set_updated_at"();
+
+
+
 CREATE OR REPLACE TRIGGER "staff_members_set_updated_at" BEFORE UPDATE ON "public"."staff_members" FOR EACH ROW EXECUTE FUNCTION "private"."set_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "support_push_deliveries_set_updated_at" BEFORE UPDATE ON "public"."support_push_deliveries" FOR EACH ROW EXECUTE FUNCTION "private"."set_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "support_transcripts_set_updated_at" BEFORE UPDATE ON "public"."support_transcripts" FOR EACH ROW EXECUTE FUNCTION "private"."set_updated_at"();
 
 
 
@@ -7161,8 +7765,28 @@ ALTER TABLE ONLY "public"."profiles"
 
 
 
+ALTER TABLE ONLY "public"."push_subscriptions"
+    ADD CONSTRAINT "push_subscriptions_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."profiles"("user_id") ON DELETE CASCADE;
+
+
+
 ALTER TABLE ONLY "public"."staff_members"
     ADD CONSTRAINT "staff_members_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."support_push_deliveries"
+    ADD CONSTRAINT "support_push_deliveries_subscription_id_fkey" FOREIGN KEY ("subscription_id") REFERENCES "public"."push_subscriptions"("id") ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY "public"."support_push_deliveries"
+    ADD CONSTRAINT "support_push_deliveries_transcript_id_fkey" FOREIGN KEY ("transcript_id") REFERENCES "public"."support_transcripts"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."support_transcripts"
+    ADD CONSTRAINT "support_transcripts_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."profiles"("user_id") ON DELETE CASCADE;
 
 
 
@@ -7348,11 +7972,23 @@ CREATE POLICY "profiles_update_own" ON "public"."profiles" FOR UPDATE TO "authen
 
 
 
+ALTER TABLE "public"."push_subscriptions" ENABLE ROW LEVEL SECURITY;
+
+
 ALTER TABLE "public"."staff_members" ENABLE ROW LEVEL SECURITY;
 
 
 CREATE POLICY "staff_members_select_self" ON "public"."staff_members" FOR SELECT TO "authenticated" USING (("user_id" = ( SELECT "auth"."uid"() AS "uid")));
 
+
+
+ALTER TABLE "public"."support_push_deliveries" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."support_transcripts" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."support_user_identities" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."transactional_email_outbox" ENABLE ROW LEVEL SECURITY;
@@ -7401,6 +8037,11 @@ GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."transaction
 
 REVOKE ALL ON FUNCTION "private"."claim_transactional_emails_internal"("p_limit" integer, "p_recipient_id" "uuid") FROM PUBLIC;
 GRANT ALL ON FUNCTION "private"."claim_transactional_emails_internal"("p_limit" integer, "p_recipient_id" "uuid") TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "private"."enforce_profile_base_currency_immutability"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "private"."enforce_profile_base_currency_immutability"() TO "service_role";
 
 
 
@@ -7475,6 +8116,11 @@ GRANT ALL ON FUNCTION "private"."remove_iban_from_new_official_document"() TO "s
 
 
 
+REVOKE ALL ON FUNCTION "private"."retire_support_user_identity"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "private"."retire_support_user_identity"() TO "service_role";
+
+
+
 REVOKE ALL ON FUNCTION "private"."set_updated_at"() FROM PUBLIC;
 GRANT ALL ON FUNCTION "private"."set_updated_at"() TO "service_role";
 
@@ -7482,6 +8128,11 @@ GRANT ALL ON FUNCTION "private"."set_updated_at"() TO "service_role";
 
 REVOKE ALL ON FUNCTION "private"."snapshot_official_document_brand"() FROM PUBLIC;
 GRANT ALL ON FUNCTION "private"."snapshot_official_document_brand"() TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "private"."sync_support_user_identity"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "private"."sync_support_user_identity"() TO "service_role";
 
 
 
@@ -7600,6 +8251,11 @@ GRANT ALL ON FUNCTION "public"."branch_manager_revoke_official_document"("p_docu
 
 
 
+REVOKE ALL ON FUNCTION "public"."claim_support_transcript"("p_transcript_id" "uuid", "p_claim_token" "uuid") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."claim_support_transcript"("p_transcript_id" "uuid", "p_claim_token" "uuid") TO "service_role";
+
+
+
 REVOKE ALL ON FUNCTION "public"."claim_transactional_emails"("p_limit" integer) FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."claim_transactional_emails"("p_limit" integer) TO "service_role";
 
@@ -7673,6 +8329,17 @@ GRANT ALL ON FUNCTION "public"."publish_brand_settings"("p_expected_revision" bi
 
 REVOKE ALL ON FUNCTION "public"."record_financial_position"("p_owner_id" "uuid", "p_label" "text", "p_currency" "text", "p_amount_minor" bigint, "p_as_of" timestamp with time zone, "p_external_identifier_masked" "text", "p_reason" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."record_financial_position"("p_owner_id" "uuid", "p_label" "text", "p_currency" "text", "p_amount_minor" bigint, "p_as_of" timestamp with time zone, "p_external_identifier_masked" "text", "p_reason" "text") TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."register_push_subscription"("p_expected_user_id" "uuid", "p_endpoint" "text", "p_p256dh" "text", "p_auth_key" "text", "p_expiration_time" bigint, "p_user_agent" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."register_push_subscription"("p_expected_user_id" "uuid", "p_endpoint" "text", "p_p256dh" "text", "p_auth_key" "text", "p_expiration_time" bigint, "p_user_agent" "text") TO "service_role";
+GRANT ALL ON FUNCTION "public"."register_push_subscription"("p_expected_user_id" "uuid", "p_endpoint" "text", "p_p256dh" "text", "p_auth_key" "text", "p_expiration_time" bigint, "p_user_agent" "text") TO "authenticated";
+
+
+
+REVOKE ALL ON FUNCTION "public"."release_support_transcript_claim"("p_transcript_id" "uuid", "p_claim_token" "uuid", "p_completed" boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."release_support_transcript_claim"("p_transcript_id" "uuid", "p_claim_token" "uuid", "p_completed" boolean) TO "service_role";
 
 
 
@@ -7754,8 +8421,8 @@ GRANT ALL ON FUNCTION "public"."submit_kyc_application"("p_first_name" "text", "
 
 
 REVOKE ALL ON FUNCTION "public"."submit_loan_application"("p_requested_amount_minor" bigint, "p_currency" "text", "p_duration_months" integer, "p_motive_code" "text", "p_document_object_paths" "jsonb", "p_idempotency_key" "uuid") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."submit_loan_application"("p_requested_amount_minor" bigint, "p_currency" "text", "p_duration_months" integer, "p_motive_code" "text", "p_document_object_paths" "jsonb", "p_idempotency_key" "uuid") TO "service_role";
 GRANT ALL ON FUNCTION "public"."submit_loan_application"("p_requested_amount_minor" bigint, "p_currency" "text", "p_duration_months" integer, "p_motive_code" "text", "p_document_object_paths" "jsonb", "p_idempotency_key" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."submit_loan_application"("p_requested_amount_minor" bigint, "p_currency" "text", "p_duration_months" integer, "p_motive_code" "text", "p_document_object_paths" "jsonb", "p_idempotency_key" "uuid") TO "service_role";
 
 
 
@@ -7772,6 +8439,12 @@ GRANT ALL ON FUNCTION "public"."transition_loan"("p_loan_id" "uuid", "p_action" 
 
 REVOKE ALL ON FUNCTION "public"."transition_transfer"("p_transfer_id" "uuid", "p_action" "text", "p_reason" "text", "p_external_reference" "text", "p_evidence_object_path" "text", "p_executed_at" timestamp with time zone) FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."transition_transfer"("p_transfer_id" "uuid", "p_action" "text", "p_reason" "text", "p_external_reference" "text", "p_evidence_object_path" "text", "p_executed_at" timestamp with time zone) TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."unregister_push_subscription"("p_expected_user_id" "uuid", "p_endpoint" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."unregister_push_subscription"("p_expected_user_id" "uuid", "p_endpoint" "text") TO "service_role";
+GRANT ALL ON FUNCTION "public"."unregister_push_subscription"("p_expected_user_id" "uuid", "p_endpoint" "text") TO "authenticated";
 
 
 
@@ -7860,8 +8533,24 @@ GRANT UPDATE("read_at") ON TABLE "public"."notifications" TO "authenticated";
 
 
 
+GRANT ALL ON TABLE "public"."push_subscriptions" TO "service_role";
+
+
+
 GRANT REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."staff_members" TO "service_role";
 GRANT SELECT ON TABLE "public"."staff_members" TO "authenticated";
+
+
+
+GRANT ALL ON TABLE "public"."support_push_deliveries" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."support_transcripts" TO "service_role";
+
+
+
+GRANT SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ON TABLE "public"."support_user_identities" TO "service_role";
 
 
 

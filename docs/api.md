@@ -6,6 +6,20 @@
 
 ## Routes HTTP
 
+### `GET /api/exchange-rates`
+
+Récupère côté serveur les taux quotidiens de l’API gratuite sans clé
+[Frankfurter v2](https://frankfurter.dev/) avec `EUR` comme base. La réponse
+est validée contre la liste complète des devises utilisées par Monalyz et mise
+en cache pendant une heure. Elle expose la source, la date de chaque taux et le
+booléen `fallback`.
+
+Si Frankfurter est indisponible ou renvoie une réponse incomplète, la route
+répond avec le jeu statique daté embarqué, `fallback: true` et une raison
+explicite ; ce repli n’est pas mis en cache. Ces taux servent uniquement à
+l’affichage indicatif. Ils ne sont jamais utilisés comme preuve d’un cours
+exécutable ni pour réécrire les montants du registre.
+
 ### `POST /api/upload-intents`
 
 Crée une capacité d’upload signée vers le bucket privé `upload-staging`. La

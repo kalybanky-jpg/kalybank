@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useAppStore } from '@/lib/store';
-import { formatDirectCurrency } from '@/lib/currency';
+import { convertAnyAmount, formatDirectCurrency } from '@/lib/currency';
 import { accountNumberLabel, bankingMessages } from '@/lib/banking-i18n';
 import { Clock, FileDown, WalletCards } from 'lucide-react';
 import { formatLocalizedDateTime } from '@/lib/language';
@@ -12,12 +12,20 @@ import { useBranded } from '@/components/brand/BrandProvider';
 export default function UserAccountsView() {
   const {
     language,
+    currency,
+    rates,
     accounts,
     transactions,
     isMaskedBalance,
     setIsStatementsModalOpen,
   } = useAppStore();
   const t = useBranded(bankingMessages[language]);
+  const displayMoney = (amount: number, sourceCurrency: string) =>
+    formatDirectCurrency(
+      convertAnyAmount(amount, sourceCurrency, currency, rates),
+      currency,
+      language,
+    );
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
@@ -41,17 +49,16 @@ export default function UserAccountsView() {
             <p className="text-2xl font-black text-slate-900 mt-2">
               {isMaskedBalance
                 ? '••••••'
-                : formatDirectCurrency(account.balance, account.currency, language)}
+                : displayMoney(account.balance, account.currency)}
             </p>
             <p className="text-xs text-slate-500 mt-2">
               {t.accounts.availableBalance}:{' '}
               <strong>
                 {isMaskedBalance
                   ? '••••'
-                  : formatDirectCurrency(
+                  : displayMoney(
                       account.availableBalance ?? account.balance,
                       account.currency,
-                      language,
                     )}
               </strong>
             </p>

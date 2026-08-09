@@ -28,6 +28,14 @@
 ## Invariants
 
 - Les montants sont des `bigint` en unités mineures, avec devise ISO.
+- `profiles.base_currency` est la devise choisie à l’inscription. Elle est
+  obligatoire, limitée à `EUR`, `USD`, `CAD`, `CHF` ou `GBP`, initialise le
+  compte courant créé après le KYC et reste la devise de référence des produits
+  financiers de l’utilisateur.
+- `profiles.preferred_currency` est uniquement une préférence d’affichage.
+  Elle est initialisée avec `base_currency`, peut être modifiée par
+  l’utilisateur et ne réécrit jamais les comptes, le grand livre, les prêts,
+  les virements ou les documents déjà enregistrés.
 - `profiles.preferred_language` vaut exclusivement `fr`, `en`, `de` ou `es`,
   est obligatoire et utilise `fr` par défaut.
 - `reserved_minor` ne peut pas être négatif ni dépasser `amount_minor`.
@@ -47,7 +55,22 @@
   des fonds.
 - Un événement métier ne produit qu’une entrée d’outbox grâce à une clé unique.
 - Une approbation KYC crée atomiquement un compte courant actif à solde nul,
-  identifié par son numéro interne et relié au dossier par `source_kyc_id`.
+  dans `profiles.base_currency`, identifié par son numéro interne et relié au
+  dossier par `source_kyc_id`.
+
+## Devise de référence et devise d’affichage
+
+La devise d’une ligne métier reste attachée à cette ligne et constitue la
+source de vérité. Le tableau de bord convertit chaque montant séparément vers
+`preferred_currency` avant tout total ; il n’additionne jamais des montants
+natifs de devises différentes. Les formulaires financiers, les écritures et
+les documents officiels continuent d’utiliser la devise source.
+
+À l’inscription, le navigateur transmet la devise dans les métadonnées Auth.
+Le trigger `private.handle_new_user` normalise une allowlist fermée et initialise
+les deux colonnes. Une inscription sans devise ou avec une valeur hors liste est
+refusée côté base ; le défaut `EUR` sert uniquement au backfill des profils
+historiques et aux opérations de maintenance directes sur `profiles`.
 
 ## Comptes déclarés dans `financial_positions`
 

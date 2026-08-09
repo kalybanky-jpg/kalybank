@@ -9,10 +9,10 @@ select has_table('public', 'kyc_review_checklists', 'the structured KYC checklis
 select has_column('public', 'financial_positions', 'source_kyc_id', 'accounts retain their KYC source');
 select has_column('public', 'notifications', 'action_path', 'notifications expose a deep link');
 
-insert into auth.users (id, email)
+insert into auth.users (id, email, raw_user_meta_data)
 values
-  ('71000000-0000-4000-8000-000000000001', 'kyc-owner@monalyz.test'),
-  ('72000000-0000-4000-8000-000000000001', 'kyc-admin@monalyz.test');
+  ('71000000-0000-4000-8000-000000000001', 'kyc-owner@monalyz.test', '{"base_currency":"EUR"}'::jsonb),
+  ('72000000-0000-4000-8000-000000000001', 'kyc-admin@monalyz.test', '{"base_currency":"EUR"}'::jsonb);
 
 insert into public.staff_members (user_id, role)
 values ('72000000-0000-4000-8000-000000000001', 'admin');

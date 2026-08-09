@@ -4,11 +4,12 @@ import React, { useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Bell, ChevronDown, Languages, LogOut, Menu } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
-import { createClient } from '@/lib/supabase/client';
 import { bankingMessages } from '@/lib/banking-i18n';
 import { extraUserMessages, interpolate, localizedAppError } from '@/lib/user-i18n';
 import LanguageSelector from './LanguageSelector';
 import { useBrand, useBranded } from '@/components/brand/BrandProvider';
+import SupportButton from '@/components/support/SupportButton';
+import { useSupport } from '@/components/support/SupportProvider';
 
 interface HeaderProps {
   onToggleMobileMenu: () => void;
@@ -27,6 +28,7 @@ export default function Header({ onToggleMobileMenu }: HeaderProps) {
   const { brand } = useBrand();
   const t = useBranded(bankingMessages[effectiveLanguage]);
   const userCopy = useBranded(extraUserMessages[effectiveLanguage]);
+  const { signOut, isSigningOut } = useSupport();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const unreadCount = notifications.filter((notification) => !notification.read).length;
   const isAdmin = role === 'admin';
@@ -34,11 +36,6 @@ export default function Header({ onToggleMobileMenu }: HeaderProps) {
   const initials = displayName
     ? displayName.split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('')
     : 'CL';
-
-  const signOut = async () => {
-    await createClient().auth.signOut();
-    window.location.replace('/login');
-  };
 
   return (
     <header className="relative z-20 px-4 pb-3 pt-5 sm:px-7 lg:px-10 lg:pb-4 lg:pt-7">
@@ -75,6 +72,8 @@ export default function Header({ onToggleMobileMenu }: HeaderProps) {
               <LanguageSelector compact className="header-language" />
             </div>
           )}
+
+          <SupportButton variant="icon" className="lg:hidden" />
 
           <button
             type="button"
@@ -126,6 +125,8 @@ export default function Header({ onToggleMobileMenu }: HeaderProps) {
                   <button
                     type="button"
                     onClick={() => void signOut()}
+                    disabled={isSigningOut}
+                    aria-busy={isSigningOut}
                     className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-50"
                   >
                     <LogOut className="h-4 w-4" />

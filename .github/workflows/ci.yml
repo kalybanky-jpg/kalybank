@@ -86,7 +86,7 @@ jobs:
         run: bun run test:db
 
       - name: Lint database
-        run: bun x supabase db lint --local --level warning --fail-on error
+        run: bun x supabase db lint --local --schema public,private --level warning --fail-on error
 
       - name: Run database advisors
         run: bun x supabase db advisors --local --type all --level warn --fail-on error

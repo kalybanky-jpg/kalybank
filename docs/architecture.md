@@ -14,6 +14,7 @@
 | PostgreSQL | Comptes enrichis, grand livre, RLS, machines d’état et audit |
 | Storage | Staging et justificatifs privés, PDF officiels privés, assets de marque versionnés |
 | Resend ou Brevo | Notifications métier multilingues, sans donnée bancaire |
+| Frankfurter v2 | Taux quotidiens indicatifs pour la conversion d’affichage |
 | Personnel de l’établissement | Contrôles et exécutions opérationnelles internes, hors Monalyz |
 | Chef d’agence | Autorité unique de déclaration, décision et finalisation dans Monalyz |
 
@@ -29,6 +30,7 @@ flowchart LR
   X --> C
   X -. "confirmation humaine uniquement" .-> N
   E["Resend ou Brevo"] <-->|"notifications seulement"| N
+  F["Frankfurter v2"] -->|"taux quotidiens, cache 1 h"| N
 ```
 
 ## Frontières
@@ -46,6 +48,28 @@ flowchart LR
   temporaire utilise uniquement le jeton signé du chemin autorisé ;
 - aucune API bancaire, aucun agrégateur de comptes et aucun moteur de paiement
   ne fait partie de l’architecture.
+- Frankfurter est une source de taux indicatifs pour le rendu seulement : une
+  indisponibilité déclenche un fallback daté, sans modifier le registre.
+
+## Flux des devises
+
+La devise obligatoire choisie lors de l’inscription initialise à la fois
+`profiles.base_currency` (immuable pour l’utilisateur) et
+`profiles.preferred_currency` (affichage). Le compte créé après approbation KYC
+et les demandes de prêt utilisent la devise de référence. Un changement dans
+les paramètres ne modifie que la préférence d’affichage ; le store recharge
+cette préférence et convertit chaque valeur avant son rendu.
+
+```mermaid
+flowchart LR
+  S["Inscription : devise obligatoire"] --> B["base_currency : source de vérité"]
+  S --> P["preferred_currency : affichage"]
+  B --> K["Compte créé après KYC"]
+  B --> L["Prêts et montants persistés"]
+  P --> D["Tableau de bord et vues utilisateur"]
+  F["Frankfurter v2 ou fallback daté"] --> D
+  D -. "conversion de rendu uniquement" .-> V["Valeurs affichées"]
+```
 
 ## Téléversements compatibles Netlify
 

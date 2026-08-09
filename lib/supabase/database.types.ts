@@ -1226,6 +1226,7 @@ export type Database = {
         Row: {
           access_status: string
           access_status_reason: string | null
+          base_currency: string
           created_at: string
           display_name: string
           email: string
@@ -1238,6 +1239,7 @@ export type Database = {
         Insert: {
           access_status?: string
           access_status_reason?: string | null
+          base_currency?: string
           created_at?: string
           display_name?: string
           email: string
@@ -1250,6 +1252,7 @@ export type Database = {
         Update: {
           access_status?: string
           access_status_reason?: string | null
+          base_currency?: string
           created_at?: string
           display_name?: string
           email?: string
@@ -1260,6 +1263,62 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      push_subscriptions: {
+        Row: {
+          auth_key: string
+          created_at: string
+          endpoint: string
+          endpoint_hash: string
+          expiration_time: number | null
+          failure_count: number
+          id: string
+          last_error: string | null
+          last_success_at: string | null
+          p256dh: string
+          updated_at: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          auth_key: string
+          created_at?: string
+          endpoint: string
+          endpoint_hash: string
+          expiration_time?: number | null
+          failure_count?: number
+          id?: string
+          last_error?: string | null
+          last_success_at?: string | null
+          p256dh: string
+          updated_at?: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          auth_key?: string
+          created_at?: string
+          endpoint?: string
+          endpoint_hash?: string
+          expiration_time?: number | null
+          failure_count?: number
+          id?: string
+          last_error?: string | null
+          last_success_at?: string | null
+          p256dh?: string
+          updated_at?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_subscriptions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       staff_members: {
         Row: {
@@ -1282,6 +1341,185 @@ export type Database = {
           role?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      support_push_deliveries: {
+        Row: {
+          attempts: number
+          created_at: string
+          endpoint_hash_snapshot: string
+          id: string
+          last_error: string | null
+          last_http_status: number | null
+          sent_at: string | null
+          status: string
+          subscription_id: string | null
+          transcript_id: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          endpoint_hash_snapshot: string
+          id?: string
+          last_error?: string | null
+          last_http_status?: number | null
+          sent_at?: string | null
+          status?: string
+          subscription_id?: string | null
+          transcript_id: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          endpoint_hash_snapshot?: string
+          id?: string
+          last_error?: string | null
+          last_http_status?: number | null
+          sent_at?: string | null
+          status?: string
+          subscription_id?: string | null
+          transcript_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_push_deliveries_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "push_subscriptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_push_deliveries_transcript_id_fkey"
+            columns: ["transcript_id"]
+            isOneToOne: false
+            referencedRelation: "support_transcripts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_transcripts: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          email_attempts: number
+          email_last_error: string | null
+          email_provider_message_id: string | null
+          email_request_payload: Json | null
+          email_sent_at: string | null
+          email_status: string
+          event_at: string
+          id: string
+          identity_error: string | null
+          identity_status: string
+          notification_display_name: string | null
+          notification_email: string | null
+          notification_language: string | null
+          payload: Json
+          processing_started_at: string | null
+          processing_token: string | null
+          raw_body: string
+          raw_body_sha256: string
+          tawk_chat_id: string
+          tawk_event_id: string
+          tawk_property_id: string
+          updated_at: string
+          user_id: string | null
+          visitor_email_normalized: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          email_attempts?: number
+          email_last_error?: string | null
+          email_provider_message_id?: string | null
+          email_request_payload?: Json | null
+          email_sent_at?: string | null
+          email_status?: string
+          event_at: string
+          id?: string
+          identity_error?: string | null
+          identity_status: string
+          notification_display_name?: string | null
+          notification_email?: string | null
+          notification_language?: string | null
+          payload: Json
+          processing_started_at?: string | null
+          processing_token?: string | null
+          raw_body: string
+          raw_body_sha256: string
+          tawk_chat_id: string
+          tawk_event_id: string
+          tawk_property_id: string
+          updated_at?: string
+          user_id?: string | null
+          visitor_email_normalized?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          email_attempts?: number
+          email_last_error?: string | null
+          email_provider_message_id?: string | null
+          email_request_payload?: Json | null
+          email_sent_at?: string | null
+          email_status?: string
+          event_at?: string
+          id?: string
+          identity_error?: string | null
+          identity_status?: string
+          notification_display_name?: string | null
+          notification_email?: string | null
+          notification_language?: string | null
+          payload?: Json
+          processing_started_at?: string | null
+          processing_token?: string | null
+          raw_body?: string
+          raw_body_sha256?: string
+          tawk_chat_id?: string
+          tawk_event_id?: string
+          tawk_property_id?: string
+          updated_at?: string
+          user_id?: string | null
+          visitor_email_normalized?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_transcripts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      support_user_identities: {
+        Row: {
+          created_at: string
+          id: string
+          normalized_email: string
+          user_id: string
+          valid_from: string
+          valid_to: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          normalized_email: string
+          user_id: string
+          valid_from?: string
+          valid_to?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          normalized_email?: string
+          user_id?: string
+          valid_from?: string
+          valid_to?: string | null
         }
         Relationships: []
       }
@@ -2058,6 +2296,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      claim_support_transcript: {
+        Args: { p_claim_token: string; p_transcript_id: string }
+        Returns: boolean
+      }
       claim_transactional_emails: {
         Args: { p_limit?: number }
         Returns: {
@@ -2429,6 +2671,25 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      register_push_subscription: {
+        Args: {
+          p_auth_key: string
+          p_endpoint: string
+          p_expected_user_id: string
+          p_expiration_time?: number
+          p_p256dh: string
+          p_user_agent?: string
+        }
+        Returns: string
+      }
+      release_support_transcript_claim: {
+        Args: {
+          p_claim_token: string
+          p_completed?: boolean
+          p_transcript_id: string
+        }
+        Returns: boolean
+      }
       request_kyc_information: {
         Args: {
           p_due_at: string
@@ -2667,6 +2928,7 @@ export type Database = {
         Returns: {
           access_status: string
           access_status_reason: string | null
+          base_currency: string
           created_at: string
           display_name: string
           email: string
@@ -2901,6 +3163,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      unregister_push_subscription: {
+        Args: { p_endpoint: string; p_expected_user_id: string }
+        Returns: boolean
       }
       update_kyc_review_checklist: {
         Args: {

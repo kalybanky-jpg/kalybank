@@ -35,10 +35,10 @@ select ok(
   'the service worker can claim recipient-scoped emails'
 );
 
-insert into auth.users (id, email)
+insert into auth.users (id, email, raw_user_meta_data)
 values
-  ('81000000-0000-4000-8000-000000000001', 'email-one@monalyz.test'),
-  ('82000000-0000-4000-8000-000000000001', 'email-two@monalyz.test');
+  ('81000000-0000-4000-8000-000000000001', 'email-one@monalyz.test', '{"base_currency":"EUR"}'::jsonb),
+  ('82000000-0000-4000-8000-000000000001', 'email-two@monalyz.test', '{"base_currency":"EUR"}'::jsonb);
 
 insert into public.transactional_email_outbox (
   event_key,

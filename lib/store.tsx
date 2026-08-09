@@ -60,6 +60,7 @@ import type { Tables } from './supabase/database.types';
 import { rpcArgsWithKnownNulls } from './supabase/rpc';
 import { authFailureRedirect } from './security/navigation';
 import { dispatchTransactionalEmails } from './transactional-email-client';
+import { SUPPORT_SIGNED_OUT_EVENT } from './support/session-events';
 import {
   LANGUAGE_COOKIE,
   LANGUAGE_SOURCE_COOKIE,
@@ -79,6 +80,9 @@ interface AppState {
   currentUserDisplayName: string | null;
   activeTab: string;
   setActiveTab: (tab: string) => void;
+  /** Immutable currency selected at signup and used for financial products. */
+  baseCurrency: Currency;
+  /** User-controlled display currency. */
   currency: Currency;
   setCurrency: (currency: Currency) => void;
   rates: CurrencyRates;
@@ -427,6 +431,7 @@ export function AppProvider({
     if (typeof window === 'undefined') return 'dashboard';
     return new URLSearchParams(window.location.search).get('tab') ?? 'dashboard';
   });
+  const [baseCurrency, setBaseCurrency] = useState<Currency>('EUR');
   const [currency, setCurrency] = useState<Currency>('EUR');
   const [rates, setRates] = useState<CurrencyRates>(DEFAULT_RATES);
   const [isMaskedBalance, setIsMaskedBalance] = useState(false);
@@ -536,6 +541,8 @@ export function AppProvider({
     setLoanProductSettings([]);
     setCurrentUserDisplayName(null);
     setRole('user');
+    setBaseCurrency('EUR');
+    setCurrency('EUR');
   }, []);
 
   const refreshData = useCallback(async () => {
@@ -586,7 +593,7 @@ export function AppProvider({
         supabase.rpc('current_app_role'),
         supabase
           .from('profiles')
-          .select('user_id,email,display_name,preferred_language,preferred_currency'),
+          .select('user_id,email,display_name,preferred_language,base_currency,preferred_currency'),
         supabase.from('financial_positions').select('*').order('created_at'),
         supabase
           .from('transfer_intents')
@@ -673,6 +680,9 @@ export function AppProvider({
       setCurrentUserDisplayName(
         ownProfile?.display_name?.trim() || ownProfile?.email?.split('@')[0] || null,
       );
+      if (!isAdmin && isSupportedCurrency(ownProfile?.base_currency)) {
+        setBaseCurrency(ownProfile.base_currency);
+      }
       if (!isAdmin && isSupportedCurrency(ownProfile?.preferred_currency)) {
         setCurrency(ownProfile.preferred_currency);
       }
@@ -1005,10 +1015,21 @@ export function AppProvider({
       if (event === 'SIGNED_OUT') {
         clearBusinessData();
         setIsLoading(false);
-        if (
-          authFailureRedirect(window.location.pathname, window.location.search)
-        ) {
-          window.location.replace('/login');
+        const shouldRedirect = authFailureRedirect(
+          window.location.pathname,
+          window.location.search,
+        );
+        // Give the protected support shell a synchronous teardown signal before
+        // a store-level redirect can unload it. Public routes have no listener.
+        window.dispatchEvent(new Event(SUPPORT_SIGNED_OUT_EVENT));
+        if (shouldRedirect) {
+          window.setTimeout(() => {
+            if (
+              authFailureRedirect(window.location.pathname, window.location.search)
+            ) {
+              window.location.replace('/login');
+            }
+          }, 0);
         }
         return;
       }
@@ -1462,6 +1483,7 @@ export function AppProvider({
     currentUserDisplayName,
     activeTab,
     setActiveTab,
+    baseCurrency,
     currency,
     setCurrency,
     rates,

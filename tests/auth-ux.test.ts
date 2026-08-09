@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -25,11 +26,16 @@ test('every supported language provides complete authentication form guidance', 
       messages.adminLogin.hidePassword,
       messages.register.displayNamePlaceholder,
       messages.register.emailPlaceholder,
+      messages.register.baseCurrency,
+      messages.register.baseCurrencyPlaceholder,
+      messages.register.baseCurrencyHint,
+      messages.register.baseCurrencyRequiredError,
       messages.register.passwordPlaceholder,
       messages.register.confirmPasswordPlaceholder,
       messages.register.passwordHint,
       messages.register.showPassword,
       messages.register.hidePassword,
+      messages.register.resetAccess,
       messages.resetPassword.emailPlaceholder,
       messages.resetPassword.passwordPlaceholder,
       messages.resetPassword.confirmPasswordPlaceholder,
@@ -38,7 +44,7 @@ test('every supported language provides complete authentication form guidance', 
       messages.resetPassword.hidePassword,
     ];
 
-    assert.equal(guidance.length, 21);
+    assert.equal(guidance.length, 26);
     for (const value of guidance) {
       assert.ok(value.trim().length > 0, `missing ${language} authentication guidance`);
     }
@@ -88,4 +94,32 @@ test('email OTP handling shares the six-digit Supabase contract', () => {
   assert.equal(isValidEmailOtp('123456'), true);
   assert.equal(isValidEmailOtp('12345'), false);
   assert.equal(isValidEmailOtp('12345678'), false);
+});
+
+test('registration email guidance never guarantees delivery for an existing account', () => {
+  const conditionalMarkers = {
+    fr: ['Si cette adresse', 'Si un code peut être envoyé'],
+    en: ['If this address', 'If a code can be sent'],
+    de: ['Wenn diese Adresse', 'Wenn für diese Anfrage'],
+    es: ['Si esta dirección', 'Si se puede enviar'],
+  } as const;
+
+  for (const language of SUPPORTED_LANGUAGES) {
+    const [requestMarker, resendMarker] = conditionalMarkers[language];
+    assert.match(publicMessages[language].register.checkEmailBody, new RegExp(`^${requestMarker}`));
+    assert.match(publicMessages[language].register.resendSuccess, new RegExp(`^${resendMarker}`));
+  }
+});
+
+test('registration requires one base currency and sends identical currency metadata', async () => {
+  const source = await readFile(
+    new URL('../app/register/page.tsx', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(source, /<select[^>]*id="register-base-currency"[^>]*required[^>]*>/);
+  assert.match(source, /<option value="" disabled>/);
+  assert.match(source, /SUPPORTED_CURRENCIES\.map/);
+  assert.match(source, /base_currency:\s*baseCurrency/);
+  assert.match(source, /preferred_currency:\s*baseCurrency/);
 });

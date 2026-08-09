@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useAppStore } from '@/lib/store';
-import { formatDirectCurrency } from '@/lib/currency';
+import { convertAnyAmount, formatDirectCurrency } from '@/lib/currency';
 import { bankingMessages } from '@/lib/banking-i18n';
 import { Calculator, Clock, FileText } from 'lucide-react';
 import { formatLocalizedMonths, formatLocalizedPercent } from '@/lib/language';
@@ -10,8 +10,14 @@ import { loanMotiveLabel } from '@/lib/user-i18n';
 import { useBranded } from '@/components/brand/BrandProvider';
 
 export default function UserLoansView() {
-  const { language, loans, setIsLoanModalOpen } = useAppStore();
+  const { language, currency, rates, loans, setIsLoanModalOpen } = useAppStore();
   const t = useBranded(bankingMessages[language]);
+  const displayMoney = (amount: number, sourceCurrency: string) =>
+    formatDirectCurrency(
+      convertAnyAmount(amount, sourceCurrency, currency, rates),
+      currency,
+      language,
+    );
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
@@ -44,7 +50,7 @@ export default function UserLoansView() {
                 </p>
               </div>
               <p className="font-extrabold text-indigo-700">
-                {formatDirectCurrency(loan.requestedAmount, loan.currency, language)}
+                {displayMoney(loan.requestedAmount, loan.currency)}
               </p>
             </div>
 
@@ -58,7 +64,7 @@ export default function UserLoansView() {
               <div className="p-3 bg-slate-50 rounded-xl">
                 <p className="text-[10px] text-slate-500">{t.loans.indicativePayment}</p>
                 <p className="text-xs font-bold text-slate-900">
-                  {formatDirectCurrency(loan.monthlyPayment, loan.currency, language)}
+                  {displayMoney(loan.monthlyPayment, loan.currency)}
                 </p>
               </div>
             </div>

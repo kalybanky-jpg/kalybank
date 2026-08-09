@@ -1,5 +1,5 @@
 begin;
-select plan(191);
+select plan(203);
 
 -- Schema and database API contract.
 -- 1
@@ -165,12 +165,12 @@ select ok(
 );
 
 -- Synthetic identities. The auth trigger creates their public profiles.
-insert into auth.users (id, email)
+insert into auth.users (id, email, raw_user_meta_data)
 values
-  ('10000000-0000-0000-0000-000000000001', 'owner@monalyz.test'),
-  ('10000000-0000-0000-0000-000000000002', 'other-owner@monalyz.test'),
-  ('20000000-0000-0000-0000-000000000001', 'reviewer@monalyz.test'),
-  ('30000000-0000-0000-0000-000000000001', 'branch-manager@monalyz.test');
+  ('10000000-0000-0000-0000-000000000001', 'owner@monalyz.test', '{"base_currency":"EUR"}'::jsonb),
+  ('10000000-0000-0000-0000-000000000002', 'other-owner@monalyz.test', '{"base_currency":"EUR"}'::jsonb),
+  ('20000000-0000-0000-0000-000000000001', 'reviewer@monalyz.test', '{"base_currency":"EUR"}'::jsonb),
+  ('30000000-0000-0000-0000-000000000001', 'branch-manager@monalyz.test', '{"base_currency":"EUR"}'::jsonb);
 
 insert into public.staff_members (user_id, role)
 values
@@ -932,7 +932,7 @@ select throws_ok(
   $test$
     select public.submit_loan_application(
       100000,
-      'XOF',
+      'USD',
       12,
       'personal',
       '[]'::jsonb,
@@ -940,8 +940,8 @@ select throws_ok(
     )
   $test$,
   '22023',
-  'LOAN_PRODUCT_UNAVAILABLE',
-  'the server rejects currencies without an active loan product'
+  'LOAN_CURRENCY_MUST_MATCH_BASE',
+  'the server rejects a supported loan currency that differs from the contractual base'
 );
 select lives_ok(
   $test$
@@ -1562,12 +1562,12 @@ values
   (
     '10000000-0000-0000-0000-000000000003',
     'german-owner@monalyz.test',
-    '{"preferred_language":"de"}'::jsonb
+    '{"preferred_language":"de","base_currency":"EUR"}'::jsonb
   ),
   (
     '10000000-0000-0000-0000-000000000004',
     'invalid-language-owner@monalyz.test',
-    '{"preferred_language":"it"}'::jsonb
+    '{"preferred_language":"it","base_currency":"EUR"}'::jsonb
   );
 
 -- 84
@@ -1809,17 +1809,19 @@ where lower(email) in (
   'client.demo@monalyz.com'
 );
 
-insert into auth.users (id, email, raw_app_meta_data)
+insert into auth.users (id, email, raw_app_meta_data, raw_user_meta_data)
 values
   (
     'd2000000-0000-4000-8000-000000000001',
     'admin.demo@monalyz.com',
-    '{"monalyz_demo":true,"demo_role":"admin"}'::jsonb
+    '{"monalyz_demo":true,"demo_role":"admin"}'::jsonb,
+    '{"base_currency":"EUR"}'::jsonb
   ),
   (
     'd2000000-0000-4000-8000-000000000002',
     'client.demo@monalyz.com',
-    '{"monalyz_demo":true,"demo_role":"client"}'::jsonb
+    '{"monalyz_demo":true,"demo_role":"client"}'::jsonb,
+    '{"base_currency":"EUR"}'::jsonb
   );
 
 set local role service_role;
@@ -2838,6 +2840,255 @@ reset role;
 select is((select bank_name from public.brand_settings where singleton), 'Kaly Banque', 'a conflict leaves the current publication unchanged');
 select is((select public from storage.buckets where id = 'brand-assets'), true, 'the brand-assets bucket is publicly readable');
 select is((select file_size_limit from storage.buckets where id = 'brand-assets'), 5242880::bigint, 'the brand-assets bucket enforces the five-megabyte limit');
+
+-- Contractual base-currency invariants.
+select has_column(
+  'public',
+  'profiles',
+  'base_currency',
+  'profiles persist an immutable contractual currency'
+);
+
+select ok(
+  (
+    select attnotnull
+    from pg_attribute
+    where attrelid = 'public.profiles'::regclass
+      and attname = 'base_currency'
+      and not attisdropped
+  ),
+  'the contractual currency is mandatory'
+);
+
+select is(
+  (
+    select pg_get_expr(adbin, adrelid)
+    from pg_attrdef
+    where adrelid = 'public.profiles'::regclass
+      and adnum = (
+        select attnum
+        from pg_attribute
+        where attrelid = 'public.profiles'::regclass
+          and attname = 'base_currency'
+          and not attisdropped
+      )
+  ),
+  '''EUR''::text',
+  'the contractual currency has a safe EUR fallback'
+);
+
+insert into auth.users (id, email, raw_user_meta_data)
+values
+  (
+    '91000000-0000-4000-8000-000000000001',
+    'usd-base-owner@monalyz.test',
+    '{"base_currency":" usd ","preferred_currency":"CHF"}'::jsonb
+  ),
+  (
+    '91000000-0000-4000-8000-000000000003',
+    'legacy-currency-owner@monalyz.test',
+    '{"preferred_currency":"CAD"}'::jsonb
+  );
+
+select is(
+  (
+    select jsonb_build_object(
+      'base', base_currency,
+      'preferred', preferred_currency
+    )
+    from public.profiles
+    where user_id = '91000000-0000-4000-8000-000000000001'
+  ),
+  jsonb_build_object('base', 'USD', 'preferred', 'USD'),
+  'the canonical signup currency wins and initializes both profile fields'
+);
+
+select is(
+  (
+    select jsonb_build_object(
+      'base', base_currency,
+      'preferred', preferred_currency
+    )
+    from public.profiles
+    where user_id = '91000000-0000-4000-8000-000000000003'
+  ),
+  jsonb_build_object('base', 'CAD', 'preferred', 'CAD'),
+  'legacy signup metadata remains compatible when base_currency is absent'
+);
+
+select throws_ok(
+  $test$
+    insert into auth.users (id, email, raw_user_meta_data)
+    values (
+      '91000000-0000-4000-8000-000000000002',
+      'invalid-base-owner@monalyz.test',
+      '{"base_currency":"JPY"}'::jsonb
+    )
+  $test$,
+  '22023',
+  'SIGNUP_CURRENCY_UNSUPPORTED',
+  'signup rejects unsupported contractual currency metadata'
+);
+
+select throws_ok(
+  $test$
+    insert into auth.users (id, email, raw_user_meta_data)
+    values (
+      '91000000-0000-4000-8000-000000000004',
+      'missing-base-owner@monalyz.test',
+      '{}'::jsonb
+    )
+  $test$,
+  '22023',
+  'SIGNUP_CURRENCY_REQUIRED',
+  'signup rejects missing contractual currency metadata'
+);
+
+select throws_ok(
+  $test$
+    update public.profiles
+    set base_currency = 'GBP'
+    where user_id = '91000000-0000-4000-8000-000000000001'
+  $test$,
+  '55000',
+  'PROFILE_BASE_CURRENCY_IMMUTABLE',
+  'even a privileged direct update cannot mutate the contractual currency'
+);
+
+select throws_ok(
+  $test$
+    update public.profiles
+    set preferred_currency = 'JPY'
+    where user_id = '91000000-0000-4000-8000-000000000001'
+  $test$,
+  '23514',
+  null,
+  'the display preference is restricted to supported currencies'
+);
+
+set local role authenticated;
+select set_config(
+  'request.jwt.claim.sub',
+  '91000000-0000-4000-8000-000000000001',
+  true
+);
+update public.profiles
+set preferred_currency = 'CHF'
+where user_id = '91000000-0000-4000-8000-000000000001';
+reset role;
+
+select is(
+  (
+    select jsonb_build_object(
+      'base', base_currency,
+      'preferred', preferred_currency
+    )
+    from public.profiles
+    where user_id = '91000000-0000-4000-8000-000000000001'
+  ),
+  jsonb_build_object('base', 'USD', 'preferred', 'CHF'),
+  'changing the display preference leaves the contractual currency unchanged'
+);
+
+set local role authenticated;
+select set_config(
+  'request.jwt.claim.sub',
+  '30000000-0000-0000-0000-000000000001',
+  true
+);
+select public.set_account_number_prefix('24680');
+reset role;
+
+set local role authenticated;
+select set_config(
+  'request.jwt.claim.sub',
+  '91000000-0000-4000-8000-000000000001',
+  true
+);
+select public.submit_kyc_application(
+  'Nora',
+  'Currency',
+  date '1990-01-01',
+  'Montréal',
+  'Canadienne',
+  '{"street":"1 rue Base","postalCode":"H1H1H1","city":"Montréal","country":"Canada"}',
+  'Analyste',
+  '1500_3000',
+  false,
+  false,
+  'passport',
+  'BASE123456',
+  'Canada',
+  current_date + 365,
+  '{"id_front":"currency/current/id_front.jpg","selfie":"currency/current/selfie.jpg","proof_of_address":"currency/current/proof_of_address.pdf"}',
+  '92000000-0000-4000-8000-000000000001'
+);
+
+select set_config(
+  'request.jwt.claim.sub',
+  '20000000-0000-0000-0000-000000000001',
+  true
+);
+select public.begin_kyc_review(
+  (
+    select id
+    from public.kyc_applications
+    where owner_id = '91000000-0000-4000-8000-000000000001'
+  )
+);
+select public.update_kyc_review_checklist(
+  (
+    select id
+    from public.kyc_applications
+    where owner_id = '91000000-0000-4000-8000-000000000001'
+  ),
+  'compliant',
+  'compliant',
+  'compliant',
+  'compliant',
+  'compliant',
+  'compliant',
+  'Contractual currency verified.'
+);
+select public.decide_kyc_application(
+  (
+    select id
+    from public.kyc_applications
+    where owner_id = '91000000-0000-4000-8000-000000000001'
+  ),
+  'approved',
+  null,
+  'Identity confirmed.'
+);
+reset role;
+
+select is(
+  (
+    select currency
+    from public.financial_positions
+    where source_kyc_id = (
+      select id
+      from public.kyc_applications
+      where owner_id = '91000000-0000-4000-8000-000000000001'
+    )
+  ),
+  'USD',
+  'KYC approval opens the current account in the immutable base currency'
+);
+
+select is(
+  (
+    select currency
+    from public.financial_ledger_entries
+    where entry_key = 'kyc-account-opening:' || (
+      select id::text
+      from public.kyc_applications
+      where owner_id = '91000000-0000-4000-8000-000000000001'
+    )
+  ),
+  'USD',
+  'the opening ledger entry inherits the contractual account currency'
+);
 
 select * from finish();
 rollback;

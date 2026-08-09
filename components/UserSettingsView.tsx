@@ -1,17 +1,21 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import type { Currency, Language } from '@/lib/types';
 import { Save, Settings, ShieldCheck } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { extraUserMessages, localizedAppError } from '@/lib/user-i18n';
 import { useBranded } from '@/components/brand/BrandProvider';
+import { SUPPORTED_CURRENCIES } from '@/lib/currency';
+import { translations } from '@/lib/i18n';
+import WebPushSettings from '@/components/support/WebPushSettings';
 
 export default function UserSettingsView() {
   const {
     language,
     setLanguage,
+    baseCurrency,
     currency,
     setCurrency,
     isMaskedBalance,
@@ -20,10 +24,22 @@ export default function UserSettingsView() {
   } = useAppStore();
   const [displayName, setDisplayName] = useState('');
   const [phone, setPhone] = useState('');
+  const [draftCurrency, setDraftCurrency] = useState<Currency>(currency);
+  const [isCurrencySaving, setIsCurrencySaving] = useState(false);
+  const [currencyMessage, setCurrencyMessage] = useState('');
+  const [currencyError, setCurrencyError] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const currencySaveInFlightRef = useRef(false);
   const t = useBranded(extraUserMessages[language]);
+  const currencyCopy = translations[language];
+
+  useEffect(() => {
+    if (!currencySaveInFlightRef.current) {
+      setDraftCurrency(currency);
+    }
+  }, [currency]);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -58,8 +74,6 @@ export default function UserSettingsView() {
         .update({
           display_name: displayName.trim(),
           phone: phone.trim() || null,
-          preferred_currency: currency,
-          preferred_language: language,
         })
         .eq('user_id', user.id);
       if (updateError) throw updateError;
@@ -69,6 +83,44 @@ export default function UserSettingsView() {
       setError(localizedAppError(language, 'SAVE_FAILED'));
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const saveDisplayCurrency = async (nextCurrency: Currency) => {
+    if (currencySaveInFlightRef.current || nextCurrency === currency) return;
+
+    currencySaveInFlightRef.current = true;
+    setDraftCurrency(nextCurrency);
+    setCurrencyMessage('');
+    setCurrencyError('');
+    setIsCurrencySaving(true);
+
+    try {
+      const supabase = createClient();
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+      if (userError || !user) throw userError ?? new Error('AUTH_REQUIRED');
+
+      const { data: updatedProfile, error: updateError } = await supabase
+        .from('profiles')
+        .update({ preferred_currency: nextCurrency })
+        .eq('user_id', user.id)
+        .select('preferred_currency')
+        .single();
+      if (updateError || updatedProfile?.preferred_currency !== nextCurrency) {
+        throw updateError ?? new Error('DISPLAY_CURRENCY_SAVE_MISMATCH');
+      }
+
+      setCurrency(nextCurrency);
+      setCurrencyMessage(currencyCopy.displayCurrencySaved);
+    } catch {
+      setDraftCurrency(currency);
+      setCurrencyError(currencyCopy.displayCurrencySaveError);
+    } finally {
+      currencySaveInFlightRef.current = false;
+      setIsCurrencySaving(false);
     }
   };
 
@@ -113,12 +165,47 @@ export default function UserSettingsView() {
             </select>
           </label>
           <label className="text-xs font-bold text-slate-700">
-            {t.settings.preferredCurrency}
-            <select value={currency} onChange={(event) => setCurrency(event.target.value as Currency)} className="mt-1.5 w-full p-3 border rounded-xl">
-              {['EUR', 'USD', 'CAD', 'CHF', 'GBP'].map((item) => (
+            {currencyCopy.baseCurrency}
+            <input
+              type="text"
+              value={baseCurrency}
+              readOnly
+              aria-readonly="true"
+              className="mt-1.5 w-full cursor-not-allowed rounded-xl border border-slate-200 bg-slate-100 p-3 text-slate-600"
+            />
+            <span className="mt-1.5 block text-[11px] font-normal leading-relaxed text-slate-500">
+              {currencyCopy.baseCurrencyHint}
+            </span>
+          </label>
+          <label className="text-xs font-bold text-slate-700">
+            {currencyCopy.currencySelector}
+            <select
+              value={draftCurrency}
+              onChange={(event) => void saveDisplayCurrency(event.target.value as Currency)}
+              disabled={isCurrencySaving || isSaving}
+              aria-busy={isCurrencySaving}
+              aria-describedby="display-currency-hint display-currency-status"
+              className="mt-1.5 w-full p-3 border rounded-xl disabled:cursor-wait disabled:opacity-60"
+            >
+              {SUPPORTED_CURRENCIES.map((item) => (
                 <option key={item} value={item}>{item}</option>
               ))}
             </select>
+            <span id="display-currency-hint" className="mt-1.5 block text-[11px] font-normal leading-relaxed text-slate-500">
+              {currencyCopy.displayCurrencyHint}
+            </span>
+            <span
+              id="display-currency-status"
+              role={currencyError ? 'alert' : 'status'}
+              aria-live="polite"
+              className={`mt-1.5 block min-h-4 text-[11px] font-semibold ${
+                currencyError ? 'text-rose-700' : 'text-emerald-700'
+              }`}
+            >
+              {isCurrencySaving
+                ? currencyCopy.displayCurrencySaving
+                : currencyError || currencyMessage}
+            </span>
           </label>
         </div>
 
@@ -137,7 +224,9 @@ export default function UserSettingsView() {
           </p>
         </div>
 
-        <button disabled={isSaving} className="px-5 py-3 bg-blue-600 text-white rounded-xl font-bold text-xs disabled:opacity-50 flex items-center gap-2">
+        <WebPushSettings />
+
+        <button disabled={isSaving || isCurrencySaving} className="px-5 py-3 bg-blue-600 text-white rounded-xl font-bold text-xs disabled:opacity-50 flex items-center gap-2">
           <Save className="w-4 h-4" />
           {isSaving ? t.common.saving : t.common.save}
         </button>

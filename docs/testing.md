@@ -19,7 +19,7 @@
 | Provisionnement démo | `bun x tsx --test tests/demo-provisioning.test.ts` | Cibles, secrets, refus de reprise et idempotence |
 | Schéma | `bun x supabase db lint --local --level warning --fail-on error` | Erreurs SQL |
 | Conseillers | `bun x supabase db advisors --local --type all --level warn --fail-on error` | Sécurité et performance |
-| pgTAP | `bun run test:db` | Les 4 suites SQL du dossier, soit 261 assertions planifiées (191 + 14 + 9 + 47) |
+| pgTAP | `bun run test:db` | Les 5 suites SQL du dossier, soit 301 assertions planifiées (203 + 14 + 9 + 47 + 28) |
 | Snapshot | `bun run db:snapshot` puis `bun run test` | Copie SQL et manifeste |
 | Types Supabase | `bun run db:types` | Régénération des contrats TypeScript depuis la base locale |
 | Dépendances | `bun audit` | Vulnérabilités connues |

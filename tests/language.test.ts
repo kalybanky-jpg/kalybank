@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { translations } from '../lib/i18n';
 import {
+  SUPPORTED_LANGUAGES,
   normalizeLanguageTag,
   parseAcceptLanguage,
   preferredLanguageMetadata,
@@ -97,4 +100,40 @@ test('l’inscription utilise la langue courante au moment de la soumission', ()
     full_name: 'Marie',
     preferred_language: 'es',
   });
+});
+
+test('les libellés distinguent la devise de base de la devise d’affichage', () => {
+  for (const language of SUPPORTED_LANGUAGES) {
+    const messages = translations[language];
+    assert.match(messages.baseCurrency, /\S/);
+    assert.match(messages.baseCurrencyHint, /\S/);
+    assert.match(messages.currencySelector, /\S/);
+    assert.match(messages.displayCurrencyHint, /\S/);
+    assert.match(messages.displayCurrencySaving, /\S/);
+    assert.match(messages.displayCurrencySaved, /\S/);
+    assert.match(messages.displayCurrencySaveError, /\S/);
+    assert.notEqual(messages.baseCurrency, messages.currencySelector);
+  }
+});
+
+test('les paramètres auto-enregistrent uniquement la devise d’affichage après confirmation', async () => {
+  const source = await readFile(
+    new URL('../components/UserSettingsView.tsx', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(source, /value=\{baseCurrency\}[\s\S]*?readOnly/);
+  assert.match(source, /const \[draftCurrency, setDraftCurrency\] = useState<Currency>\(currency\)/);
+  assert.match(source, /currencySaveInFlightRef\.current \|\| nextCurrency === currency/);
+  assert.match(source, /\.update\(\{ preferred_currency: nextCurrency \}\)[\s\S]*?\.select\('preferred_currency'\)[\s\S]*?\.single\(\)/);
+  assert.match(source, /updatedProfile\?\.preferred_currency !== nextCurrency[\s\S]*?setCurrency\(nextCurrency\)/);
+  assert.match(source, /catch \{[\s\S]*?setDraftCurrency\(currency\)[\s\S]*?setCurrencyError/);
+  assert.match(source, /onChange=\{\(event\) => void saveDisplayCurrency\(event\.target\.value as Currency\)\}/);
+  assert.match(source, /disabled=\{isCurrencySaving \|\| isSaving\}/);
+
+  const profileSaveStart = source.indexOf('  const save = async');
+  const currencySaveStart = source.indexOf('  const saveDisplayCurrency = async');
+  assert.ok(profileSaveStart >= 0 && currencySaveStart > profileSaveStart);
+  const profileSave = source.slice(profileSaveStart, currencySaveStart);
+  assert.doesNotMatch(profileSave, /preferred_currency|preferred_language|setCurrency/);
 });

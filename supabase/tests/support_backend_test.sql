@@ -1,5 +1,5 @@
 begin;
-select plan(29);
+select plan(37);
 
 select is(
   (
@@ -295,6 +295,154 @@ select ok(
       and conname = 'support_transcripts_email_status_check'
   ),
   'permanent e-mail failures are a terminal persisted state'
+);
+
+insert into auth.users (
+  id,
+  email,
+  raw_app_meta_data,
+  raw_user_meta_data
+)
+values (
+  'd4000000-0000-4000-8000-000000000001',
+  'admin-before@monalyz.invalid',
+  '{"monalyz_demo":false}'::jsonb,
+  '{"display_name":"Admin pgTAP","base_currency":"EUR"}'::jsonb
+);
+
+insert into public.staff_members (user_id, role, active)
+values (
+  'd4000000-0000-4000-8000-000000000001',
+  'admin',
+  true
+);
+
+update auth.users
+set email = 'admin-after@monalyz.invalid'
+where id = 'd4000000-0000-4000-8000-000000000001';
+
+select is(
+  (
+    select email
+    from public.profiles
+    where user_id = 'd4000000-0000-4000-8000-000000000001'
+  ),
+  'admin-after@monalyz.invalid',
+  'an Auth e-mail change updates the matching public profile atomically'
+);
+
+select is(
+  (
+    select count(*)::integer
+    from public.support_user_identities
+    where user_id = 'd4000000-0000-4000-8000-000000000001'
+  ),
+  2,
+  'an Auth e-mail change retains both support identity versions'
+);
+
+select is(
+  (
+    select count(*)::integer
+    from public.support_user_identities
+    where user_id = 'd4000000-0000-4000-8000-000000000001'
+      and normalized_email = 'admin-after@monalyz.invalid'
+      and valid_to is null
+  ),
+  1,
+  'the new support identity is the sole active identity'
+);
+
+select is(
+  (
+    select count(*)::integer
+    from public.staff_members
+    where user_id = 'd4000000-0000-4000-8000-000000000001'
+      and role = 'admin'
+      and active
+  ),
+  1,
+  'changing the login e-mail preserves the administrator role by UUID'
+);
+
+select is(
+  (
+    select jsonb_build_object(
+      'anon', count(*) filter (where grantee = 'anon'),
+      'authenticated', count(*) filter (where grantee = 'authenticated'),
+      'authenticated_select', count(*) filter (
+        where grantee = 'authenticated'
+          and privilege_type = 'SELECT'
+      )
+    )
+    from information_schema.role_table_grants
+    where table_schema = 'public'
+      and table_name = 'staff_members'
+      and grantee in ('anon', 'authenticated')
+  ),
+  jsonb_build_object(
+    'anon', 0,
+    'authenticated', 1,
+    'authenticated_select', 1
+  ),
+  'staff role grants expose only authenticated self-read access'
+);
+
+select is(
+  (
+    select jsonb_build_object(
+      'security_definer', prosecdef,
+      'service_role', has_function_privilege(
+        'service_role',
+        oid,
+        'EXECUTE'
+      ),
+      'authenticated', has_function_privilege(
+        'authenticated',
+        oid,
+        'EXECUTE'
+      ),
+      'anon', has_function_privilege('anon', oid, 'EXECUTE')
+    )
+    from pg_proc
+    where oid = 'public.record_admin_credentials_update(uuid,boolean,boolean)'::regprocedure
+  ),
+  jsonb_build_object(
+    'security_definer', true,
+    'service_role', true,
+    'authenticated', false,
+    'anon', false
+  ),
+  'credential audit writes use one service-only SECURITY DEFINER RPC'
+);
+
+set local role service_role;
+select lives_ok(
+  $test$
+    select public.record_admin_credentials_update(
+      'd4000000-0000-4000-8000-000000000001',
+      true,
+      false
+    )
+  $test$,
+  'the service worker records an administrator e-mail change'
+);
+reset role;
+
+select is(
+  (
+    select metadata
+    from public.audit_events
+    where actor_id = 'd4000000-0000-4000-8000-000000000001'
+      and action = 'admin_credentials_updated'
+    order by id desc
+    limit 1
+  ),
+  jsonb_build_object(
+    'emailChanged', true,
+    'passwordChanged', false
+  ),
+  'the credential audit contains only non-secret change indicators'
 );
 
 select * from finish();

@@ -12,12 +12,19 @@ import { publicMessages } from '@/lib/public-i18n';
 import PasswordField from '@/components/auth/PasswordField';
 import BrandLogo from '@/components/brand/BrandLogo';
 import { useBranded } from '@/components/brand/BrandProvider';
+import {
+  isStrongPassword,
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+} from '@/lib/password-policy';
 
 function ResetPasswordContent() {
   const searchParams = useSearchParams();
   const { language } = useAppStore();
   const copy = useBranded(publicMessages[language].resetPassword);
   const isUpdateMode = searchParams.get('mode') === 'update';
+  const requestedLogin =
+    searchParams.get('next') === '/admin-login' ? '/admin-login' : '/login';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -53,9 +60,7 @@ function ResetPasswordContent() {
     event.preventDefault();
     setError('');
     if (
-      password.length < 10 ||
-      !/[A-Za-z]/.test(password) ||
-      !/\d/.test(password) ||
+      !isStrongPassword(password) ||
       password !== confirmPassword
     ) {
       setError(copy.passwordError);
@@ -64,10 +69,13 @@ function ResetPasswordContent() {
     setIsLoading(true);
     try {
       const supabase = createClient();
+      const { data: role, error: roleError } =
+        await supabase.rpc('current_app_role');
+      if (roleError) throw roleError;
       const { error: updateError } = await supabase.auth.updateUser({ password });
       if (updateError) throw updateError;
       await supabase.auth.signOut();
-      window.location.replace('/login');
+      window.location.replace(role === 'admin' ? '/admin-login' : '/login');
     } catch {
       setError(copy.updateError);
     } finally {
@@ -108,7 +116,8 @@ function ResetPasswordContent() {
                 helpText={copy.passwordHint}
                 helpTextId="reset-password-hint"
                 invalid={passwordInvalid}
-                minLength={10}
+                minLength={PASSWORD_MIN_LENGTH}
+                maxLength={PASSWORD_MAX_LENGTH}
                 dark
               />
               <PasswordField
@@ -123,7 +132,8 @@ function ResetPasswordContent() {
                 hidePasswordLabel={copy.hidePassword}
                 describedBy={passwordInvalid ? 'reset-password-error' : undefined}
                 invalid={passwordInvalid}
-                minLength={10}
+                minLength={PASSWORD_MIN_LENGTH}
+                maxLength={PASSWORD_MAX_LENGTH}
                 dark
               />
             </>
@@ -165,7 +175,7 @@ function ResetPasswordContent() {
           </button>
         </form>
 
-        <Link href="/login" className="block mt-5 rounded text-center text-xs text-blue-300 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900">
+        <Link href={requestedLogin} className="block mt-5 rounded text-center text-xs text-blue-300 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900">
           {copy.backToLogin}
         </Link>
       </section>

@@ -6,6 +6,41 @@
 
 ## Routes HTTP
 
+### `GET|PUT /api/admin/credentials`
+
+Permet à l’unique administrateur connecté de consulter son adresse de
+connexion, puis de modifier son adresse e-mail ou son mot de passe depuis
+**Administration > Paramètres**. La route vérifie la session avec Supabase,
+recontrôle le rôle `admin`, refuse les mutations d’origine étrangère et exige
+le mot de passe actuel avant tout appel privilégié.
+
+Changement d’adresse :
+
+```json
+{
+  "kind": "email",
+  "email": "direction@example.com",
+  "currentPassword": "<mot-de-passe-actuel>"
+}
+```
+
+Changement de mot de passe :
+
+```json
+{
+  "kind": "password",
+  "currentPassword": "<mot-de-passe-actuel>",
+  "newPassword": "<nouveau-mot-de-passe>",
+  "confirmPassword": "<nouveau-mot-de-passe>"
+}
+```
+
+Le nouveau mot de passe doit contenir 16 à 72 caractères, dont une
+minuscule, une majuscule, un chiffre et un symbole, sans espace. Une mutation
+réussie ferme toutes les sessions et impose une reconnexion. La réponse, les
+journaux et l’audit ne contiennent jamais l’adresse ni les mots de passe ;
+Supabase ne permet pas de relire un mot de passe existant en clair.
+
 ### `GET /api/exchange-rates`
 
 Récupère côté serveur les taux quotidiens de l’API gratuite sans clé

@@ -18,6 +18,7 @@ interface PasswordFieldProps {
   helpTextId?: string;
   invalid?: boolean;
   minLength?: number;
+  maxLength?: number;
   dark?: boolean;
   accent?: 'blue' | 'amber';
 }
@@ -37,6 +38,7 @@ export default function PasswordField({
   helpTextId,
   invalid = false,
   minLength,
+  maxLength,
   dark = false,
   accent = 'blue',
 }: PasswordFieldProps) {
@@ -74,6 +76,7 @@ export default function PasswordField({
           spellCheck={false}
           required
           minLength={minLength}
+          maxLength={maxLength}
           value={value}
           onChange={onChange}
           placeholder={placeholder}

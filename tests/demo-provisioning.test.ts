@@ -29,6 +29,21 @@ class FakeDemoGateway implements DemoProvisioningGateway {
   readonly audits = new Set<string>();
   createCalls = 0;
   updateCalls = 0;
+  passwordUpdateRoles: DemoUserAttributes['demoRole'][] = [];
+
+  async findUserByDemoRole(
+    demoRole: DemoUserAttributes['demoRole'],
+  ): Promise<DemoUser | null> {
+    const matches = [...this.users.values()].filter(
+      (user) =>
+        user.appMetadata.monalyz_demo === true &&
+        user.appMetadata.demo_role === demoRole,
+    );
+    if (matches.length > 1) {
+      throw new Error(`Plusieurs identités de démonstration portent le rôle ${demoRole}.`);
+    }
+    return matches[0] ?? null;
+  }
 
   async findUserByEmail(email: string): Promise<DemoUser | null> {
     return this.users.get(email) ?? null;
@@ -57,11 +72,18 @@ class FakeDemoGateway implements DemoProvisioningGateway {
   async updateUser(
     userId: string,
     attributes: DemoUserAttributes,
+    updatePassword: boolean,
   ): Promise<DemoUser> {
     this.updateCalls += 1;
+    if (updatePassword) this.passwordUpdateRoles.push(attributes.demoRole);
+    const currentEntry = [...this.users.entries()].find(
+      ([, candidate]) => candidate.id === userId,
+    );
+    const currentEmail = currentEntry?.[1].email ?? attributes.email;
+    if (currentEntry) this.users.delete(currentEntry[0]);
     const user = {
       id: userId,
-      email: attributes.email,
+      email: currentEmail,
       userMetadata: {
         display_name: attributes.displayName,
         preferred_language: "fr",
@@ -73,7 +95,7 @@ class FakeDemoGateway implements DemoProvisioningGateway {
         demo_role: attributes.demoRole,
       },
     };
-    this.users.set(attributes.email, user);
+    this.users.set(currentEmail, user);
     return user;
   }
 
@@ -214,6 +236,7 @@ test("deux exécutions réutilisent les identités et ne dupliquent aucun artefa
   assert.equal(first.updatedUsers, 0);
   assert.equal(second.createdUsers, 0);
   assert.equal(second.updatedUsers, 2);
+  assert.deepEqual(gateway.passwordUpdateRoles, ['client']);
   assert.equal(gateway.createCalls, 2);
   assert.equal(gateway.updateCalls, 2);
   assert.equal(gateway.users.size, 2);
@@ -261,6 +284,53 @@ test("un compte existant non marqué comme démo n’est jamais repris", async (
     /sans marqueur de démonstration/,
   );
   assert.equal(gateway.updateCalls, 0);
+});
+
+test("le reprovisionnement conserve l’UUID et l’adresse modifiée de l’admin démo", async () => {
+  const gateway = new FakeDemoGateway();
+  const config = buildDemoProvisioningConfig(
+    ["--target=local"],
+    {
+      ...strongEnvironment,
+      DEMO_SUPABASE_SECRET_KEY: "sb_secret_fake_for_test",
+    },
+  );
+
+  await provisionDemoAccounts(gateway, config);
+  const originalAdmin = gateway.users.get(DEMO_ADMIN_EMAIL);
+  assert.ok(originalAdmin);
+  const changedEmail = "responsable.agence@monalyz.test";
+  gateway.users.delete(DEMO_ADMIN_EMAIL);
+  gateway.users.set(changedEmail, { ...originalAdmin, email: changedEmail });
+
+  const result = await provisionDemoAccounts(gateway, config);
+
+  assert.equal(result.createdUsers, 0);
+  assert.equal(result.updatedUsers, 2);
+  assert.equal(gateway.users.size, 2);
+  assert.equal(gateway.users.has(DEMO_ADMIN_EMAIL), false);
+  assert.equal(gateway.users.get(changedEmail)?.id, originalAdmin.id);
+  assert.equal(result.verification.activeAdmins, 1);
+  assert.deepEqual(gateway.passwordUpdateRoles, ['client']);
+});
+
+test("le provisionneur réel ne remplace jamais implicitement le mot de passe admin", async () => {
+  const source = await readFile(
+    new URL("../scripts/provision-demo-accounts.ts", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(
+    source,
+    /updateUserById\(userId, \{[\s\S]*?\.\.\.\(updatePassword \? \{ password: attributes\.password \} : \{\}\)/,
+  );
+  assert.match(
+    await readFile(
+      new URL("../scripts/lib/demo-provisioning.ts", import.meta.url),
+      "utf8",
+    ),
+    /demoRole: "admin",[\s\S]*?\},\s*false,\s*\);/,
+  );
 });
 
 test("la RPC démo concentre les écritures et reste réservée au service_role", async () => {

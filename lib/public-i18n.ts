@@ -71,6 +71,9 @@ interface PublicMessages {
     submit: string;
     submitting: string;
     backToUser: string;
+    forgotPassword: string;
+    updatedEmail: string;
+    updatedPassword: string;
     forbidden: string;
     genericError: string;
     errors: Record<string, string>;
@@ -142,7 +145,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
       passwordPlaceholder: 'Choisissez un mot de passe sécurisé',
       confirmPasswordPlaceholder: 'Confirmez votre mot de passe',
       passwordHint:
-        '10 caractères minimum, avec au moins une lettre et un chiffre.',
+        '16 à 72 caractères, avec minuscule, majuscule, chiffre et symbole, sans espace.',
       showPassword: 'Afficher le mot de passe',
       hidePassword: 'Masquer le mot de passe',
       submit: 'Créer un compte',
@@ -150,7 +153,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
       baseCurrencyRequiredError:
         'Sélectionnez une devise pour poursuivre votre inscription.',
       passwordPolicyError:
-        'Le mot de passe doit comporter au moins 10 caractères, dont une lettre et un chiffre.',
+        'Le mot de passe doit comporter 16 à 72 caractères avec minuscule, majuscule, chiffre et symbole, sans espace.',
       passwordMismatchError: 'Les mots de passe ne correspondent pas.',
       genericError: 'Création du compte impossible.',
       checkEmailTitle: 'Vérifiez votre demande d’inscription',
@@ -184,6 +187,9 @@ export const publicMessages: Record<Language, PublicMessages> = {
       submit: 'Ouvrir l’espace chef d’agence',
       submitting: 'Vérification des habilitations…',
       backToUser: 'Retour à l’espace utilisateur',
+      forgotPassword: 'Mot de passe oublié ?',
+      updatedEmail: 'Adresse e-mail modifiée. Reconnectez-vous avec la nouvelle adresse.',
+      updatedPassword: 'Mot de passe modifié. Reconnectez-vous avec le nouveau mot de passe.',
       forbidden: 'Ce compte ne dispose pas de l’habilitation chef d’agence.',
       genericError: 'Authentification Back-Office impossible.',
       errors: {
@@ -202,7 +208,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
       passwordPlaceholder: 'Créez un nouveau mot de passe',
       confirmPasswordPlaceholder: 'Confirmez le nouveau mot de passe',
       passwordHint:
-        'Utilisez au moins 10 caractères, dont une lettre et un chiffre.',
+        'Utilisez 16 à 72 caractères avec minuscule, majuscule, chiffre et symbole, sans espace.',
       showPassword: 'Afficher le mot de passe',
       hidePassword: 'Masquer le mot de passe',
       requestSubmit: 'Envoyer le lien sécurisé',
@@ -211,7 +217,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
       recoveryError:
         'Le lien de récupération est invalide ou expiré. Demandez-en un nouveau.',
       passwordError:
-        'Utilisez au moins 10 caractères avec une lettre et un chiffre, puis saisissez deux valeurs identiques.',
+        'Utilisez 16 à 72 caractères avec minuscule, majuscule, chiffre et symbole, sans espace, puis saisissez deux valeurs identiques.',
       requestSuccess:
         'Si cette adresse existe, un lien sécurisé a été envoyé. Il expirera selon la politique Supabase Auth.',
       requestError: 'Demande impossible.',
@@ -261,7 +267,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
       passwordPlaceholder: 'Choose a secure password',
       confirmPasswordPlaceholder: 'Confirm your password',
       passwordHint:
-        'At least 10 characters, including one letter and one number.',
+        '16 to 72 characters with lowercase, uppercase, a number and a symbol, without spaces.',
       showPassword: 'Show password',
       hidePassword: 'Hide password',
       submit: 'Create an account',
@@ -269,7 +275,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
       baseCurrencyRequiredError:
         'Select a currency to continue your registration.',
       passwordPolicyError:
-        'The password must contain at least 10 characters, including a letter and a number.',
+        'The password must contain 16 to 72 characters with lowercase, uppercase, a number and a symbol, without spaces.',
       passwordMismatchError: 'The passwords do not match.',
       genericError: 'Unable to create the account.',
       checkEmailTitle: 'Check your registration request',
@@ -303,6 +309,9 @@ export const publicMessages: Record<Language, PublicMessages> = {
       submit: 'Open the branch manager workspace',
       submitting: 'Checking permissions…',
       backToUser: 'Back to the user workspace',
+      forgotPassword: 'Forgot your password?',
+      updatedEmail: 'Email address updated. Sign in again with the new address.',
+      updatedPassword: 'Password updated. Sign in again with the new password.',
       forbidden: 'This account does not have branch manager permission.',
       genericError: 'Back-office authentication failed.',
       errors: {
@@ -321,7 +330,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
       passwordPlaceholder: 'Create a new password',
       confirmPasswordPlaceholder: 'Confirm your new password',
       passwordHint:
-        'Use at least 10 characters, including one letter and one number.',
+        'Use 16 to 72 characters with lowercase, uppercase, a number and a symbol, without spaces.',
       showPassword: 'Show password',
       hidePassword: 'Hide password',
       requestSubmit: 'Send the secure link',
@@ -330,7 +339,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
       recoveryError:
         'The recovery link is invalid or has expired. Please request a new one.',
       passwordError:
-        'Use at least 10 characters with a letter and a number, then enter the same value twice.',
+        'Use 16 to 72 characters with lowercase, uppercase, a number and a symbol, without spaces, then enter the same value twice.',
       requestSuccess:
         'If this address exists, a secure link has been sent. It will expire according to the Supabase Auth policy.',
       requestError: 'Unable to submit the request.',
@@ -381,7 +390,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
       passwordPlaceholder: 'Wählen Sie ein sicheres Passwort',
       confirmPasswordPlaceholder: 'Bestätigen Sie Ihr Passwort',
       passwordHint:
-        'Mindestens 10 Zeichen, darunter ein Buchstabe und eine Zahl.',
+        '16 bis 72 Zeichen mit Kleinbuchstaben, Großbuchstaben, Zahl und Sonderzeichen, ohne Leerzeichen.',
       showPassword: 'Passwort anzeigen',
       hidePassword: 'Passwort ausblenden',
       submit: 'Konto erstellen',
@@ -389,7 +398,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
       baseCurrencyRequiredError:
         'Wählen Sie eine Währung aus, um die Registrierung fortzusetzen.',
       passwordPolicyError:
-        'Das Passwort muss mindestens 10 Zeichen sowie einen Buchstaben und eine Zahl enthalten.',
+        'Das Passwort muss 16 bis 72 Zeichen mit Kleinbuchstaben, Großbuchstaben, Zahl und Sonderzeichen enthalten, ohne Leerzeichen.',
       passwordMismatchError: 'Die Passwörter stimmen nicht überein.',
       genericError: 'Das Konto konnte nicht erstellt werden.',
       checkEmailTitle: 'Registrierungsanfrage prüfen',
@@ -423,6 +432,9 @@ export const publicMessages: Record<Language, PublicMessages> = {
       submit: 'Filialleiterbereich öffnen',
       submitting: 'Berechtigungen werden geprüft…',
       backToUser: 'Zurück zum Benutzerbereich',
+      forgotPassword: 'Passwort vergessen?',
+      updatedEmail: 'E-Mail-Adresse geändert. Melden Sie sich mit der neuen Adresse erneut an.',
+      updatedPassword: 'Passwort geändert. Melden Sie sich mit dem neuen Passwort erneut an.',
       forbidden: 'Dieses Konto besitzt keine Filialleiterberechtigung.',
       genericError: 'Backoffice-Anmeldung nicht möglich.',
       errors: {
@@ -441,7 +453,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
       passwordPlaceholder: 'Erstellen Sie ein neues Passwort',
       confirmPasswordPlaceholder: 'Bestätigen Sie Ihr neues Passwort',
       passwordHint:
-        'Verwenden Sie mindestens 10 Zeichen, darunter einen Buchstaben und eine Zahl.',
+        'Verwenden Sie 16 bis 72 Zeichen mit Kleinbuchstaben, Großbuchstaben, Zahl und Sonderzeichen, ohne Leerzeichen.',
       showPassword: 'Passwort anzeigen',
       hidePassword: 'Passwort ausblenden',
       requestSubmit: 'Sicheren Link senden',
@@ -450,7 +462,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
       recoveryError:
         'Der Wiederherstellungslink ist ungültig oder abgelaufen. Fordern Sie einen neuen an.',
       passwordError:
-        'Verwenden Sie mindestens 10 Zeichen mit einem Buchstaben und einer Zahl und geben Sie denselben Wert zweimal ein.',
+        'Verwenden Sie 16 bis 72 Zeichen mit Kleinbuchstaben, Großbuchstaben, Zahl und Sonderzeichen, ohne Leerzeichen, und geben Sie denselben Wert zweimal ein.',
       requestSuccess:
         'Falls diese Adresse existiert, wurde ein sicherer Link gesendet. Er läuft gemäß der Supabase-Auth-Richtlinie ab.',
       requestError: 'Anfrage nicht möglich.',
@@ -500,7 +512,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
       passwordPlaceholder: 'Elija una contraseña segura',
       confirmPasswordPlaceholder: 'Confirme su contraseña',
       passwordHint:
-        'Mínimo 10 caracteres, con al menos una letra y un número.',
+        'Entre 16 y 72 caracteres con minúscula, mayúscula, número y símbolo, sin espacios.',
       showPassword: 'Mostrar contraseña',
       hidePassword: 'Ocultar contraseña',
       submit: 'Crear una cuenta',
@@ -508,7 +520,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
       baseCurrencyRequiredError:
         'Seleccione una moneda para continuar con el registro.',
       passwordPolicyError:
-        'La contraseña debe tener al menos 10 caracteres, incluida una letra y un número.',
+        'La contraseña debe tener entre 16 y 72 caracteres con minúscula, mayúscula, número y símbolo, sin espacios.',
       passwordMismatchError: 'Las contraseñas no coinciden.',
       genericError: 'No se pudo crear la cuenta.',
       checkEmailTitle: 'Compruebe su solicitud de registro',
@@ -542,6 +554,9 @@ export const publicMessages: Record<Language, PublicMessages> = {
       submit: 'Abrir el espacio del director de sucursal',
       submitting: 'Comprobando permisos…',
       backToUser: 'Volver al espacio de usuario',
+      forgotPassword: '¿Olvidó su contraseña?',
+      updatedEmail: 'Correo actualizado. Vuelva a iniciar sesión con la nueva dirección.',
+      updatedPassword: 'Contraseña actualizada. Vuelva a iniciar sesión con la nueva contraseña.',
       forbidden: 'Esta cuenta no tiene permisos de director de sucursal.',
       genericError: 'No se pudo autenticar en el back office.',
       errors: {
@@ -560,7 +575,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
       passwordPlaceholder: 'Cree una contraseña nueva',
       confirmPasswordPlaceholder: 'Confirme la nueva contraseña',
       passwordHint:
-        'Use al menos 10 caracteres, con una letra y un número.',
+        'Use entre 16 y 72 caracteres con minúscula, mayúscula, número y símbolo, sin espacios.',
       showPassword: 'Mostrar contraseña',
       hidePassword: 'Ocultar contraseña',
       requestSubmit: 'Enviar el enlace seguro',
@@ -569,7 +584,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
       recoveryError:
         'El enlace de recuperación no es válido o ha caducado. Solicite uno nuevo.',
       passwordError:
-        'Use al menos 10 caracteres con una letra y un número e introduzca el mismo valor dos veces.',
+        'Use entre 16 y 72 caracteres con minúscula, mayúscula, número y símbolo, sin espacios, e introduzca el mismo valor dos veces.',
       requestSuccess:
         'Si esta dirección existe, se ha enviado un enlace seguro. Caducará según la política de Supabase Auth.',
       requestError: 'No se pudo enviar la solicitud.',

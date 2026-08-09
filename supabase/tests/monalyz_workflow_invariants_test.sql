@@ -1,5 +1,5 @@
 begin;
-select plan(203);
+select plan(207);
 
 -- Schema and database API contract.
 -- 1
@@ -1953,6 +1953,71 @@ select is(
     'loans', 0
   ),
   'demo provisioning creates no bank workflow or client fixture for the admin'
+);
+
+-- The demo administrator may change its login address without changing its
+-- immutable Auth identity or causing a later provisioner run to duplicate it.
+select lives_ok(
+  $test$
+    update auth.users
+    set email = 'direction.demo@monalyz.invalid'
+    where id = 'd2000000-0000-4000-8000-000000000001'
+  $test$,
+  'the demo administrator Auth e-mail can change'
+);
+
+select is(
+  (
+    select email
+    from public.profiles
+    where user_id = 'd2000000-0000-4000-8000-000000000001'
+  ),
+  'direction.demo@monalyz.invalid',
+  'the demo administrator profile follows the Auth e-mail'
+);
+
+set local role service_role;
+select set_config(
+  'request.jwt.claims',
+  '{"role":"service_role"}',
+  true
+);
+select lives_ok(
+  $test$
+    select public.provision_demo_accounts(
+      'd2000000-0000-4000-8000-000000000001',
+      'd2000000-0000-4000-8000-000000000002',
+      'local'
+    )
+  $test$,
+  'demo provisioning remains idempotent after the admin e-mail changes'
+);
+reset role;
+
+select is(
+  (
+    select jsonb_build_object(
+      'demo_admin_users', count(*) filter (
+        where raw_app_meta_data ->> 'monalyz_demo' = 'true'
+          and raw_app_meta_data ->> 'demo_role' = 'admin'
+      ),
+      'new_email_users', count(*) filter (
+        where lower(email) = 'direction.demo@monalyz.invalid'
+      ),
+      'legacy_email_users', count(*) filter (
+        where lower(email) = 'admin.demo@monalyz.com'
+      )
+    )
+    from auth.users
+    where id = 'd2000000-0000-4000-8000-000000000001'
+       or raw_app_meta_data ->> 'demo_role' = 'admin'
+  ),
+  jsonb_build_object(
+    'demo_admin_users', 1,
+    'new_email_users', 1,
+    'legacy_email_users', 0
+  ),
+  'reprovisioning keeps one demo administrator at the changed address'
 );
 
 -- Official accounts, append-only ledger and official documents.

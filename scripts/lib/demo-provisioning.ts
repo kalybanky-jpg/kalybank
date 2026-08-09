@@ -1,3 +1,5 @@
+import { isStrongPassword } from "../../lib/password-policy";
+
 export type DemoTarget = "local" | "remote";
 
 export type DemoProvisioningEnvironment = Record<string, string | undefined>;
@@ -48,9 +50,16 @@ export interface DemoProvisioningResult {
 }
 
 export interface DemoProvisioningGateway {
+  findUserByDemoRole(
+    demoRole: DemoUserAttributes['demoRole'],
+  ): Promise<DemoUser | null>;
   findUserByEmail(email: string): Promise<DemoUser | null>;
   createUser(attributes: DemoUserAttributes): Promise<DemoUser>;
-  updateUser(userId: string, attributes: DemoUserAttributes): Promise<DemoUser>;
+  updateUser(
+    userId: string,
+    attributes: DemoUserAttributes,
+    updatePassword: boolean,
+  ): Promise<DemoUser>;
   provisionFixtures(
     adminId: string,
     clientId: string,
@@ -106,17 +115,9 @@ function requiredValue(
 }
 
 function validatePassword(name: string, password: string): void {
-  if (
-    password.length < 16 ||
-    password.length > 128 ||
-    !/[a-z]/.test(password) ||
-    !/[A-Z]/.test(password) ||
-    !/[0-9]/.test(password) ||
-    !/[^A-Za-z0-9]/.test(password) ||
-    /\s/.test(password)
-  ) {
+  if (!isStrongPassword(password)) {
     throw new Error(
-      `${name} doit contenir entre 16 et 128 caractères, avec une minuscule, une majuscule, un chiffre et un symbole, sans espace.`,
+      `${name} doit contenir entre 16 et 72 caractères, avec une minuscule, une majuscule, un chiffre et un symbole, sans espace.`,
     );
   }
 }
@@ -259,8 +260,11 @@ function assertExistingDemoIdentity(
 async function ensureDemoUser(
   gateway: DemoProvisioningGateway,
   attributes: DemoUserAttributes,
+  updateExistingPassword: boolean,
 ): Promise<{ user: DemoUser; created: boolean }> {
-  const existing = await gateway.findUserByEmail(attributes.email);
+  const existingByRole = await gateway.findUserByDemoRole(attributes.demoRole);
+  const existing =
+    existingByRole ?? (await gateway.findUserByEmail(attributes.email));
 
   if (!existing) {
     return {
@@ -272,7 +276,11 @@ async function ensureDemoUser(
   assertExistingDemoIdentity(existing, attributes.demoRole);
 
   return {
-    user: await gateway.updateUser(existing.id, attributes),
+    user: await gateway.updateUser(
+      existing.id,
+      attributes,
+      updateExistingPassword,
+    ),
     created: false,
   };
 }
@@ -287,18 +295,26 @@ export async function provisionDemoAccounts(
     );
   }
 
-  const admin = await ensureDemoUser(gateway, {
-    email: DEMO_ADMIN_EMAIL,
-    password: config.adminPassword,
-    displayName: DEMO_ADMIN_DISPLAY_NAME,
-    demoRole: "admin",
-  });
-  const client = await ensureDemoUser(gateway, {
-    email: DEMO_CLIENT_EMAIL,
-    password: config.clientPassword,
-    displayName: DEMO_CLIENT_DISPLAY_NAME,
-    demoRole: "client",
-  });
+  const admin = await ensureDemoUser(
+    gateway,
+    {
+      email: DEMO_ADMIN_EMAIL,
+      password: config.adminPassword,
+      displayName: DEMO_ADMIN_DISPLAY_NAME,
+      demoRole: "admin",
+    },
+    false,
+  );
+  const client = await ensureDemoUser(
+    gateway,
+    {
+      email: DEMO_CLIENT_EMAIL,
+      password: config.clientPassword,
+      displayName: DEMO_CLIENT_DISPLAY_NAME,
+      demoRole: "client",
+    },
+    true,
+  );
 
   const verification = await gateway.provisionFixtures(
     admin.user.id,

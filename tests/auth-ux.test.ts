@@ -11,6 +11,25 @@ import {
   isValidEmailOtp,
   normalizeEmailOtp,
 } from '../lib/auth-email-otp';
+import {
+  isStrongPassword,
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+  PASSWORD_SYMBOLS,
+  SUPABASE_PASSWORD_REQUIRED_CHARACTERS,
+} from '../lib/password-policy';
+
+function decodeSupabasePasswordGroups(value: string) {
+  const parts = value.split(':');
+  for (let index = 0; index < parts.length - 1; index += 1) {
+    const part = parts[index];
+    if (part?.endsWith('\\')) {
+      parts[index] = `${part.slice(0, -1)}:${parts[index + 1]}`;
+      parts[index + 1] = '';
+    }
+  }
+  return parts.filter(Boolean);
+}
 
 test('every supported language provides complete authentication form guidance', () => {
   for (const language of SUPPORTED_LANGUAGES) {
@@ -94,6 +113,45 @@ test('email OTP handling shares the six-digit Supabase contract', () => {
   assert.equal(isValidEmailOtp('123456'), true);
   assert.equal(isValidEmailOtp('12345'), false);
   assert.equal(isValidEmailOtp('12345678'), false);
+});
+
+test('registration and recovery share the strong Supabase password policy', async () => {
+  assert.equal(PASSWORD_MIN_LENGTH, 16);
+  assert.equal(PASSWORD_MAX_LENGTH, 72);
+  assert.equal(isStrongPassword('Strong!Banking-2026'), true);
+  assert.equal(isStrongPassword('onlylettersanddigits2026'), false);
+  assert.equal(isStrongPassword('StrongBanking2026é'), false);
+  assert.equal(
+    isStrongPassword(`Aa1!${'é'.repeat(35)}`),
+    false,
+    'the bcrypt limit is enforced against UTF-8 bytes',
+  );
+  const requiredGroups = decodeSupabasePasswordGroups(
+    SUPABASE_PASSWORD_REQUIRED_CHARACTERS,
+  );
+  assert.equal(requiredGroups.length, 4);
+  assert.equal(requiredGroups[3], PASSWORD_SYMBOLS);
+  assert.equal(requiredGroups[3]?.includes('!'), true);
+  assert.equal(requiredGroups[3]?.includes('"'), true);
+  assert.equal(requiredGroups[3]?.includes(':'), true);
+
+  const [registration, recovery, config] = await Promise.all([
+    readFile(new URL('../app/register/page.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../app/reset-pin/page.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../supabase/config.toml', import.meta.url), 'utf8'),
+  ]);
+
+  for (const source of [registration, recovery]) {
+    assert.match(source, /isStrongPassword\(password\)/);
+    assert.match(source, /minLength=\{PASSWORD_MIN_LENGTH\}/);
+    assert.match(source, /maxLength=\{PASSWORD_MAX_LENGTH\}/);
+  }
+  assert.match(recovery, /role === 'admin' \? '\/admin-login' : '\/login'/);
+  assert.match(config, /minimum_password_length = 16/);
+  assert.match(
+    config,
+    /password_requirements = "lower_upper_letters_digits_symbols"/,
+  );
 });
 
 test('registration email guidance never guarantees delivery for an existing account', () => {

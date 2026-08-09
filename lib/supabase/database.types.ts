@@ -2626,6 +2626,14 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      record_admin_credentials_update: {
+        Args: {
+          p_actor_id: string
+          p_email_changed: boolean
+          p_password_changed: boolean
+        }
+        Returns: number
+      }
       record_financial_position: {
         Args: {
           p_amount_minor: number

@@ -45,6 +45,41 @@ class SupabaseDemoGateway implements DemoProvisioningGateway {
     };
   }
 
+  async findUserByDemoRole(
+    demoRole: DemoUserAttributes['demoRole'],
+  ): Promise<DemoUser | null> {
+    const matches: User[] = [];
+
+    for (let page = 1; page <= 10_000; page += 1) {
+      const { data, error } = await this.client.auth.admin.listUsers({
+        page,
+        perPage: USER_PAGE_SIZE,
+      });
+
+      if (error) {
+        throw new Error(`Lecture des utilisateurs Auth impossible : ${error.message}`);
+      }
+
+      matches.push(
+        ...data.users.filter(
+          (candidate) =>
+            candidate.app_metadata?.monalyz_demo === true &&
+            candidate.app_metadata?.demo_role === demoRole,
+        ),
+      );
+
+      if (data.users.length < USER_PAGE_SIZE) break;
+    }
+
+    if (matches.length > 1) {
+      throw new Error(
+        `Plusieurs identités de démonstration portent le rôle ${demoRole}. Provisionnement interrompu.`,
+      );
+    }
+
+    return matches[0] ? userFromSupabase(matches[0]) : null;
+  }
+
   async findUserByEmail(email: string): Promise<DemoUser | null> {
     const normalizedEmail = email.toLowerCase();
 
@@ -95,9 +130,10 @@ class SupabaseDemoGateway implements DemoProvisioningGateway {
   async updateUser(
     userId: string,
     attributes: DemoUserAttributes,
+    updatePassword: boolean,
   ): Promise<DemoUser> {
     const { data, error } = await this.client.auth.admin.updateUserById(userId, {
-      password: attributes.password,
+      ...(updatePassword ? { password: attributes.password } : {}),
       email_confirm: true,
       user_metadata: this.userMetadata(attributes),
       app_metadata: this.appMetadata(attributes),

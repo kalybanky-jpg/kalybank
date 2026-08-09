@@ -80,6 +80,11 @@ test("les deux profils conservent les protections Auth et les modèles Monalyz",
     config.payload.security_update_password_require_reauthentication,
     true,
   );
+  assert.equal(config.payload.password_min_length, 16);
+  assert.equal(
+    config.payload.password_required_characters,
+    "abcdefghijklmnopqrstuvwxyz:ABCDEFGHIJKLMNOPQRSTUVWXYZ:0123456789:!@#$%^&*()_+-=[]{};'\\\\:\"|<>?,./`~",
+  );
   assert.equal(
     config.payload.mailer_notifications_password_changed_enabled,
     true,

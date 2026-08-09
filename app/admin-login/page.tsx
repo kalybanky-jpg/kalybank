@@ -19,6 +19,13 @@ function AdminLoginContent() {
   const [isLoading, setIsLoading] = useState(false);
   const displayedError =
     error || copy.errors[searchParams.get('error') ?? ''] || '';
+  const updated = searchParams.get('updated');
+  const successMessage =
+    updated === 'email'
+      ? copy.updatedEmail
+      : updated === 'password'
+        ? copy.updatedPassword
+        : '';
 
   useEffect(() => {
     document.documentElement.lang = 'fr';
@@ -76,6 +83,11 @@ function AdminLoginContent() {
                 {displayedError}
               </div>
             )}
+            {!displayedError && successMessage && (
+              <div role="status" className="p-3.5 rounded-xl bg-emerald-950 border border-emerald-500/60 text-emerald-100 text-xs">
+                {successMessage}
+              </div>
+            )}
 
             <div>
               <label htmlFor="admin-email" className="block text-xs font-bold text-slate-200">
@@ -126,6 +138,14 @@ function AdminLoginContent() {
             >
               {isLoading ? copy.submitting : copy.submit}
             </button>
+            <p className="text-center text-xs">
+              <Link
+                href="/reset-pin?next=/admin-login"
+                className="rounded text-amber-300 hover:text-amber-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+              >
+                {copy.forgotPassword}
+              </Link>
+            </p>
           </form>
         </div>
         <p className="text-center mt-6 text-xs text-slate-500">

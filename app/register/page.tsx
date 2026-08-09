@@ -22,6 +22,11 @@ import PasswordField from '@/components/auth/PasswordField';
 import BrandLogo from '@/components/brand/BrandLogo';
 import { useBranded } from '@/components/brand/BrandProvider';
 import {
+  isStrongPassword,
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+} from '@/lib/password-policy';
+import {
   EMAIL_OTP_LENGTH,
   isValidEmailOtp,
   normalizeEmailOtp,
@@ -63,7 +68,7 @@ export default function RegisterPage() {
       setError(copy.baseCurrencyRequiredError);
       return;
     }
-    if (password.length < 10 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
+    if (!isStrongPassword(password)) {
       setError(copy.passwordPolicyError);
       return;
     }
@@ -347,7 +352,8 @@ export default function RegisterPage() {
                 helpText={copy.passwordHint}
                 helpTextId="register-password-hint"
                 invalid={passwordPolicyInvalid}
-                minLength={10}
+                minLength={PASSWORD_MIN_LENGTH}
+                maxLength={PASSWORD_MAX_LENGTH}
               />
               <PasswordField
                 id="register-confirm-password"
@@ -361,7 +367,8 @@ export default function RegisterPage() {
                 hidePasswordLabel={copy.hidePassword}
                 describedBy={confirmationInvalid ? 'register-error' : undefined}
                 invalid={confirmationInvalid}
-                minLength={10}
+                minLength={PASSWORD_MIN_LENGTH}
+                maxLength={PASSWORD_MAX_LENGTH}
               />
 
               <button

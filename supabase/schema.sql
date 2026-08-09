@@ -1,8 +1,8 @@
 -- Monalyz DATABASE SCHEMA SNAPSHOT
 -- GENERATED FILE: run `npx bun run db:snapshot`; do not edit manually.
 -- remote-project-ref: qljqldhvbakornnpalua
--- migration-manifest-sha256: 9650ab89a2a43f1b872d3c38fd9a5c1c6bb88d6cd2aa4e1a732880f705104168
--- migrations: 20260728060744_kaly_secure_external_financial_workflows.sql, 20260728061308_add_missing_foreign_key_indexes.sql, 20260728065832_rename_brand_to_monalyz.sql, 20260728092751_simplify_branch_manager_financial_workflows.sql, 20260728094442_add_outbox_claimed_by_index.sql, 20260728150934_add_profile_preferred_language.sql, 20260728151335_grant_profile_preferences_update.sql, 20260728173319_provision_demo_accounts.sql, 20260728183213_fix_demo_provisioner_uuid_literals.sql, 20260729115445_add_official_accounts_and_ledger.sql, 20260729115451_wire_ledger_to_financial_workflows.sql, 20260729115458_add_official_documents_and_demo_fixtures.sql, 20260730123059_automatic_account_numbers.sql, 20260730162101_kyc_workflow_and_internal_account.sql, 20260730170000_sequential_transfer_checks.sql, 20260731120000_user_localization_contract.sql, 20260801091705_configure_loan_products.sql, 20260801095428_dynamic_brand_settings.sql, 20260801163432_secure_brand_snapshot_function.sql, 20260803074608_scope_transactional_email_claims.sql, 20260803112108_harden_function_privileges_and_upload_staging.sql, 20260808112503_persist_signup_preferred_currency.sql, 20260808115958_add_tawk_support_backend.sql
+-- migration-manifest-sha256: 58eafa81b731d054d18fe605f5ff478e227a55cdf88f6ecf0882661670bdbba9
+-- migrations: 20260728060744_kaly_secure_external_financial_workflows.sql, 20260728061308_add_missing_foreign_key_indexes.sql, 20260728065832_rename_brand_to_monalyz.sql, 20260728092751_simplify_branch_manager_financial_workflows.sql, 20260728094442_add_outbox_claimed_by_index.sql, 20260728150934_add_profile_preferred_language.sql, 20260728151335_grant_profile_preferences_update.sql, 20260728173319_provision_demo_accounts.sql, 20260728183213_fix_demo_provisioner_uuid_literals.sql, 20260729115445_add_official_accounts_and_ledger.sql, 20260729115451_wire_ledger_to_financial_workflows.sql, 20260729115458_add_official_documents_and_demo_fixtures.sql, 20260730123059_automatic_account_numbers.sql, 20260730162101_kyc_workflow_and_internal_account.sql, 20260730170000_sequential_transfer_checks.sql, 20260731120000_user_localization_contract.sql, 20260801091705_configure_loan_products.sql, 20260801095428_dynamic_brand_settings.sql, 20260801163432_secure_brand_snapshot_function.sql, 20260803074608_scope_transactional_email_claims.sql, 20260803112108_harden_function_privileges_and_upload_staging.sql, 20260808112503_persist_signup_preferred_currency.sql, 20260808115958_add_tawk_support_backend.sql, 20260809080215_allow_demo_admin_email_changes.sql
 -- schema-only: true
 -- production-data-included: false
 -- schemas: public, private
@@ -950,6 +950,7 @@ CREATE OR REPLACE FUNCTION "private"."prepare_demo_financial_position"() RETURNS
     AS $$
 declare
   demo_admin_id uuid;
+  demo_admin_count integer;
   owner_email text;
   owner_metadata jsonb;
 begin
@@ -972,22 +973,30 @@ begin
       using errcode = '23514';
   end if;
 
+  select count(*)::integer
+  into demo_admin_count
+  from auth.users as user_record
+  join public.staff_members as staff
+    on staff.user_id = user_record.id
+  where user_record.raw_app_meta_data ->> 'monalyz_demo' = 'true'
+    and user_record.raw_app_meta_data ->> 'demo_role' = 'admin'
+    and staff.role = 'admin'
+    and staff.active;
+
+  if demo_admin_count <> 1 then
+    raise exception 'DEMO_BRANCH_MANAGER_REQUIRED'
+      using errcode = '23514';
+  end if;
+
   select user_record.id
   into demo_admin_id
   from auth.users as user_record
   join public.staff_members as staff
     on staff.user_id = user_record.id
-  where lower(coalesce(user_record.email, '')) = 'admin.demo@monalyz.com'
-    and user_record.raw_app_meta_data ->> 'monalyz_demo' = 'true'
+  where user_record.raw_app_meta_data ->> 'monalyz_demo' = 'true'
     and user_record.raw_app_meta_data ->> 'demo_role' = 'admin'
     and staff.role = 'admin'
-    and staff.active
-  limit 1;
-
-  if demo_admin_id is null then
-    raise exception 'DEMO_BRANCH_MANAGER_REQUIRED'
-      using errcode = '23514';
-  end if;
+    and staff.active;
 
   new.account_number := 'DEMO-EUR-000001';
   new.iban := 'FR5299999999990000000000100';
@@ -1178,6 +1187,11 @@ begin
   then
     raise exception 'INVALID_SUPPORT_IDENTITY_EMAIL' using errcode = '22023';
   end if;
+
+  update public.profiles
+  set email = normalized_new_email
+  where user_id = new.id
+    and email is distinct from normalized_new_email;
 
   if not exists (
     select 1
@@ -3954,7 +3968,7 @@ begin
   where id = p_admin_user_id;
 
   if not found
-     or admin_email <> 'admin.demo@monalyz.com'
+     or admin_email = ''
      or admin_app_metadata ->> 'monalyz_demo' <> 'true'
      or admin_app_metadata ->> 'demo_role' <> 'admin' then
     raise exception 'INVALID_DEMO_ADMIN_IDENTITY' using errcode = '22023';
@@ -4107,7 +4121,7 @@ begin
   values
     (
       p_admin_user_id,
-      'admin.demo@monalyz.com',
+      admin_email,
       'Administrateur Démo Monalyz',
       'EUR',
       'fr',
@@ -4324,7 +4338,7 @@ begin
   into demo_user_count
   from auth.users
   where lower(coalesce(email, '')) in (
-      'admin.demo@monalyz.com',
+      admin_email,
       'client.demo@monalyz.com'
     )
     and raw_app_meta_data ->> 'monalyz_demo' = 'true';
@@ -4650,6 +4664,61 @@ $$;
 
 
 ALTER FUNCTION "public"."record_financial_position"("p_owner_id" "uuid", "p_label" "text", "p_currency" "text", "p_amount_minor" bigint, "p_as_of" timestamp with time zone, "p_external_identifier_masked" "text", "p_reason" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."record_admin_credentials_update"("p_actor_id" "uuid", "p_email_changed" boolean, "p_password_changed" boolean) RETURNS bigint
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare
+  audit_id bigint;
+begin
+  if p_actor_id is null
+     or p_email_changed is null
+     or p_password_changed is null
+     or p_email_changed = p_password_changed then
+    raise exception 'INVALID_ADMIN_CREDENTIAL_AUDIT'
+      using errcode = '22023';
+  end if;
+
+  if not exists (
+    select 1
+    from auth.users as user_record
+    join public.staff_members as staff
+      on staff.user_id = user_record.id
+    where user_record.id = p_actor_id
+      and staff.role = 'admin'
+      and staff.active
+  ) then
+    raise exception 'ADMIN_CREDENTIAL_AUDIT_ACTOR_REQUIRED'
+      using errcode = '42501';
+  end if;
+
+  insert into public.audit_events (
+    actor_id,
+    action,
+    entity_type,
+    entity_id,
+    metadata
+  )
+  values (
+    p_actor_id,
+    'admin_credentials_updated',
+    'auth_user',
+    p_actor_id,
+    jsonb_build_object(
+      'emailChanged', p_email_changed,
+      'passwordChanged', p_password_changed
+    )
+  )
+  returning id into audit_id;
+
+  return audit_id;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."record_admin_credentials_update"("p_actor_id" "uuid", "p_email_changed" boolean, "p_password_changed" boolean) OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."register_push_subscription"("p_expected_user_id" "uuid", "p_endpoint" "text", "p_p256dh" "text", "p_auth_key" "text", "p_expiration_time" bigint DEFAULT NULL::bigint, "p_user_agent" "text" DEFAULT NULL::"text") RETURNS "uuid"
@@ -8329,6 +8398,11 @@ GRANT ALL ON FUNCTION "public"."publish_brand_settings"("p_expected_revision" bi
 
 REVOKE ALL ON FUNCTION "public"."record_financial_position"("p_owner_id" "uuid", "p_label" "text", "p_currency" "text", "p_amount_minor" bigint, "p_as_of" timestamp with time zone, "p_external_identifier_masked" "text", "p_reason" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."record_financial_position"("p_owner_id" "uuid", "p_label" "text", "p_currency" "text", "p_amount_minor" bigint, "p_as_of" timestamp with time zone, "p_external_identifier_masked" "text", "p_reason" "text") TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."record_admin_credentials_update"("p_actor_id" "uuid", "p_email_changed" boolean, "p_password_changed" boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."record_admin_credentials_update"("p_actor_id" "uuid", "p_email_changed" boolean, "p_password_changed" boolean) TO "service_role";
 
 
 

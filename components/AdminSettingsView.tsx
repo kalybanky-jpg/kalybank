@@ -14,6 +14,7 @@ import { isPublicSupabaseConfigured } from '@/lib/supabase/config';
 import BrandSettingsEditor from '@/components/brand/BrandSettingsEditor';
 import type { ExchangeRateSnapshot } from '@/lib/currency';
 import WebPushSettings from '@/components/support/WebPushSettings';
+import AdminCredentialsSettings from '@/components/AdminCredentialsSettings';
 
 const LOAN_CURRENCIES = ['EUR', 'USD', 'CAD', 'CHF', 'GBP'] as const;
 type LoanCurrency = (typeof LOAN_CURRENCIES)[number];
@@ -247,6 +248,7 @@ export default function AdminSettingsView() {
       <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <BrandSettingsEditor />
         <WebPushSettings className="md:col-span-2" />
+        <AdminCredentialsSettings />
         <form
           onSubmit={submitLoanSettings}
           className="bg-white rounded-3xl border border-slate-200 p-6 md:col-span-2"

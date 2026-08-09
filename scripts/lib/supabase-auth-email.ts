@@ -1,4 +1,8 @@
 import { EMAIL_OTP_LENGTH } from "../../lib/auth-email-otp";
+import {
+  PASSWORD_MIN_LENGTH,
+  SUPABASE_PASSWORD_REQUIRED_CHARACTERS,
+} from "../../lib/password-policy";
 
 export type AuthEmailProvider = "resend" | "brevo";
 
@@ -16,6 +20,8 @@ export interface SupabaseAuthEmailPayload {
   mailer_otp_length: typeof EMAIL_OTP_LENGTH;
   mailer_secure_email_change_enabled: true;
   security_update_password_require_reauthentication: true;
+  password_min_length: typeof PASSWORD_MIN_LENGTH;
+  password_required_characters: typeof SUPABASE_PASSWORD_REQUIRED_CHARACTERS;
   smtp_admin_email: string;
   smtp_host: string;
   smtp_port: string;
@@ -209,6 +215,8 @@ export function buildSupabaseAuthEmailConfig(
       mailer_otp_length: EMAIL_OTP_LENGTH,
       mailer_secure_email_change_enabled: true,
       security_update_password_require_reauthentication: true,
+      password_min_length: PASSWORD_MIN_LENGTH,
+      password_required_characters: SUPABASE_PASSWORD_REQUIRED_CHARACTERS,
       smtp_admin_email: senderEmail,
       smtp_host: smtp.host,
       smtp_port: smtp.port,
@@ -263,6 +271,9 @@ export function safeAuthEmailSummary(config: SupabaseAuthEmailConfig) {
       secureEmailChange: config.payload.mailer_secure_email_change_enabled,
       passwordChangeReauthentication:
         config.payload.security_update_password_require_reauthentication,
+      passwordMinLength: config.payload.password_min_length,
+      passwordRequiredCharacters:
+        config.payload.password_required_characters,
       passwordChangeNotification:
         config.payload.mailer_notifications_password_changed_enabled,
       hourlyRateLimit: config.payload.rate_limit_email_sent,

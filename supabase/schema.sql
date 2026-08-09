@@ -4604,6 +4604,61 @@ $$;
 ALTER FUNCTION "public"."publish_brand_settings"("p_expected_revision" bigint, "p_bank_name" "text", "p_primary_logo_path" "text", "p_primary_logo_width" integer, "p_primary_logo_height" integer, "p_reversed_logo_path" "text", "p_reversed_logo_width" integer, "p_reversed_logo_height" integer, "p_email_logo_path" "text", "p_pdf_logo_path" "text", "p_favicon_ico_path" "text", "p_favicon_16_path" "text", "p_favicon_32_path" "text", "p_favicon_48_path" "text", "p_apple_touch_icon_path" "text", "p_app_icon_192_path" "text", "p_app_icon_512_path" "text", "p_maskable_icon_path" "text", "p_social_card_path" "text") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."record_admin_credentials_update"("p_actor_id" "uuid", "p_email_changed" boolean, "p_password_changed" boolean) RETURNS bigint
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare
+  audit_id bigint;
+begin
+  if p_actor_id is null
+     or p_email_changed is null
+     or p_password_changed is null
+     or p_email_changed = p_password_changed then
+    raise exception 'INVALID_ADMIN_CREDENTIAL_AUDIT'
+      using errcode = '22023';
+  end if;
+
+  if not exists (
+    select 1
+    from auth.users as user_record
+    join public.staff_members as staff
+      on staff.user_id = user_record.id
+    where user_record.id = p_actor_id
+      and staff.role = 'admin'
+      and staff.active
+  ) then
+    raise exception 'ADMIN_CREDENTIAL_AUDIT_ACTOR_REQUIRED'
+      using errcode = '42501';
+  end if;
+
+  insert into public.audit_events (
+    actor_id,
+    action,
+    entity_type,
+    entity_id,
+    metadata
+  )
+  values (
+    p_actor_id,
+    'admin_credentials_updated',
+    'auth_user',
+    p_actor_id,
+    jsonb_build_object(
+      'emailChanged', p_email_changed,
+      'passwordChanged', p_password_changed
+    )
+  )
+  returning id into audit_id;
+
+  return audit_id;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."record_admin_credentials_update"("p_actor_id" "uuid", "p_email_changed" boolean, "p_password_changed" boolean) OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."record_financial_position"("p_owner_id" "uuid", "p_label" "text", "p_currency" "text", "p_amount_minor" bigint, "p_as_of" timestamp with time zone, "p_external_identifier_masked" "text", "p_reason" "text") RETURNS "public"."financial_positions"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
@@ -4664,61 +4719,6 @@ $$;
 
 
 ALTER FUNCTION "public"."record_financial_position"("p_owner_id" "uuid", "p_label" "text", "p_currency" "text", "p_amount_minor" bigint, "p_as_of" timestamp with time zone, "p_external_identifier_masked" "text", "p_reason" "text") OWNER TO "postgres";
-
-
-CREATE OR REPLACE FUNCTION "public"."record_admin_credentials_update"("p_actor_id" "uuid", "p_email_changed" boolean, "p_password_changed" boolean) RETURNS bigint
-    LANGUAGE "plpgsql" SECURITY DEFINER
-    SET "search_path" TO ''
-    AS $$
-declare
-  audit_id bigint;
-begin
-  if p_actor_id is null
-     or p_email_changed is null
-     or p_password_changed is null
-     or p_email_changed = p_password_changed then
-    raise exception 'INVALID_ADMIN_CREDENTIAL_AUDIT'
-      using errcode = '22023';
-  end if;
-
-  if not exists (
-    select 1
-    from auth.users as user_record
-    join public.staff_members as staff
-      on staff.user_id = user_record.id
-    where user_record.id = p_actor_id
-      and staff.role = 'admin'
-      and staff.active
-  ) then
-    raise exception 'ADMIN_CREDENTIAL_AUDIT_ACTOR_REQUIRED'
-      using errcode = '42501';
-  end if;
-
-  insert into public.audit_events (
-    actor_id,
-    action,
-    entity_type,
-    entity_id,
-    metadata
-  )
-  values (
-    p_actor_id,
-    'admin_credentials_updated',
-    'auth_user',
-    p_actor_id,
-    jsonb_build_object(
-      'emailChanged', p_email_changed,
-      'passwordChanged', p_password_changed
-    )
-  )
-  returning id into audit_id;
-
-  return audit_id;
-end;
-$$;
-
-
-ALTER FUNCTION "public"."record_admin_credentials_update"("p_actor_id" "uuid", "p_email_changed" boolean, "p_password_changed" boolean) OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."register_push_subscription"("p_expected_user_id" "uuid", "p_endpoint" "text", "p_p256dh" "text", "p_auth_key" "text", "p_expiration_time" bigint DEFAULT NULL::bigint, "p_user_agent" "text" DEFAULT NULL::"text") RETURNS "uuid"
@@ -8396,13 +8396,13 @@ GRANT ALL ON FUNCTION "public"."publish_brand_settings"("p_expected_revision" bi
 
 
 
-REVOKE ALL ON FUNCTION "public"."record_financial_position"("p_owner_id" "uuid", "p_label" "text", "p_currency" "text", "p_amount_minor" bigint, "p_as_of" timestamp with time zone, "p_external_identifier_masked" "text", "p_reason" "text") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."record_financial_position"("p_owner_id" "uuid", "p_label" "text", "p_currency" "text", "p_amount_minor" bigint, "p_as_of" timestamp with time zone, "p_external_identifier_masked" "text", "p_reason" "text") TO "service_role";
-
-
-
 REVOKE ALL ON FUNCTION "public"."record_admin_credentials_update"("p_actor_id" "uuid", "p_email_changed" boolean, "p_password_changed" boolean) FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."record_admin_credentials_update"("p_actor_id" "uuid", "p_email_changed" boolean, "p_password_changed" boolean) TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "public"."record_financial_position"("p_owner_id" "uuid", "p_label" "text", "p_currency" "text", "p_amount_minor" bigint, "p_as_of" timestamp with time zone, "p_external_identifier_masked" "text", "p_reason" "text") FROM PUBLIC;
+GRANT ALL ON FUNCTION "public"."record_financial_position"("p_owner_id" "uuid", "p_label" "text", "p_currency" "text", "p_amount_minor" bigint, "p_as_of" timestamp with time zone, "p_external_identifier_masked" "text", "p_reason" "text") TO "service_role";
 
 
 

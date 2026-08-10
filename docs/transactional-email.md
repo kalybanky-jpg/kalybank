@@ -107,12 +107,17 @@ local reste le secours.
 
 ### Hook Supabase Auth
 
-Configurer le Send Email Hook HTTP Supabase vers
-`https://<origine>/api/auth/send-email-hook`, puis copier son secret dans
+Le profil de production utilise directement le SMTP Supabase et maintient le
+Send Email Hook désactivé. Un hook HTTP remplace entièrement le SMTP et doit
+répondre en moins de cinq secondes ; il ne constitue donc pas un mécanisme de
+secours. La commande `auth:email:configure:*` désactive explicitement ce hook
+avant de vérifier la configuration distante.
+
+La route `https://<origine>/api/auth/send-email-hook` reste disponible pour une
+future architecture à faible latence. Avant de la réactiver, valider les
+démarrages à froid sous cinq secondes et copier son secret dans
 `SEND_EMAIL_HOOK_SECRET`. L’endpoint vérifie les trois en-têtes Standard
-Webhooks avant tout accès aux données et gère inscription, récupération,
-invitation, changement d’e-mail sécurisé et notifications de sécurité. Les
-modèles HTML Supabase versionnés restent des secours génériques sans marque.
+Webhooks avant tout accès aux données.
 
 ### Resend métier
 

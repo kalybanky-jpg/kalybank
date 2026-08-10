@@ -48,6 +48,7 @@ test('les changements d’identifiants sont normalisés et strictement validés'
   );
   assert.equal(ADMIN_PASSWORD_MIN_LENGTH, 16);
   assert.equal(ADMIN_PASSWORD_MAX_LENGTH, 72);
+  assert.equal(isStrongAdminPassword('Aa1!abcd'), false);
   assert.equal(isStrongAdminPassword('New!Admin-Password-2026'), true);
   assert.equal(isStrongAdminPassword('new-admin-password-2026'), false);
   assert.equal(isStrongAdminPassword('New Admin Password 2026!'), false);

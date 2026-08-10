@@ -74,13 +74,14 @@ test("les deux profils conservent les protections Auth et les modèles Monalyz",
   );
 
   assert.equal(config.payload.mailer_autoconfirm, false);
+  assert.equal(config.payload.hook_send_email_enabled, false);
   assert.equal(config.payload.mailer_otp_length, 6);
   assert.equal(config.payload.mailer_secure_email_change_enabled, true);
   assert.equal(
     config.payload.security_update_password_require_reauthentication,
     true,
   );
-  assert.equal(config.payload.password_min_length, 16);
+  assert.equal(config.payload.password_min_length, 8);
   assert.equal(
     config.payload.password_required_characters,
     "abcdefghijklmnopqrstuvwxyz:ABCDEFGHIJKLMNOPQRSTUVWXYZ:0123456789:!@#$%^&*()_+-=[]{};'\\\\:\"|<>?,./`~",

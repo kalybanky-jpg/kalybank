@@ -59,11 +59,13 @@ test('every supported language provides complete authentication form guidance', 
       messages.resetPassword.passwordPlaceholder,
       messages.resetPassword.confirmPasswordPlaceholder,
       messages.resetPassword.passwordHint,
+      messages.resetPassword.adminPasswordHint,
+      messages.resetPassword.adminPasswordError,
       messages.resetPassword.showPassword,
       messages.resetPassword.hidePassword,
     ];
 
-    assert.equal(guidance.length, 26);
+    assert.equal(guidance.length, 28);
     for (const value of guidance) {
       assert.ok(value.trim().length > 0, `missing ${language} authentication guidance`);
     }
@@ -116,8 +118,10 @@ test('email OTP handling shares the six-digit Supabase contract', () => {
 });
 
 test('registration and recovery share the strong Supabase password policy', async () => {
-  assert.equal(PASSWORD_MIN_LENGTH, 16);
+  assert.equal(PASSWORD_MIN_LENGTH, 8);
   assert.equal(PASSWORD_MAX_LENGTH, 72);
+  assert.equal(isStrongPassword('Aa1!abcd'), true);
+  assert.equal(isStrongPassword('Aa1!abc'), false);
   assert.equal(isStrongPassword('Strong!Banking-2026'), true);
   assert.equal(isStrongPassword('onlylettersanddigits2026'), false);
   assert.equal(isStrongPassword('StrongBanking2026é'), false);
@@ -141,13 +145,16 @@ test('registration and recovery share the strong Supabase password policy', asyn
     readFile(new URL('../supabase/config.toml', import.meta.url), 'utf8'),
   ]);
 
-  for (const source of [registration, recovery]) {
-    assert.match(source, /isStrongPassword\(password\)/);
-    assert.match(source, /minLength=\{PASSWORD_MIN_LENGTH\}/);
-    assert.match(source, /maxLength=\{PASSWORD_MAX_LENGTH\}/);
-  }
+  assert.match(registration, /isStrongPassword\(password\)/);
+  assert.match(registration, /minLength=\{PASSWORD_MIN_LENGTH\}/);
+  assert.match(registration, /maxLength=\{PASSWORD_MAX_LENGTH\}/);
+  assert.match(recovery, /isStrongPassword\(password\)/);
+  assert.match(recovery, /isStrongAdminPassword\(password\)/);
+  assert.match(recovery, /role === 'admin' && !isStrongAdminPassword\(password\)/);
+  assert.match(recovery, /minLength=\{recoveryPasswordMinLength\}/);
+  assert.match(recovery, /maxLength=\{PASSWORD_MAX_LENGTH\}/);
   assert.match(recovery, /role === 'admin' \? '\/admin-login' : '\/login'/);
-  assert.match(config, /minimum_password_length = 16/);
+  assert.match(config, /minimum_password_length = 8/);
   assert.match(
     config,
     /password_requirements = "lower_upper_letters_digits_symbols"/,

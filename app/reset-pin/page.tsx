@@ -17,6 +17,10 @@ import {
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
 } from '@/lib/password-policy';
+import {
+  ADMIN_PASSWORD_MIN_LENGTH,
+  isStrongAdminPassword,
+} from '@/lib/admin-credentials';
 
 function ResetPasswordContent() {
   const searchParams = useSearchParams();
@@ -25,6 +29,10 @@ function ResetPasswordContent() {
   const isUpdateMode = searchParams.get('mode') === 'update';
   const requestedLogin =
     searchParams.get('next') === '/admin-login' ? '/admin-login' : '/login';
+  const isAdminRecovery = requestedLogin === '/admin-login';
+  const recoveryPasswordMinLength = isAdminRecovery
+    ? ADMIN_PASSWORD_MIN_LENGTH
+    : PASSWORD_MIN_LENGTH;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -34,7 +42,8 @@ function ResetPasswordContent() {
   const displayedError =
     error ||
     (searchParams.get('error') === 'recovery_session' ? copy.recoveryError : '');
-  const passwordInvalid = error === copy.passwordError;
+  const passwordInvalid =
+    error === copy.passwordError || error === copy.adminPasswordError;
 
   const handleRequest = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -44,8 +53,9 @@ function ResetPasswordContent() {
       const supabase = createClient();
       const origin = configuredAppOrigin();
       if (!origin) throw new Error('Invalid public application origin.');
+      const recoveryTarget = `/reset-pin?mode=update&next=${encodeURIComponent(requestedLogin)}`;
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: `${origin}/auth/callback?next=/reset-pin?mode=update`,
+        redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(recoveryTarget)}`,
       });
       if (resetError) throw resetError;
       setMessage(copy.requestSuccess);
@@ -59,11 +69,11 @@ function ResetPasswordContent() {
   const handleUpdate = async (event: React.FormEvent) => {
     event.preventDefault();
     setError('');
-    if (
-      !isStrongPassword(password) ||
-      password !== confirmPassword
-    ) {
-      setError(copy.passwordError);
+    const meetsRequestedPolicy = isAdminRecovery
+      ? isStrongAdminPassword(password)
+      : isStrongPassword(password);
+    if (!meetsRequestedPolicy || password !== confirmPassword) {
+      setError(isAdminRecovery ? copy.adminPasswordError : copy.passwordError);
       return;
     }
     setIsLoading(true);
@@ -72,6 +82,10 @@ function ResetPasswordContent() {
       const { data: role, error: roleError } =
         await supabase.rpc('current_app_role');
       if (roleError) throw roleError;
+      if (role === 'admin' && !isStrongAdminPassword(password)) {
+        setError(copy.adminPasswordError);
+        return;
+      }
       const { error: updateError } = await supabase.auth.updateUser({ password });
       if (updateError) throw updateError;
       await supabase.auth.signOut();
@@ -113,10 +127,10 @@ function ResetPasswordContent() {
                 showPasswordLabel={copy.showPassword}
                 hidePasswordLabel={copy.hidePassword}
                 describedBy={passwordInvalid ? 'reset-password-error' : undefined}
-                helpText={copy.passwordHint}
+                helpText={isAdminRecovery ? copy.adminPasswordHint : copy.passwordHint}
                 helpTextId="reset-password-hint"
                 invalid={passwordInvalid}
-                minLength={PASSWORD_MIN_LENGTH}
+                minLength={recoveryPasswordMinLength}
                 maxLength={PASSWORD_MAX_LENGTH}
                 dark
               />
@@ -132,7 +146,7 @@ function ResetPasswordContent() {
                 hidePasswordLabel={copy.hidePassword}
                 describedBy={passwordInvalid ? 'reset-password-error' : undefined}
                 invalid={passwordInvalid}
-                minLength={PASSWORD_MIN_LENGTH}
+                minLength={recoveryPasswordMinLength}
                 maxLength={PASSWORD_MAX_LENGTH}
                 dark
               />

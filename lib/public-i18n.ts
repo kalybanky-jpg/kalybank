@@ -88,6 +88,7 @@ interface PublicMessages {
     passwordPlaceholder: string;
     confirmPasswordPlaceholder: string;
     passwordHint: string;
+    adminPasswordHint: string;
     showPassword: string;
     hidePassword: string;
     requestSubmit: string;
@@ -95,6 +96,7 @@ interface PublicMessages {
     submitting: string;
     recoveryError: string;
     passwordError: string;
+    adminPasswordError: string;
     requestSuccess: string;
     requestError: string;
     updateError: string;
@@ -145,7 +147,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
       passwordPlaceholder: 'Choisissez un mot de passe sécurisé',
       confirmPasswordPlaceholder: 'Confirmez votre mot de passe',
       passwordHint:
-        '16 à 72 caractères, avec minuscule, majuscule, chiffre et symbole, sans espace.',
+        '8 à 72 caractères, avec minuscule, majuscule, chiffre et symbole, sans espace.',
       showPassword: 'Afficher le mot de passe',
       hidePassword: 'Masquer le mot de passe',
       submit: 'Créer un compte',
@@ -153,7 +155,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
       baseCurrencyRequiredError:
         'Sélectionnez une devise pour poursuivre votre inscription.',
       passwordPolicyError:
-        'Le mot de passe doit comporter 16 à 72 caractères avec minuscule, majuscule, chiffre et symbole, sans espace.',
+        'Le mot de passe doit comporter 8 à 72 caractères avec minuscule, majuscule, chiffre et symbole, sans espace.',
       passwordMismatchError: 'Les mots de passe ne correspondent pas.',
       genericError: 'Création du compte impossible.',
       checkEmailTitle: 'Vérifiez votre demande d’inscription',
@@ -208,7 +210,9 @@ export const publicMessages: Record<Language, PublicMessages> = {
       passwordPlaceholder: 'Créez un nouveau mot de passe',
       confirmPasswordPlaceholder: 'Confirmez le nouveau mot de passe',
       passwordHint:
-        'Utilisez 16 à 72 caractères avec minuscule, majuscule, chiffre et symbole, sans espace.',
+        'Utilisez 8 à 72 caractères avec minuscule, majuscule, chiffre et symbole, sans espace.',
+      adminPasswordHint:
+        'Pour un compte chef d’agence, utilisez 16 à 72 caractères avec minuscule, majuscule, chiffre et symbole, sans espace.',
       showPassword: 'Afficher le mot de passe',
       hidePassword: 'Masquer le mot de passe',
       requestSubmit: 'Envoyer le lien sécurisé',
@@ -217,7 +221,9 @@ export const publicMessages: Record<Language, PublicMessages> = {
       recoveryError:
         'Le lien de récupération est invalide ou expiré. Demandez-en un nouveau.',
       passwordError:
-        'Utilisez 16 à 72 caractères avec minuscule, majuscule, chiffre et symbole, sans espace, puis saisissez deux valeurs identiques.',
+        'Utilisez 8 à 72 caractères avec minuscule, majuscule, chiffre et symbole, sans espace, puis saisissez deux valeurs identiques.',
+      adminPasswordError:
+        'Un mot de passe chef d’agence doit utiliser 16 à 72 caractères avec minuscule, majuscule, chiffre et symbole, sans espace, puis être saisi deux fois à l’identique.',
       requestSuccess:
         'Si cette adresse existe, un lien sécurisé a été envoyé. Il expirera selon la politique Supabase Auth.',
       requestError: 'Demande impossible.',
@@ -267,7 +273,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
       passwordPlaceholder: 'Choose a secure password',
       confirmPasswordPlaceholder: 'Confirm your password',
       passwordHint:
-        '16 to 72 characters with lowercase, uppercase, a number and a symbol, without spaces.',
+        '8 to 72 characters with lowercase, uppercase, a number and a symbol, without spaces.',
       showPassword: 'Show password',
       hidePassword: 'Hide password',
       submit: 'Create an account',
@@ -275,7 +281,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
       baseCurrencyRequiredError:
         'Select a currency to continue your registration.',
       passwordPolicyError:
-        'The password must contain 16 to 72 characters with lowercase, uppercase, a number and a symbol, without spaces.',
+        'The password must contain 8 to 72 characters with lowercase, uppercase, a number and a symbol, without spaces.',
       passwordMismatchError: 'The passwords do not match.',
       genericError: 'Unable to create the account.',
       checkEmailTitle: 'Check your registration request',
@@ -330,7 +336,9 @@ export const publicMessages: Record<Language, PublicMessages> = {
       passwordPlaceholder: 'Create a new password',
       confirmPasswordPlaceholder: 'Confirm your new password',
       passwordHint:
-        'Use 16 to 72 characters with lowercase, uppercase, a number and a symbol, without spaces.',
+        'Use 8 to 72 characters with lowercase, uppercase, a number and a symbol, without spaces.',
+      adminPasswordHint:
+        'For a branch manager account, use 16 to 72 characters with lowercase, uppercase, a number and a symbol, without spaces.',
       showPassword: 'Show password',
       hidePassword: 'Hide password',
       requestSubmit: 'Send the secure link',
@@ -339,7 +347,9 @@ export const publicMessages: Record<Language, PublicMessages> = {
       recoveryError:
         'The recovery link is invalid or has expired. Please request a new one.',
       passwordError:
-        'Use 16 to 72 characters with lowercase, uppercase, a number and a symbol, without spaces, then enter the same value twice.',
+        'Use 8 to 72 characters with lowercase, uppercase, a number and a symbol, without spaces, then enter the same value twice.',
+      adminPasswordError:
+        'A branch manager password must use 16 to 72 characters with lowercase, uppercase, a number and a symbol, without spaces, then be entered identically twice.',
       requestSuccess:
         'If this address exists, a secure link has been sent. It will expire according to the Supabase Auth policy.',
       requestError: 'Unable to submit the request.',
@@ -390,7 +400,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
       passwordPlaceholder: 'Wählen Sie ein sicheres Passwort',
       confirmPasswordPlaceholder: 'Bestätigen Sie Ihr Passwort',
       passwordHint:
-        '16 bis 72 Zeichen mit Kleinbuchstaben, Großbuchstaben, Zahl und Sonderzeichen, ohne Leerzeichen.',
+        '8 bis 72 Zeichen mit Kleinbuchstaben, Großbuchstaben, Zahl und Sonderzeichen, ohne Leerzeichen.',
       showPassword: 'Passwort anzeigen',
       hidePassword: 'Passwort ausblenden',
       submit: 'Konto erstellen',
@@ -398,7 +408,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
       baseCurrencyRequiredError:
         'Wählen Sie eine Währung aus, um die Registrierung fortzusetzen.',
       passwordPolicyError:
-        'Das Passwort muss 16 bis 72 Zeichen mit Kleinbuchstaben, Großbuchstaben, Zahl und Sonderzeichen enthalten, ohne Leerzeichen.',
+        'Das Passwort muss 8 bis 72 Zeichen mit Kleinbuchstaben, Großbuchstaben, Zahl und Sonderzeichen enthalten, ohne Leerzeichen.',
       passwordMismatchError: 'Die Passwörter stimmen nicht überein.',
       genericError: 'Das Konto konnte nicht erstellt werden.',
       checkEmailTitle: 'Registrierungsanfrage prüfen',
@@ -453,7 +463,9 @@ export const publicMessages: Record<Language, PublicMessages> = {
       passwordPlaceholder: 'Erstellen Sie ein neues Passwort',
       confirmPasswordPlaceholder: 'Bestätigen Sie Ihr neues Passwort',
       passwordHint:
-        'Verwenden Sie 16 bis 72 Zeichen mit Kleinbuchstaben, Großbuchstaben, Zahl und Sonderzeichen, ohne Leerzeichen.',
+        'Verwenden Sie 8 bis 72 Zeichen mit Kleinbuchstaben, Großbuchstaben, Zahl und Sonderzeichen, ohne Leerzeichen.',
+      adminPasswordHint:
+        'Verwenden Sie für ein Filialleiterkonto 16 bis 72 Zeichen mit Kleinbuchstaben, Großbuchstaben, Zahl und Sonderzeichen, ohne Leerzeichen.',
       showPassword: 'Passwort anzeigen',
       hidePassword: 'Passwort ausblenden',
       requestSubmit: 'Sicheren Link senden',
@@ -462,7 +474,9 @@ export const publicMessages: Record<Language, PublicMessages> = {
       recoveryError:
         'Der Wiederherstellungslink ist ungültig oder abgelaufen. Fordern Sie einen neuen an.',
       passwordError:
-        'Verwenden Sie 16 bis 72 Zeichen mit Kleinbuchstaben, Großbuchstaben, Zahl und Sonderzeichen, ohne Leerzeichen, und geben Sie denselben Wert zweimal ein.',
+        'Verwenden Sie 8 bis 72 Zeichen mit Kleinbuchstaben, Großbuchstaben, Zahl und Sonderzeichen, ohne Leerzeichen, und geben Sie denselben Wert zweimal ein.',
+      adminPasswordError:
+        'Ein Filialleiter-Passwort muss 16 bis 72 Zeichen mit Kleinbuchstaben, Großbuchstaben, Zahl und Sonderzeichen ohne Leerzeichen enthalten und zweimal identisch eingegeben werden.',
       requestSuccess:
         'Falls diese Adresse existiert, wurde ein sicherer Link gesendet. Er läuft gemäß der Supabase-Auth-Richtlinie ab.',
       requestError: 'Anfrage nicht möglich.',
@@ -512,7 +526,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
       passwordPlaceholder: 'Elija una contraseña segura',
       confirmPasswordPlaceholder: 'Confirme su contraseña',
       passwordHint:
-        'Entre 16 y 72 caracteres con minúscula, mayúscula, número y símbolo, sin espacios.',
+        'Entre 8 y 72 caracteres con minúscula, mayúscula, número y símbolo, sin espacios.',
       showPassword: 'Mostrar contraseña',
       hidePassword: 'Ocultar contraseña',
       submit: 'Crear una cuenta',
@@ -520,7 +534,7 @@ export const publicMessages: Record<Language, PublicMessages> = {
       baseCurrencyRequiredError:
         'Seleccione una moneda para continuar con el registro.',
       passwordPolicyError:
-        'La contraseña debe tener entre 16 y 72 caracteres con minúscula, mayúscula, número y símbolo, sin espacios.',
+        'La contraseña debe tener entre 8 y 72 caracteres con minúscula, mayúscula, número y símbolo, sin espacios.',
       passwordMismatchError: 'Las contraseñas no coinciden.',
       genericError: 'No se pudo crear la cuenta.',
       checkEmailTitle: 'Compruebe su solicitud de registro',
@@ -575,7 +589,9 @@ export const publicMessages: Record<Language, PublicMessages> = {
       passwordPlaceholder: 'Cree una contraseña nueva',
       confirmPasswordPlaceholder: 'Confirme la nueva contraseña',
       passwordHint:
-        'Use entre 16 y 72 caracteres con minúscula, mayúscula, número y símbolo, sin espacios.',
+        'Use entre 8 y 72 caracteres con minúscula, mayúscula, número y símbolo, sin espacios.',
+      adminPasswordHint:
+        'Para una cuenta de director de sucursal, use entre 16 y 72 caracteres con minúscula, mayúscula, número y símbolo, sin espacios.',
       showPassword: 'Mostrar contraseña',
       hidePassword: 'Ocultar contraseña',
       requestSubmit: 'Enviar el enlace seguro',
@@ -584,7 +600,9 @@ export const publicMessages: Record<Language, PublicMessages> = {
       recoveryError:
         'El enlace de recuperación no es válido o ha caducado. Solicite uno nuevo.',
       passwordError:
-        'Use entre 16 y 72 caracteres con minúscula, mayúscula, número y símbolo, sin espacios, e introduzca el mismo valor dos veces.',
+        'Use entre 8 y 72 caracteres con minúscula, mayúscula, número y símbolo, sin espacios, e introduzca el mismo valor dos veces.',
+      adminPasswordError:
+        'La contraseña de un director de sucursal debe tener entre 16 y 72 caracteres con minúscula, mayúscula, número y símbolo, sin espacios, e introducirse dos veces de forma idéntica.',
       requestSuccess:
         'Si esta dirección existe, se ha enviado un enlace seguro. Caducará según la política de Supabase Auth.',
       requestError: 'No se pudo enviar la solicitud.',

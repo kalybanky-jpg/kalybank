@@ -90,8 +90,9 @@ la branche et relancer la CI ; ne pas contourner pgTAP ou les advisors.
    [l’environnement](../environment.md) dans le dashboard, avec leurs portées
    Build/Functions et leur contexte exact.
 6. Pour Production, saisir les origines HTTPS canoniques, le projet Supabase de
-   production, `SUPABASE_SECRET_KEY`, `SEND_EMAIL_HOOK_SECRET` et un seul
-   fournisseur e-mail.
+   production, `SUPABASE_SECRET_KEY` et un seul fournisseur e-mail. Ne fournir
+   `SEND_EMAIL_HOOK_SECRET` que si un hook à faible latence est explicitement
+   activé.
 7. Pour Deploy Preview, utiliser des services non productifs. Ne jamais donner
    un secret de production à une PR non approuvée.
 8. Après avoir obtenu l’URL stable de la preview, la recopier exactement dans
@@ -130,9 +131,8 @@ la branche et relancer la CI ; ne pas contourner pgTAP ou les advisors.
 6. Ajouter uniquement les redirect URLs exactes et approuvées. Une preview ne
    doit être ajoutée que si elle utilise un environnement non productif et une
    URL stable contrôlée.
-7. Configurer le Send Email Hook vers
-   `https://<domaine-canonique>/api/auth/send-email-hook` et saisir le même
-   secret dans Supabase et Netlify.
+7. Laisser le Send Email Hook désactivé afin que Supabase utilise le SMTP. Ne le
+   réactiver qu’après avoir validé les démarrages à froid sous cinq secondes.
 8. Appliquer et relire le profil SMTP Resend ou Brevo décrit dans
    [E-mails transactionnels](../transactional-email.md).
 9. Activer la protection contre les mots de passe compromis avec HIBP. Cette

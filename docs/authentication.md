@@ -53,7 +53,8 @@ Avant le premier déploiement :
 1. définir l’URL du site avec l’origine HTTPS canonique de l’application ;
 2. autoriser exactement `<origine>/auth/callback` dans les Redirect URLs ;
 3. activer la confirmation des adresses e-mail ;
-4. imposer dix caractères minimum avec lettres et chiffres ;
+4. imposer huit caractères minimum avec minuscule, majuscule, chiffre et
+   symbole ;
 5. activer la protection de changement de mot de passe ;
 6. choisir et appliquer un des profils documentés dans
    [E-mails transactionnels](transactional-email.md) ;

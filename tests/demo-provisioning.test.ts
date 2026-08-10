@@ -171,6 +171,17 @@ test("les mots de passe doivent être forts et distincts", () => {
         ["--target=local", "--dry-run"],
         {
           ...strongEnvironment,
+          DEMO_CLIENT_PASSWORD: "Aa1!abcd",
+        },
+      ),
+    /entre 16 et 72 caractères/,
+  );
+  assert.throws(
+    () =>
+      buildDemoProvisioningConfig(
+        ["--target=local", "--dry-run"],
+        {
+          ...strongEnvironment,
           DEMO_CLIENT_PASSWORD: "motdepassefaible",
         },
       ),

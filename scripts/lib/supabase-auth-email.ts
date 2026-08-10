@@ -16,6 +16,7 @@ export interface AuthEmailTemplates {
 
 export interface SupabaseAuthEmailPayload {
   external_email_enabled: true;
+  hook_send_email_enabled: false;
   mailer_autoconfirm: false;
   mailer_otp_length: typeof EMAIL_OTP_LENGTH;
   mailer_secure_email_change_enabled: true;
@@ -211,6 +212,7 @@ export function buildSupabaseAuthEmailConfig(
     projectRef,
     payload: {
       external_email_enabled: true,
+      hook_send_email_enabled: false,
       mailer_autoconfirm: false,
       mailer_otp_length: EMAIL_OTP_LENGTH,
       mailer_secure_email_change_enabled: true,
@@ -266,6 +268,7 @@ export function safeAuthEmailSummary(config: SupabaseAuthEmailConfig) {
       password: "[MASQUÉ]",
     },
     protections: {
+      customEmailHookEnabled: config.payload.hook_send_email_enabled,
       emailConfirmationRequired: !config.payload.mailer_autoconfirm,
       emailOtpLength: config.payload.mailer_otp_length,
       secureEmailChange: config.payload.mailer_secure_email_change_enabled,

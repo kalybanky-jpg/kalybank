@@ -1,10 +1,9 @@
 import {
   isStrongPassword,
   PASSWORD_MAX_LENGTH,
-  PASSWORD_MIN_LENGTH,
 } from './password-policy';
 
-export const ADMIN_PASSWORD_MIN_LENGTH = PASSWORD_MIN_LENGTH;
+export const ADMIN_PASSWORD_MIN_LENGTH = 16;
 export const ADMIN_PASSWORD_MAX_LENGTH = PASSWORD_MAX_LENGTH;
 
 export type AdminCredentialChange =
@@ -43,7 +42,7 @@ export function normalizeAdminEmail(value: unknown) {
 }
 
 export function isStrongAdminPassword(value: string) {
-  return isStrongPassword(value);
+  return value.length >= ADMIN_PASSWORD_MIN_LENGTH && isStrongPassword(value);
 }
 
 function currentPasswordFrom(payload: Record<string, unknown>) {

@@ -92,6 +92,7 @@ const TARGET_URLS: Record<DemoTarget, string> = {
 
 const PLACEHOLDER_PATTERN =
   /(?:replace[-_ ]?me|your[-_ ]|votre[-_ ]|example\.(?:com|net|org)|<[^>]+>)/i;
+const DEMO_PASSWORD_MIN_LENGTH = 16;
 
 function requiredValue(
   environment: DemoProvisioningEnvironment,
@@ -115,7 +116,10 @@ function requiredValue(
 }
 
 function validatePassword(name: string, password: string): void {
-  if (!isStrongPassword(password)) {
+  if (
+    password.length < DEMO_PASSWORD_MIN_LENGTH ||
+    !isStrongPassword(password)
+  ) {
     throw new Error(
       `${name} doit contenir entre 16 et 72 caractères, avec une minuscule, une majuscule, un chiffre et un symbole, sans espace.`,
     );

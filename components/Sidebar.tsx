@@ -6,6 +6,7 @@ import {
   BadgeCheck,
   BarChart3,
   CreditCard,
+  ExternalLink,
   FileText,
   Folder,
   Headphones,
@@ -72,7 +73,13 @@ export default function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps)
     },
     { id: 'documents', label: t.auditLogs, icon: Folder },
     { id: 'reports', label: t.reports, icon: BarChart3 },
-    { id: 'support', label: 'Messagerie', icon: MessageCircle },
+    { id: 'support', label: 'Archives support', icon: MessageCircle },
+    {
+      id: 'tawkLive',
+      label: 'Messages en direct · Tawk.to',
+      icon: ExternalLink,
+      href: 'https://dashboard.tawk.to/',
+    },
     { id: 'settings', label: t.settings, icon: Settings },
   ];
 
@@ -119,21 +126,18 @@ export default function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps)
         <nav className="space-y-1.5" aria-label={shell.mainNavigation}>
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive = activeTab === item.id;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => handleNavClick(item.id)}
-                id={`nav-item-${item.id}`}
-                className={`group flex w-full items-center gap-4 rounded-[10px] px-4 py-[13px] text-left text-[14px] font-medium transition-all ${
+            const externalHref =
+              'href' in item && typeof item.href === 'string' ? item.href : null;
+            const isActive = externalHref === null && activeTab === item.id;
+            const itemClassName = `group flex w-full items-center gap-4 rounded-[10px] px-4 py-[13px] text-left text-[14px] font-medium transition-all ${
                   isActive
                     ? 'bg-gradient-to-r from-[#5138ff] to-[#3123b8] text-white shadow-[0_10px_26px_rgba(64,45,235,0.32)]'
                     : 'featured' in item && item.featured
                       ? 'border border-[#806eff]/55 bg-[#654cff]/15 text-white hover:bg-[#654cff]/25'
                       : 'text-white/84 hover:bg-white/[0.07] hover:text-white'
-                }`}
-              >
+                }`;
+            const itemContent = (
+              <>
                 <Icon
                   strokeWidth={1.8}
                   className={`h-[22px] w-[22px] shrink-0 ${
@@ -146,6 +150,34 @@ export default function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps)
                     {shell.actions.toUpperCase()}
                   </span>
                 )}
+              </>
+            );
+
+            if (externalHref) {
+              return (
+                <a
+                  key={item.id}
+                  href={externalHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={onCloseMobile}
+                  id={`nav-item-${item.id}`}
+                  className={itemClassName}
+                >
+                  {itemContent}
+                </a>
+              );
+            }
+
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => handleNavClick(item.id)}
+                id={`nav-item-${item.id}`}
+                className={itemClassName}
+              >
+                {itemContent}
               </button>
             );
           })}
@@ -160,7 +192,7 @@ export default function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps)
               strokeWidth={1.8}
               aria-hidden="true"
             />
-            <h2 className="text-[15px] font-semibold">Messagerie support</h2>
+            <h2 className="text-[15px] font-semibold">Archives support</h2>
             <p className="mt-1.5 text-[11px] leading-5 text-white/66">
               Consultez les conversations clients clôturées et leurs pièces jointes.
             </p>
@@ -171,7 +203,7 @@ export default function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps)
               className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-gradient-to-r from-[#6044ff] to-[#4128ef] px-4 py-2.5 text-[11px] font-semibold text-white shadow-lg shadow-indigo-950/30 transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300"
             >
               <MessageCircle className="h-4 w-4" aria-hidden="true" />
-              Ouvrir la messagerie
+              Ouvrir les archives
             </button>
           </div>
         ) : (

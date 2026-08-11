@@ -188,7 +188,7 @@ export default function AdminSupportMessagesView() {
             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-violet-300">
               Assistance clients
             </p>
-            <h1 className="mt-1 text-xl font-extrabold sm:text-2xl">Messagerie support</h1>
+            <h1 className="mt-1 text-xl font-extrabold sm:text-2xl">Archives support</h1>
             <p className="mt-1 text-xs leading-5 text-slate-300">
               Consultez les transcriptions des échanges terminés avec les clients.
             </p>
@@ -230,7 +230,7 @@ export default function AdminSupportMessagesView() {
         <section className="rounded-3xl border border-rose-200 bg-white px-5 py-12 text-center shadow-sm">
           <AlertCircle className="mx-auto h-9 w-9 text-rose-500" aria-hidden="true" />
           <h2 className="mt-4 text-sm font-extrabold text-slate-900">
-            Messagerie indisponible
+            Archives indisponibles
           </h2>
           <p role="alert" className="mx-auto mt-2 max-w-lg text-xs leading-5 text-slate-600">
             {errorMessage}

@@ -116,6 +116,52 @@ export const SUPPORT_NOTIFICATION_COPY = {
     footer:
       "Este mensaje automático se envió después de su conversación con el soporte de {{brandName}}.",
   },
+  it: {
+    locale: "it-IT",
+    pushTitle: "Nuova trascrizione dell’assistenza",
+    pushBody: "La Sua conversazione con l’assistenza è terminata.",
+    emailSubject: "La Sua conversazione con l’assistenza {{brandName}}",
+    emailPreheader:
+      "Consulti la trascrizione completa della Sua conversazione con l’assistenza {{brandName}}.",
+    emailHeading: "La Sua conversazione con l’assistenza",
+    greeting: "Buongiorno {{name}},",
+    greetingWithoutName: "Buongiorno,",
+    emailIntroduction:
+      "Di seguito trova la trascrizione completa della Sua recente conversazione con il nostro team di assistenza.",
+    conversationLabel: "Conversazione",
+    conversationDateLabel: "Data",
+    visitorSender: "Lei",
+    agentSender: "Assistenza",
+    systemSender: "Sistema",
+    attachmentLabel: "Allegato",
+    openAttachmentLabel: "Aprire l’allegato",
+    unavailableMessage: "Messaggio non disponibile",
+    footer:
+      "Questo messaggio automatico è stato inviato in seguito alla Sua conversazione con l’assistenza {{brandName}}.",
+  },
+  nl: {
+    locale: "nl-NL",
+    pushTitle: "Nieuw gespreksoverzicht van de ondersteuning",
+    pushBody: "Uw gesprek met de ondersteuning is beëindigd.",
+    emailSubject: "Uw gesprek met de ondersteuning van {{brandName}}",
+    emailPreheader:
+      "Bekijk het volledige overzicht van uw gesprek met de ondersteuning van {{brandName}}.",
+    emailHeading: "Uw gesprek met de ondersteuning",
+    greeting: "Goedendag {{name}},",
+    greetingWithoutName: "Goedendag,",
+    emailIntroduction:
+      "Hieronder vindt u het volledige overzicht van uw recente gesprek met ons ondersteuningsteam.",
+    conversationLabel: "Gesprek",
+    conversationDateLabel: "Datum",
+    visitorSender: "U",
+    agentSender: "Ondersteuning",
+    systemSender: "Systeem",
+    attachmentLabel: "Bijlage",
+    openAttachmentLabel: "Bijlage openen",
+    unavailableMessage: "Bericht niet beschikbaar",
+    footer:
+      "Dit automatische bericht is verzonden na uw gesprek met de ondersteuning van {{brandName}}.",
+  },
 } as const satisfies Record<string, SupportNotificationCopy>;
 
 export type SupportLanguage = keyof typeof SUPPORT_NOTIFICATION_COPY;

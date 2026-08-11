@@ -163,6 +163,8 @@ test('registration and recovery share the strong Supabase password policy', asyn
   assert.match(registration, /maxLength=\{PASSWORD_MAX_LENGTH\}/);
   assert.match(recovery, /isStrongPassword\(password\)/);
   assert.match(recovery, /isStrongAdminPassword\(password\)/);
+  assert.match(recovery, /publicMessages\[isAdminRecovery \? 'fr' : language\]\.resetPassword/);
+  assert.match(recovery, /!isAdminRecovery && \([\s\S]*?<LanguageSelector/);
   assert.match(recovery, /role === 'admin' && !isStrongAdminPassword\(password\)/);
   assert.match(recovery, /minLength=\{recoveryPasswordMinLength\}/);
   assert.match(recovery, /maxLength=\{PASSWORD_MAX_LENGTH\}/);
@@ -180,6 +182,8 @@ test('registration email guidance never guarantees delivery for an existing acco
     en: ['If this address', 'If a code can be sent', 'reset your password'],
     de: ['Wenn diese Adresse', 'Wenn für diese Anfrage', 'setzen Sie Ihr Passwort zurück'],
     es: ['Si esta dirección', 'Si se puede enviar', 'restablezca su contraseña'],
+    it: ['Se questo indirizzo', 'Se è possibile inviare', 'reimposti la password'],
+    nl: ['Als dit adres', 'Als een code kan worden verzonden', 'stel uw wachtwoord opnieuw in'],
   } as const;
 
   for (const language of SUPPORTED_LANGUAGES) {

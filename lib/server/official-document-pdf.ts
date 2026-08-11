@@ -119,6 +119,40 @@ const COPY = {
     entryKinds: { migration_opening_balance: 'Saldo inicial', account_opening: 'Apertura de la cuenta', manual_adjustment: 'Ajuste realizado por el banco', transfer_debit: 'Transferencia', loan_credit: 'Desembolso del préstamo' },
     statuses: { submitted: 'Enviada', under_review: 'En evaluación', approved_for_external_funding: 'Aprobada', external_funding_recorded: 'Desembolso registrado', external_settlement_confirmed: 'Finalizada', rejected: 'Rechazada', cancelled: 'Cancelada', external_failed: 'Error de procesamiento externo' },
   },
+  it: {
+    descriptor: 'DOCUMENTO BANCARIO EMESSO DA {bankName}', reference: 'Riferimento', version: 'Versione', page: 'Pagina',
+    issuedOn: 'Emesso il', revision: 'Revisione della localizzazione', fingerprint: 'Impronta SHA-256 dei dati',
+    demo: 'DIMOSTRAZIONE — NESSUN VALORE LEGALE', subject: 'Documento bancario ufficiale {bankName}',
+    account: 'Conto', operation: 'Operazione', loan: 'Prestito', period: 'Periodo dell’estratto conto', entriesTitle: 'Movimenti contabili',
+    yes: 'Sì', no: 'No', unavailable: 'Non disponibile', from: 'Dal', to: 'al', balance: 'Saldo', availableBalance: 'Saldo disponibile',
+    labels: {
+      holderName: 'Intestatario', accountType: 'Tipo di conto', accountNumber: 'Numero di conto', iban: 'IBAN', bic: 'BIC / SWIFT',
+      institutionName: 'Istituto', branchName: 'Filiale', branchCode: 'Codice filiale', currency: 'Valuta', openedAt: 'Aperto il', asOf: 'Situazione al',
+      reference: 'Riferimento dell’operazione', recipientName: 'Beneficiario', recipientAccountMasked: 'Conto del beneficiario', amount: 'Importo', targetAmount: 'Importo ricevuto', settledAt: 'Eseguito il',
+      loanReference: 'Riferimento del prestito', requestedAmount: 'Importo del prestito', duration: 'Durata', annualRate: 'Tasso annuo indicativo', status: 'Decisione / stato', disbursedAt: 'Erogato il',
+      valueDate: 'Data valuta', entryReference: 'Riferimento', entryAmount: 'Movimento', balanceAfter: 'Saldo dopo il movimento',
+    },
+    accountTypes: { current: 'Conto corrente', savings: 'Conto di risparmio' },
+    entryKinds: { migration_opening_balance: 'Saldo iniziale', account_opening: 'Apertura del conto', manual_adjustment: 'Rettifica effettuata dalla banca', transfer_debit: 'Bonifico', loan_credit: 'Erogazione del prestito' },
+    statuses: { submitted: 'Inviata', under_review: 'In esame', approved_for_external_funding: 'Approvata', external_funding_recorded: 'Erogazione registrata', external_settlement_confirmed: 'Completata', rejected: 'Rifiutata', cancelled: 'Annullata', external_failed: 'Elaborazione esterna non riuscita' },
+  },
+  nl: {
+    descriptor: 'BANKDOCUMENT UITGEGEVEN DOOR {bankName}', reference: 'Referentie', version: 'Versie', page: 'Pagina',
+    issuedOn: 'Uitgegeven op', revision: 'Lokalisatieversie', fingerprint: 'SHA-256-vingerafdruk van de gegevens',
+    demo: 'DEMONSTRATIE — GEEN RECHTSGELDIGHEID', subject: 'Officieel bankdocument van {bankName}',
+    account: 'Rekening', operation: 'Transactie', loan: 'Lening', period: 'Periode van het rekeningoverzicht', entriesTitle: 'Rekeningmutaties',
+    yes: 'Ja', no: 'Nee', unavailable: 'Niet beschikbaar', from: 'Van', to: 'tot', balance: 'Saldo', availableBalance: 'Beschikbaar saldo',
+    labels: {
+      holderName: 'Rekeninghouder', accountType: 'Rekeningtype', accountNumber: 'Rekeningnummer', iban: 'IBAN', bic: 'BIC / SWIFT',
+      institutionName: 'Instelling', branchName: 'Kantoor', branchCode: 'Kantoorcode', currency: 'Valuta', openedAt: 'Geopend op', asOf: 'Stand per',
+      reference: 'Transactiereferentie', recipientName: 'Begunstigde', recipientAccountMasked: 'Rekening begunstigde', amount: 'Bedrag', targetAmount: 'Ontvangen bedrag', settledAt: 'Uitgevoerd op',
+      loanReference: 'Leningreferentie', requestedAmount: 'Leningbedrag', duration: 'Looptijd', annualRate: 'Indicatieve jaarlijkse rente', status: 'Beslissing / status', disbursedAt: 'Uitbetaald op',
+      valueDate: 'Valutadatum', entryReference: 'Referentie', entryAmount: 'Mutatie', balanceAfter: 'Saldo na mutatie',
+    },
+    accountTypes: { current: 'Betaalrekening', savings: 'Spaarrekening' },
+    entryKinds: { migration_opening_balance: 'Beginsaldo', account_opening: 'Opening van de rekening', manual_adjustment: 'Correctie door de bank', transfer_debit: 'Overboeking', loan_credit: 'Uitbetaling van de lening' },
+    statuses: { submitted: 'Ingediend', under_review: 'In beoordeling', approved_for_external_funding: 'Goedgekeurd', external_funding_recorded: 'Uitbetaling geregistreerd', external_settlement_confirmed: 'Voltooid', rejected: 'Afgewezen', cancelled: 'Geannuleerd', external_failed: 'Externe verwerking mislukt' },
+  },
 } as const;
 
 function brandedCopy(input: OfficialDocumentPdfInput, language: Language) {
@@ -126,7 +160,7 @@ function brandedCopy(input: OfficialDocumentPdfInput, language: Language) {
 }
 
 function parseLanguage(value: string): Language {
-  return value === 'en' || value === 'de' || value === 'es' ? value : 'fr';
+  return value === 'en' || value === 'de' || value === 'es' || value === 'it' || value === 'nl' ? value : 'fr';
 }
 
 function parseDocumentType(value: string): OfficialDocumentType {

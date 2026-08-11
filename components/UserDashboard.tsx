@@ -22,6 +22,7 @@ import {
   X,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import type { Language } from '@/lib/types';
 import {
   convertAnyAmount,
   formatDirectCurrency,
@@ -155,7 +156,7 @@ function KycSubmissionNotice({
   );
 }
 
-function ComplianceRing({ value, label, language }: { value: number; label: string; language: 'fr' | 'en' | 'de' | 'es' }) {
+function ComplianceRing({ value, label, language }: { value: number; label: string; language: Language }) {
   const safeValue = Math.max(0, Math.min(100, Math.round(value)));
   return (
     <div

@@ -246,7 +246,7 @@ for (const [template, expected] of Object.entries(expectedCopy) as Array<
   });
 }
 
-const languages: TransactionalEmailLanguage[] = ['fr', 'en', 'de', 'es'];
+const languages: TransactionalEmailLanguage[] = ['fr', 'en', 'de', 'es', 'it', 'nl'];
 const localizedMarkers: Record<
   TransactionalEmailLanguage,
   { subject: RegExp; footer: RegExp }
@@ -255,6 +255,8 @@ const localizedMarkers: Record<
   en: { subject: /your/i, footer: /Need help/i },
   de: { subject: /Ihr|Ihre|Die Auszahlung/i, footer: /Brauchen Sie Hilfe/i },
   es: { subject: /su|hemos|el desembolso/i, footer: /Necesita ayuda/i },
+  it: { subject: /Sua|Suo|prestito|bonifico|identità/i, footer: /Ha bisogno di assistenza/i },
+  nl: { subject: /Uw|lening|identiteit|overboeking/i, footer: /Heeft u hulp nodig/i },
 };
 
 for (const language of languages) {
@@ -317,7 +319,7 @@ for (const language of languages) {
       language,
     );
     const expectedAmount = new Intl.NumberFormat(
-      { fr: 'fr-FR', en: 'en-US', de: 'de-DE', es: 'es-ES' }[language],
+      { fr: 'fr-FR', en: 'en-US', de: 'de-DE', es: 'es-ES', it: 'it-IT', nl: 'nl-NL' }[language],
       { style: 'currency', currency: 'EUR' },
     ).format(1234567.89);
 
@@ -479,8 +481,10 @@ test('Brevo reçoit le bon endpoint, le bon payload et l’en-tête d’idempote
   );
 });
 
-test('la préférence linguistique absente utilise le français et une valeur invalide échoue', async () => {
+test('la préférence linguistique absente utilise le français, et IT/NL sont acceptés', async () => {
   assert.equal(parseTransactionalEmailLanguage(undefined), 'fr');
+  assert.equal(parseTransactionalEmailLanguage('it'), 'it');
+  assert.equal(parseTransactionalEmailLanguage('nl'), 'nl');
   assert.equal(
     await resolveTransactionalEmailLanguage(async () => ({
       data: null,
@@ -491,7 +495,7 @@ test('la préférence linguistique absente utilise le français et une valeur in
   await assert.rejects(
     () =>
       resolveTransactionalEmailLanguage(async () => ({
-        data: { preferred_language: 'it' },
+        data: { preferred_language: 'pt' },
         error: null,
       })),
     /Préférence linguistique invalide/,

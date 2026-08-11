@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 import { formatDirectCurrency } from '../lib/currency';
-import { formatLocalizedDate, formatLocalizedMonths, formatLocalizedPercent } from '../lib/language';
+import { formatLocalizedDate, formatLocalizedMonths, formatLocalizedPercent, SUPPORTED_LANGUAGES } from '../lib/language';
 import type { Language, NotificationMessageKey } from '../lib/types';
 import {
   extraUserMessages,
@@ -12,7 +12,7 @@ import {
   notificationCopy,
 } from '../lib/user-i18n';
 
-const languages: Language[] = ['fr', 'en', 'de', 'es'];
+const languages: readonly Language[] = SUPPORTED_LANGUAGES;
 
 function leafPaths(value: unknown, prefix = ''): string[] {
   if (typeof value === 'string') return [prefix];
@@ -20,7 +20,7 @@ function leafPaths(value: unknown, prefix = ''): string[] {
   return Object.entries(value).flatMap(([key, entry]) => leafPaths(entry, prefix ? `${prefix}.${key}` : key));
 }
 
-test('le catalogue utilisateur possède les mêmes clés non vides dans les quatre langues', () => {
+test('le catalogue utilisateur possède les mêmes clés non vides dans les six langues', () => {
   const expected = leafPaths(extraUserMessages.fr).sort();
   for (const language of languages) {
     assert.deepEqual(leafPaths(extraUserMessages[language]).sort(), expected);
@@ -37,6 +37,8 @@ test('le libellé du taux fixe du prêt vient du catalogue multilingue', async (
   assert.equal(extraUserMessages.en.loanModal.fixedAnnualRate, 'Fixed APR');
   assert.equal(extraUserMessages.de.loanModal.fixedAnnualRate, 'Eff. Jahreszins');
   assert.equal(extraUserMessages.es.loanModal.fixedAnnualRate, 'TAE fija');
+  assert.equal(extraUserMessages.it.loanModal.fixedAnnualRate, 'TAEG fisso');
+  assert.equal(extraUserMessages.nl.loanModal.fixedAnnualRate, 'Vast jaarlijks kostenpercentage');
 
   const repositoryRoot = path.resolve(import.meta.dirname, '..');
   const source = await readFile(path.join(repositoryRoot, 'components', 'LoanApplicationModal.tsx'), 'utf8');
@@ -58,14 +60,47 @@ test('toutes les notifications métier sont localisées sans exposer le texte d�
   }
 });
 
-test('les formats régionaux utilisent les quatre locales exactes', () => {
+test('les formats régionaux utilisent les six locales exactes', () => {
   assert.match(formatDirectCurrency(1234.5, 'EUR', 'fr'), /1[\s\u202f]234,50/);
   assert.match(formatDirectCurrency(1234.5, 'EUR', 'en'), /1,234\.50/);
   assert.match(formatDirectCurrency(1234.5, 'EUR', 'de'), /1\.234,50/);
   assert.match(formatDirectCurrency(1234.5, 'EUR', 'es'), /1234,50|1\.234,50/);
   assert.match(formatLocalizedDate('2026-07-31T12:00:00Z', 'de'), /31\.07\.2026|31\.07\.26|31\. Juli 2026/);
   assert.match(formatLocalizedMonths(36, 'es'), /36 meses/);
+  assert.match(formatDirectCurrency(1234.5, 'EUR', 'it'), /1234,50|1\.234,50/);
+  assert.match(formatDirectCurrency(1234.5, 'EUR', 'nl'), /1234,50|1\.234,50/);
+  assert.match(formatLocalizedMonths(36, 'it'), /36 mesi/);
+  assert.match(formatLocalizedMonths(36, 'nl'), /36 maanden/);
   assert.match(formatLocalizedPercent(35, 'fr'), /35\s?%/);
+});
+
+test('les parcours client IT et NL ne réutilisent pas les catalogues FR ou EN', () => {
+  const criticalPaths = [
+    'shell.welcome',
+    'settings.title',
+    'support.pushDescription',
+    'loanModal.disclaimer',
+    'transferModal.subtitle',
+    'notifications.loan_approved.message',
+    'notifications.kyc_information_requested.message',
+    'documents.account_statement',
+    'errors.UNKNOWN_ERROR',
+  ];
+
+  const readPath = (language: Language, pathName: string) =>
+    pathName.split('.').reduce<unknown>(
+      (current, key) => (current as Record<string, unknown>)[key],
+      extraUserMessages[language],
+    ) as string;
+
+  for (const language of ['it', 'nl'] as const) {
+    for (const pathName of criticalPaths) {
+      const value = readPath(language, pathName);
+      assert.match(value, /\S/);
+      assert.notEqual(value, readPath('fr', pathName), `${language}.${pathName} fell back to fr`);
+      assert.notEqual(value, readPath('en', pathName), `${language}.${pathName} fell back to en`);
+    }
+  }
 });
 
 test('les codes historiques sont normalisés et les écritures libres ne sont pas affichées', () => {

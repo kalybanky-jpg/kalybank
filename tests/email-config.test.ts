@@ -113,10 +113,12 @@ test("les deux profils conservent les protections Auth et les modèles Monalyz",
     assert.match(subject, /"en"/);
     assert.match(subject, /"de"/);
     assert.match(subject, /"es"/);
+    assert.match(subject, /"it"/);
+    assert.match(subject, /"nl"/);
   }
 });
 
-test("les modèles Auth versionnés couvrent les quatre langues en langage simple", async () => {
+test("les modèles Auth versionnés couvrent les six langues en langage simple", async () => {
   const templatesRoot = path.resolve("supabase", "templates");
   const files = [
     "confirmation.html",
@@ -130,6 +132,8 @@ test("les modèles Auth versionnés couvrent les quatre langues en langage simpl
     assert.match(content, /"en"/);
     assert.match(content, /"de"/);
     assert.match(content, /"es"/);
+    assert.match(content, /"it"/);
+    assert.match(content, /"nl"/);
     assert.match(content, /support@monalyz\.com/);
     assert.doesNotMatch(
       content,

@@ -117,6 +117,50 @@ const messages: Record<
       loan_decision: 'Decisión del préstamo',
     },
   },
+  it: {
+    eyebrow: 'Documenti bancari',
+    title: 'Estratti conto, coordinate e attestazioni',
+    subtitle:
+      'Scarichi i documenti ufficiali {bankName} emessi sulla base dei dati convalidati dal personale della banca.',
+    available: 'Documenti disponibili',
+    empty: 'Non è stato ancora emesso alcun documento ufficiale.',
+    download: 'Scarica il PDF',
+    pending: 'Pubblicazione in corso',
+    revoked: 'Revocato',
+    demo: 'Dimostrazione — nessun valore legale',
+    provenance:
+      'Ogni documento contiene un riferimento, una versione, un’impronta e la data di emissione. Non è certificato da terzi esterni.',
+    types: {
+      bank_details: 'Coordinate bancarie',
+      account_statement: 'Estratto conto',
+      balance_certificate: 'Attestazione del saldo',
+      transfer_confirmation: 'Conferma del bonifico',
+      loan_disbursement_confirmation: 'Avviso di erogazione del prestito',
+      loan_decision: 'Decisione sul prestito',
+    },
+  },
+  nl: {
+    eyebrow: 'Bankdocumenten',
+    title: 'Afschriften, bankgegevens en verklaringen',
+    subtitle:
+      'Download officiële {bankName}-documenten die zijn opgesteld op basis van door bankmedewerkers gevalideerde gegevens.',
+    available: 'Beschikbare documenten',
+    empty: 'Er is nog geen officieel document uitgegeven.',
+    download: 'PDF downloaden',
+    pending: 'Publicatie wordt uitgevoerd',
+    revoked: 'Ingetrokken',
+    demo: 'Demonstratie — geen rechtsgeldigheid',
+    provenance:
+      'Elk document bevat een referentie, versie, vingerafdruk en uitgiftedatum. Het is niet door een externe derde gecertificeerd.',
+    types: {
+      bank_details: 'Bankgegevens',
+      account_statement: 'Rekeningoverzicht',
+      balance_certificate: 'Saldoverklaring',
+      transfer_confirmation: 'Bevestiging van de overboeking',
+      loan_disbursement_confirmation: 'Bericht van uitbetaling van de lening',
+      loan_decision: 'Beslissing over de lening',
+    },
+  },
 };
 
 export default function UserDocumentsView() {

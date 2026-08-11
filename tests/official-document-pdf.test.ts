@@ -40,6 +40,17 @@ function pageImageReferences(document: PDFDocument): string[] {
   });
 }
 
+test('la route d’émission autorise les six langues client', async () => {
+  const route = await readFile(
+    new URL('../app/api/official-documents/route.ts', import.meta.url),
+    'utf8',
+  );
+  assert.match(
+    route,
+    /new Set<Language>\(\['fr', 'en', 'de', 'es', 'it', 'nl'\]\)/,
+  );
+});
+
 test('official document renderer produces a real PDF with traceable metadata', async () => {
   const pdf = await renderOfficialDocumentPdf({
     documentNumber: 'MON-2026-000001',
@@ -155,14 +166,16 @@ test('le même wordmark embarqué est réutilisé sur toutes les pages', async (
   assert.ok(decodedPageContent(loaded, loaded.getPageCount() - 1).length > 300);
 });
 
-test('les quatre langues conservent leurs caractères Unicode et métadonnées localisées', async () => {
+test('les six langues conservent leurs caractères Unicode et métadonnées localisées', async () => {
   const expectations = {
     fr: ['Relevé d’identité bancaire', 'Document bancaire officiel Monalyz'],
     en: ['Bank account details', 'Official Monalyz bank document'],
     de: ['Bankverbindung', 'Offizielles Monalyz-Bankdokument'],
     es: ['Datos bancarios', 'Documento bancario oficial de Monalyz'],
+    it: ['Coordinate bancarie', 'Documento bancario ufficiale Monalyz'],
+    nl: ['Bankgegevens', 'Officieel bankdocument van Monalyz'],
   } as const;
-  for (const language of ['fr', 'en', 'de', 'es'] as const) {
+  for (const language of ['fr', 'en', 'de', 'es', 'it', 'nl'] as const) {
     const bytes = await renderOfficialDocumentPdf({
       documentNumber: `MON-${language.toUpperCase()}-000001`,
       documentType: 'bank_details',
@@ -180,12 +193,12 @@ test('les quatre langues conservent leurs caractères Unicode et métadonnées l
   }
 });
 
-test('chaque modèle documentaire est généré dans les quatre langues', async () => {
+test('chaque modèle documentaire est généré dans les six langues', async () => {
   const documentTypes: OfficialDocumentType[] = [
     'bank_details', 'account_statement', 'balance_certificate', 'transfer_confirmation',
     'loan_disbursement_confirmation', 'loan_decision',
   ];
-  const languages: Language[] = ['fr', 'en', 'de', 'es'];
+  const languages: Language[] = ['fr', 'en', 'de', 'es', 'it', 'nl'];
   const snapshot = {
     periodStart: '2026-07-01', periodEnd: '2026-07-31',
     account: { holderName: 'Élise Groß ¿Álvarez?', accountType: 'current', accountNumber: '123456', bic: 'MONAFRPP', currency: 'EUR', balanceMinor: 123456, availableBalanceMinor: 120000, asOf: '2026-07-31T10:00:00Z' },

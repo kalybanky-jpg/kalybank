@@ -758,7 +758,7 @@ export default function WireTransferModal() {
                             <input
                               type="text"
                               maxLength={6}
-                              placeholder="ex: 200415"
+                              placeholder="200415"
                               value={routingNumber}
                               onChange={(e) => {
                                 setRoutingNumber(e.target.value.replace(/\D/g, ''));
@@ -779,7 +779,7 @@ export default function WireTransferModal() {
                             <input
                               type="text"
                               maxLength={8}
-                              placeholder="ex: 12345678"
+                              placeholder="12345678"
                               value={accountNumber}
                               onChange={(e) => {
                                 setAccountNumber(e.target.value.replace(/\D/g, ''));
@@ -830,7 +830,7 @@ export default function WireTransferModal() {
                               <label className="block text-xs font-bold text-slate-700 mb-1">{transferCopy.accountOrClabe} *</label>
                               <input
                                 type="text"
-                                placeholder="ex: 13870001000100 ou CLABE"
+                                placeholder="13870001000100 / CLABE"
                                 value={accountNumber}
                                 onChange={(e) => {
                                   setAccountNumber(e.target.value.replace(/\D/g, ''));
@@ -850,7 +850,7 @@ export default function WireTransferModal() {
                               <label className="block text-xs font-bold text-slate-700 mb-1">{transferCopy.recipientInstitution} *</label>
                               <input
                                 type="text"
-                                placeholder="ex: Banco do Brasil, Banamex"
+                                placeholder="Banco do Brasil, Banamex"
                                 value={iban}
                                 onChange={(e) => {
                                   setIban(e.target.value);
@@ -923,7 +923,7 @@ export default function WireTransferModal() {
                               <label className="block text-xs font-bold text-slate-700 mb-1">{transferCopy.externalBankCode} *</label>
                               <input
                                 type="text"
-                                placeholder="ex: SGABSNDAKAR, Attijariwafa"
+                                placeholder="SGABSNDAKAR, Attijariwafa"
                                 value={bicSwift}
                                 onChange={(e) => {
                                   setBICSwift(e.target.value);

@@ -25,11 +25,13 @@ import {
 function ResetPasswordContent() {
   const searchParams = useSearchParams();
   const { language } = useAppStore();
-  const copy = useBranded(publicMessages[language].resetPassword);
   const isUpdateMode = searchParams.get('mode') === 'update';
   const requestedLogin =
     searchParams.get('next') === '/admin-login' ? '/admin-login' : '/login';
   const isAdminRecovery = requestedLogin === '/admin-login';
+  const copy = useBranded(
+    publicMessages[isAdminRecovery ? 'fr' : language].resetPassword,
+  );
   const recoveryPasswordMinLength = isAdminRecovery
     ? ADMIN_PASSWORD_MIN_LENGTH
     : PASSWORD_MIN_LENGTH;
@@ -99,7 +101,9 @@ function ResetPasswordContent() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center px-4 py-16 sm:py-10">
-      <LanguageSelector dark compact className="absolute right-4 top-4" />
+      {!isAdminRecovery && (
+        <LanguageSelector dark compact className="absolute right-4 top-4" />
+      )}
       <section className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl sm:p-8">
         <BrandLogo
           tone="reversed-white"

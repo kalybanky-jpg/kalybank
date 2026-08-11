@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import {
   createTawkIdentityHash,
@@ -109,7 +110,7 @@ test('server configuration builds the public identity without exposing its API k
   const environment = {
     TAWK_PROPERTY_ID: 'property-id',
     TAWK_WIDGET_IDS:
-      '{"default":"french-widget","fr":"french-widget","en":"english-widget","de":"german-widget","es":"spanish-widget"}',
+      '{"default":"french-widget","fr":"french-widget","en":"english-widget","de":"german-widget","es":"spanish-widget","it":"italian-widget","nl":"dutch-widget"}',
     TAWK_API_KEY: 'server-only-api-key',
     TAWK_WEBHOOK_IDENTITY_SECRET: WEBHOOK_IDENTITY_SECRET,
     VAPID_PUBLIC_KEY,
@@ -139,6 +140,8 @@ test('server configuration builds the public identity without exposing its API k
   });
   assert.equal('apiKey' in identity, false);
   assert.equal('webhookIdentitySecret' in identity, false);
+  assert.equal(resolveTawkWidgetId('it-IT', config.widgetIds), 'italian-widget');
+  assert.equal(resolveTawkWidgetId('nl-NL', config.widgetIds), 'dutch-widget');
   assert.equal(getVapidPublicKey(environment), VAPID_PUBLIC_KEY);
   assert.throws(
     () =>
@@ -166,15 +169,23 @@ test('server configuration requires one distinct widget per supported language',
         TAWK_WIDGET_IDS:
           '{"default":"french-widget","fr":"french-widget","en":"english-widget","de":"german-widget"}',
       }),
-    /dedicated widgets for: es/,
+    /dedicated widgets for: es, it, nl/,
   );
   assert.throws(
     () =>
       getTawkServerConfig({
         ...baseEnvironment,
         TAWK_WIDGET_IDS:
-          '{"default":"french-widget","fr":"french-widget","en":"shared-widget","de":"shared-widget","es":"spanish-widget"}',
+          '{"default":"french-widget","fr":"french-widget","en":"shared-widget","de":"shared-widget","es":"spanish-widget","it":"italian-widget","nl":"dutch-widget"}',
       }),
     /distinct widget for each supported language/,
   );
+});
+
+test('committed environment documentation includes distinct Italian and Dutch widget slots', async () => {
+  for (const file of ['.env.example', '.env.remote.example']) {
+    const source = await readFile(new URL(`../${file}`, import.meta.url), 'utf8');
+    assert.match(source, /"it":"widget-it"/);
+    assert.match(source, /"nl":"widget-nl"/);
+  }
 });

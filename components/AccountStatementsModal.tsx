@@ -51,6 +51,22 @@ const messages: Record<
     close: 'Cerrar',
     hint: 'El director de sucursal debe emitir un nuevo extracto desde el registro bancario.',
   },
+  it: {
+    title: 'Estratti conto ufficiali',
+    subtitle: 'Documenti emessi e registrati dal responsabile di filiale',
+    empty: 'Nessun estratto conto ufficiale è ancora disponibile.',
+    download: 'Scarica',
+    close: 'Chiudi',
+    hint: 'Un nuovo estratto conto deve essere emesso dal responsabile di filiale a partire dal registro bancario.',
+  },
+  nl: {
+    title: 'Officiële rekeningafschriften',
+    subtitle: 'Documenten uitgegeven en geregistreerd door de filiaalmanager',
+    empty: 'Er is nog geen officieel afschrift beschikbaar.',
+    download: 'Downloaden',
+    close: 'Sluiten',
+    hint: 'Een nieuw afschrift moet door de filiaalmanager vanuit het bankregister worden uitgegeven.',
+  },
 };
 
 export default function AccountStatementsModal() {

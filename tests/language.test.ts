@@ -3,6 +3,8 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { translations } from '../lib/i18n';
 import {
+  LANGUAGE_LOCALES,
+  LANGUAGE_OPTIONS,
   SUPPORTED_LANGUAGES,
   normalizeLanguageTag,
   parseAcceptLanguage,
@@ -18,11 +20,37 @@ test('normalise les variantes BCP 47 prises en charge', () => {
   assert.equal(normalizeLanguageTag('en-GB'), 'en');
   assert.equal(normalizeLanguageTag('de-DE'), 'de');
   assert.equal(normalizeLanguageTag('es-MX'), 'es');
+  assert.equal(normalizeLanguageTag('it-CH'), 'it');
+  assert.equal(normalizeLanguageTag('nl-BE'), 'nl');
   assert.equal(normalizeLanguageTag('pt-BR'), null);
+});
+
+test('expose les six langues client avec leurs locales et endonymes', () => {
+  assert.deepEqual(SUPPORTED_LANGUAGES, ['fr', 'en', 'de', 'es', 'it', 'nl']);
+  assert.deepEqual(LANGUAGE_LOCALES, {
+    fr: 'fr-FR',
+    en: 'en-US',
+    de: 'de-DE',
+    es: 'es-ES',
+    it: 'it-IT',
+    nl: 'nl-NL',
+  });
+  assert.deepEqual(
+    LANGUAGE_OPTIONS.map(({ code, label }) => [code, label]),
+    [
+      ['fr', 'Français'],
+      ['en', 'English'],
+      ['de', 'Deutsch'],
+      ['es', 'Español'],
+      ['it', 'Italiano'],
+      ['nl', 'Nederlands'],
+    ],
+  );
 });
 
 test('retient la première langue compatible de navigator.languages', () => {
   assert.equal(resolveSupportedLanguage(['pt-BR', 'de-DE', 'en-US']), 'de');
+  assert.equal(resolveSupportedLanguage(['pt-BR', 'nl-BE', 'it-IT']), 'nl');
   assert.equal(resolveSupportedLanguage(['zh-CN', 'pt-BR']), null);
 });
 
@@ -113,6 +141,27 @@ test('les libellés distinguent la devise de base de la devise d’affichage', (
     assert.match(messages.displayCurrencySaved, /\S/);
     assert.match(messages.displayCurrencySaveError, /\S/);
     assert.notEqual(messages.baseCurrency, messages.currencySelector);
+  }
+});
+
+test('les clés client italiennes et néerlandaises ne replient pas sur le français ou l’anglais', () => {
+  const clientKeys = [
+    'dashboard',
+    'totalBalance',
+    'makeTransfer',
+    'applyLoan',
+    'newTransferTitle',
+    'loanApplicationTitle',
+    'baseCurrency',
+    'currencySelector',
+  ] as const;
+
+  for (const language of ['it', 'nl'] as const) {
+    for (const key of clientKeys) {
+      assert.match(translations[language][key] ?? '', /\S/, `${language}.${key} missing`);
+      assert.notEqual(translations[language][key], translations.fr[key], `${language}.${key} fell back to fr`);
+      assert.notEqual(translations[language][key], translations.en[key], `${language}.${key} fell back to en`);
+    }
   }
 });
 

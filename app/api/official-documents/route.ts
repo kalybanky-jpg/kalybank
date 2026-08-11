@@ -31,7 +31,7 @@ const DOCUMENT_TYPES = new Set<OfficialDocumentType>([
   'loan_disbursement_confirmation',
   'loan_decision',
 ]);
-const LANGUAGES = new Set<Language>(['fr', 'en', 'de', 'es']);
+const LANGUAGES = new Set<Language>(['fr', 'en', 'de', 'es', 'it', 'nl']);
 
 interface IssuePayload {
   ownerId?: unknown;

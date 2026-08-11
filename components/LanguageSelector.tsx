@@ -1,16 +1,10 @@
 'use client';
 
 import type { Language } from '@/lib/types';
+import { LANGUAGE_OPTIONS } from '@/lib/language';
 import { publicMessages } from '@/lib/public-i18n';
 import { useAppStore } from '@/lib/store';
 import { useBranded } from '@/components/brand/BrandProvider';
-
-const LANGUAGE_OPTIONS: Array<{ code: Language; label: string }> = [
-  { code: 'fr', label: 'Français' },
-  { code: 'en', label: 'English' },
-  { code: 'de', label: 'Deutsch' },
-  { code: 'es', label: 'Español' },
-];
 
 interface LanguageSelectorProps {
   className?: string;

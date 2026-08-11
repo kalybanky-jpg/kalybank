@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="{{ if eq .Data.preferred_language "en" }}en{{ else if eq .Data.preferred_language "de" }}de{{ else if eq .Data.preferred_language "es" }}es{{ else }}fr{{ end }}">
+<html lang="{{ if eq .Data.preferred_language "en" }}en{{ else if eq .Data.preferred_language "de" }}de{{ else if eq .Data.preferred_language "es" }}es{{ else if eq .Data.preferred_language "it" }}it{{ else if eq .Data.preferred_language "nl" }}nl{{ else }}fr{{ end }}">
   <body style="margin:0;background:#f3f1ec;font-family:Arial,sans-serif;color:#172033">
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
       <tr>
@@ -8,7 +8,7 @@
             style="max-width:560px;background:#ffffff;border:1px solid #e4ded3;border-radius:20px;box-shadow:0 14px 38px rgba(23,32,51,0.08);overflow:hidden">
             <tr>
               <td style="padding:22px 32px;background:#FBFAF7;border-bottom:1px solid #ebe5db">
-                <a href="{{ .SiteURL }}" style="color:#15324b;text-decoration:none;font-size:18px;font-weight:700">Espace bancaire sécurisé</a>
+                <a href="{{ .SiteURL }}" style="color:#15324b;text-decoration:none;font-size:18px;font-weight:700">{{ if eq .Data.preferred_language "en" }}Secure banking{{ else if eq .Data.preferred_language "de" }}Sicheres Banking{{ else if eq .Data.preferred_language "es" }}Banca segura{{ else if eq .Data.preferred_language "it" }}Area bancaria sicura{{ else if eq .Data.preferred_language "nl" }}Beveiligde bankomgeving{{ else }}Espace bancaire sécurisé{{ end }}</a>
               </td>
             </tr>
             <tr>
@@ -28,6 +28,16 @@
                 <p style="margin:0 0 24px;line-height:1.6">
                   Hemos recibido una solicitud para restablecer su contraseña bancaria. Pulse el botón siguiente para elegir una nueva.
                 </p>
+                {{ else if eq .Data.preferred_language "it" }}
+                <h1 style="margin:0 0 16px;font-size:24px">Reimposti la Sua password</h1>
+                <p style="margin:0 0 24px;line-height:1.6">
+                  Abbiamo ricevuto una richiesta di reimpostazione della Sua password bancaria. Selezioni il pulsante seguente per sceglierne una nuova.
+                </p>
+                {{ else if eq .Data.preferred_language "nl" }}
+                <h1 style="margin:0 0 16px;font-size:24px">Stel uw wachtwoord opnieuw in</h1>
+                <p style="margin:0 0 24px;line-height:1.6">
+                  Wij hebben een verzoek ontvangen om uw bankwachtwoord opnieuw in te stellen. Kies via de knop hieronder een nieuw wachtwoord.
+                </p>
                 {{ else }}
                 <h1 style="margin:0 0 16px;font-size:24px">Réinitialisez votre mot de passe</h1>
                 <p style="margin:0 0 24px;line-height:1.6">
@@ -37,7 +47,7 @@
                 <p style="margin:0 0 24px">
                   <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=recovery"
                     style="display:inline-block;padding:13px 22px;background:#15324b;color:#ffffff;text-decoration:none;border-radius:12px;font-weight:700">
-                    {{ if eq .Data.preferred_language "en" }}Choose a new password{{ else if eq .Data.preferred_language "de" }}Neues Passwort wählen{{ else if eq .Data.preferred_language "es" }}Elegir una nueva contraseña{{ else }}Choisir un nouveau mot de passe{{ end }}
+                    {{ if eq .Data.preferred_language "en" }}Choose a new password{{ else if eq .Data.preferred_language "de" }}Neues Passwort wählen{{ else if eq .Data.preferred_language "es" }}Elegir una nueva contraseña{{ else if eq .Data.preferred_language "it" }}Scegliere una nuova password{{ else if eq .Data.preferred_language "nl" }}Een nieuw wachtwoord kiezen{{ else }}Choisir un nouveau mot de passe{{ end }}
                   </a>
                 </p>
                 <p style="margin:0;color:#64748b;font-size:13px;line-height:1.5">
@@ -47,6 +57,10 @@
                   Wenn Sie dies nicht angefordert haben, können Sie diese E-Mail ignorieren. Benötigen Sie Hilfe?
                   {{ else if eq .Data.preferred_language "es" }}
                   Si no lo ha solicitado, puede ignorar este mensaje. ¿Necesita ayuda?
+                  {{ else if eq .Data.preferred_language "it" }}
+                  Se non ha effettuato questa richiesta, può ignorare questa e-mail. Ha bisogno di assistenza?
+                  {{ else if eq .Data.preferred_language "nl" }}
+                  Als u dit niet hebt aangevraagd, kunt u deze e-mail negeren. Hebt u hulp nodig?
                   {{ else }}
                   Si vous n’avez pas demandé cette réinitialisation, vous pouvez ignorer ce message. Besoin d’aide ?
                   {{ end }}

@@ -324,18 +324,18 @@ CREATE OR REPLACE FUNCTION "private"."enqueue_kyc_message"() RETURNS "trigger"
     SET "search_path" TO ''
     AS $$
 declare
-  language text;
   email_address text;
   title_text text;
   message_text text;
-  template text;
+  message_key_text text;
   action_text text;
+  message_parameters jsonb;
 begin
   if tg_op = 'UPDATE' and new.status = old.status then
     return new;
   end if;
 
-  template := case new.status
+  message_key_text := case new.status
     when 'submitted' then 'kyc_submitted'
     when 'needs_information' then 'kyc_information_requested'
     when 'resubmitted' then 'kyc_resubmitted'
@@ -343,73 +343,58 @@ begin
     when 'rejected' then 'kyc_rejected'
     else null
   end;
-  if template is null then return new; end if;
+  if message_key_text is null then
+    return new;
+  end if;
 
-  select preferred_language, email
-  into language, email_address
+  select email
+  into email_address
   from public.profiles
   where user_id = new.owner_id;
 
   action_text := '/myaccount?tab=kyc&kyc=' || new.id::text;
+  message_parameters := jsonb_strip_nulls(jsonb_build_object(
+    'kycId', new.id,
+    'status', new.status,
+    'version', new.version,
+    'reasonCode', new.correction_reason_code,
+    'dueAt', new.correction_due_at
+  ));
 
-  title_text := case language
-    when 'en' then case new.status
-      when 'submitted' then 'Identity file received'
-      when 'needs_information' then 'Action required on your identity file'
-      when 'resubmitted' then 'Identity file resubmitted'
-      when 'approved' then 'Identity approved'
-      else 'Identity file rejected' end
-    when 'de' then case new.status
-      when 'submitted' then 'Identitätsunterlagen erhalten'
-      when 'needs_information' then 'Aktion für Ihre Identitätsprüfung erforderlich'
-      when 'resubmitted' then 'Identitätsunterlagen erneut eingereicht'
-      when 'approved' then 'Identität bestätigt'
-      else 'Identitätsunterlagen abgelehnt' end
-    when 'es' then case new.status
-      when 'submitted' then 'Expediente de identidad recibido'
-      when 'needs_information' then 'Acción necesaria en su expediente'
-      when 'resubmitted' then 'Expediente de identidad reenviado'
-      when 'approved' then 'Identidad aprobada'
-      else 'Expediente de identidad rechazado' end
-    else case new.status
-      when 'submitted' then 'Dossier d’identité reçu'
-      when 'needs_information' then 'Action requise sur votre dossier'
-      when 'resubmitted' then 'Dossier d’identité resoumis'
-      when 'approved' then 'Identité approuvée'
-      else 'Dossier d’identité rejeté' end
+  title_text := case message_key_text
+    when 'kyc_submitted' then 'Dossier d’identité transmis'
+    when 'kyc_information_requested' then 'Informations complémentaires requises'
+    when 'kyc_resubmitted' then 'Corrections transmises'
+    when 'kyc_approved' then 'Identité vérifiée'
+    else 'Vérification d’identité non aboutie'
   end;
 
-  message_text := case language
-    when 'en' then case new.status
-      when 'submitted' then 'Your file has been received and is waiting for human review.'
-      when 'needs_information' then 'Open your file to correct only the requested items.'
-      when 'resubmitted' then 'Your corrections have been received.'
-      when 'approved' then 'Your identity is confirmed and your internal account has been created.'
-      else 'Open your file to see the reason and resubmit your corrections.' end
-    when 'de' then case new.status
-      when 'submitted' then 'Ihre Unterlagen wurden empfangen und warten auf die manuelle Prüfung.'
-      when 'needs_information' then 'Öffnen Sie Ihre Unterlagen und korrigieren Sie nur die angeforderten Elemente.'
-      when 'resubmitted' then 'Ihre Korrekturen wurden empfangen.'
-      when 'approved' then 'Ihre Identität wurde bestätigt und Ihr internes Konto erstellt.'
-      else 'Öffnen Sie Ihre Unterlagen, prüfen Sie den Grund und reichen Sie Korrekturen ein.' end
-    when 'es' then case new.status
-      when 'submitted' then 'Su expediente ha sido recibido y espera una revisión humana.'
-      when 'needs_information' then 'Abra su expediente y corrija únicamente los elementos solicitados.'
-      when 'resubmitted' then 'Hemos recibido sus correcciones.'
-      when 'approved' then 'Su identidad está confirmada y se ha creado su cuenta interna.'
-      else 'Abra su expediente, consulte el motivo y vuelva a enviar sus correcciones.' end
-    else case new.status
-      when 'submitted' then 'Votre dossier a été reçu et attend un contrôle humain.'
-      when 'needs_information' then 'Ouvrez votre dossier et corrigez uniquement les éléments demandés.'
-      when 'resubmitted' then 'Vos corrections ont bien été reçues.'
-      when 'approved' then 'Votre identité est confirmée et votre compte interne a été créé.'
-      else 'Ouvrez votre dossier, consultez le motif puis resoumettez vos corrections.' end
+  message_text := case message_key_text
+    when 'kyc_submitted' then 'Le dossier d’identité a été transmis pour vérification.'
+    when 'kyc_information_requested' then 'Des éléments complémentaires sont nécessaires pour vérifier l’identité.'
+    when 'kyc_resubmitted' then 'Les corrections ont été transmises pour vérification.'
+    when 'kyc_approved' then 'La vérification de l’identité est terminée.'
+    else 'Le dossier d’identité n’a pas pu être validé.'
   end;
 
   insert into public.notifications (
-    recipient_id, title, message, notification_type, action_path
+    recipient_id,
+    title,
+    message,
+    notification_type,
+    message_key,
+    message_params,
+    action_path
   )
-  values (new.owner_id, title_text, message_text, 'kyc', action_text);
+  values (
+    new.owner_id,
+    title_text,
+    message_text,
+    'kyc',
+    message_key_text,
+    message_parameters,
+    action_text
+  );
 
   if email_address is not null then
     insert into public.transactional_email_outbox (
@@ -425,17 +410,19 @@ begin
       'kyc:' || new.id::text || ':' || new.status || ':' || new.version::text,
       new.owner_id,
       email_address,
-      template,
+      message_key_text,
       'kyc',
       new.id,
       jsonb_build_object(
         'actionPath', action_text,
         'reason', new.review_note,
+        'reasonCode', new.correction_reason_code,
         'dueAt', new.correction_due_at
       )
     )
     on conflict (event_key) do nothing;
   end if;
+
   return new;
 end;
 $$;
@@ -755,7 +742,7 @@ begin
     signup_currency,
     case
       when new.raw_user_meta_data ->> 'preferred_language'
-        in ('fr', 'en', 'de', 'es')
+        in ('fr', 'en', 'de', 'es', 'it', 'nl')
       then new.raw_user_meta_data ->> 'preferred_language'
       else 'fr'
     end
@@ -2597,7 +2584,7 @@ CREATE TABLE IF NOT EXISTS "public"."official_documents" (
     CONSTRAINT "official_documents_document_number_check" CHECK ((("char_length"("document_number") >= 6) AND ("char_length"("document_number") <= 80))),
     CONSTRAINT "official_documents_document_type_check" CHECK (("document_type" = ANY (ARRAY['bank_details'::"text", 'account_statement'::"text", 'balance_certificate'::"text", 'transfer_confirmation'::"text", 'loan_disbursement_confirmation'::"text", 'loan_decision'::"text"]))),
     CONSTRAINT "official_documents_failure_reason_check" CHECK ((("failure_reason" IS NULL) OR (("char_length"("failure_reason") >= 3) AND ("char_length"("failure_reason") <= 1000)))),
-    CONSTRAINT "official_documents_language_check" CHECK (("language" = ANY (ARRAY['fr'::"text", 'en'::"text", 'de'::"text", 'es'::"text"]))),
+    CONSTRAINT "official_documents_language_check" CHECK (("language" = ANY (ARRAY['fr'::"text", 'en'::"text", 'de'::"text", 'es'::"text", 'it'::"text", 'nl'::"text"]))),
     CONSTRAINT "official_documents_localization_revision_check" CHECK (("localization_revision" > 0)),
     CONSTRAINT "official_documents_revocation_reason_check" CHECK ((("revocation_reason" IS NULL) OR (("char_length"("revocation_reason") >= 3) AND ("char_length"("revocation_reason") <= 1000)))),
     CONSTRAINT "official_documents_snapshot_check" CHECK (("jsonb_typeof"("snapshot") = 'object'::"text")),
@@ -2645,7 +2632,7 @@ declare
 begin
   if p_idempotency_key is null
      or normalized_title is null
-     or normalized_language not in ('fr', 'en', 'de', 'es')
+     or normalized_language not in ('fr', 'en', 'de', 'es', 'it', 'nl')
      or p_document_type not in (
        'bank_details',
        'account_statement',
@@ -5377,7 +5364,7 @@ CREATE TABLE IF NOT EXISTS "public"."kyc_drafts" (
     CONSTRAINT "kyc_drafts_current_step_check" CHECK ((("current_step" >= 0) AND ("current_step" <= 8))),
     CONSTRAINT "kyc_drafts_document_object_paths_check" CHECK (("jsonb_typeof"("document_object_paths") = 'object'::"text")),
     CONSTRAINT "kyc_drafts_payload_check" CHECK (("jsonb_typeof"("payload") = 'object'::"text")),
-    CONSTRAINT "kyc_drafts_preferred_language_check" CHECK (("preferred_language" = ANY (ARRAY['fr'::"text", 'en'::"text", 'de'::"text", 'es'::"text"])))
+    CONSTRAINT "kyc_drafts_preferred_language_check" CHECK (("preferred_language" = ANY (ARRAY['fr'::"text", 'en'::"text", 'de'::"text", 'es'::"text", 'it'::"text", 'nl'::"text"])))
 );
 
 
@@ -5395,7 +5382,7 @@ begin
   if p_current_step not between 0 and 8
      or jsonb_typeof(coalesce(p_payload, '{}'::jsonb)) <> 'object'
      or jsonb_typeof(coalesce(p_document_object_paths, '{}'::jsonb)) <> 'object'
-     or p_preferred_language not in ('fr', 'en', 'de', 'es') then
+     or p_preferred_language not in ('fr', 'en', 'de', 'es', 'it', 'nl') then
     raise exception 'INVALID_KYC_DRAFT' using errcode = '22023';
   end if;
 
@@ -5516,7 +5503,7 @@ CREATE TABLE IF NOT EXISTS "public"."profiles" (
     CONSTRAINT "profiles_access_status_check" CHECK (("access_status" = ANY (ARRAY['active'::"text", 'frozen'::"text"]))),
     CONSTRAINT "profiles_base_currency_check" CHECK (("base_currency" = ANY (ARRAY['EUR'::"text", 'USD'::"text", 'CAD'::"text", 'CHF'::"text", 'GBP'::"text"]))),
     CONSTRAINT "profiles_preferred_currency_check" CHECK (("preferred_currency" = ANY (ARRAY['EUR'::"text", 'USD'::"text", 'CAD'::"text", 'CHF'::"text", 'GBP'::"text"]))),
-    CONSTRAINT "profiles_preferred_language_allowed" CHECK (("preferred_language" = ANY (ARRAY['fr'::"text", 'en'::"text", 'de'::"text", 'es'::"text"])))
+    CONSTRAINT "profiles_preferred_language_allowed" CHECK (("preferred_language" = ANY (ARRAY['fr'::"text", 'en'::"text", 'de'::"text", 'es'::"text", 'it'::"text", 'nl'::"text"])))
 );
 
 

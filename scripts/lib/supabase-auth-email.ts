@@ -55,8 +55,10 @@ function localizedSubject(
   english: string,
   german: string,
   spanish: string,
+  italian: string,
+  dutch: string,
 ): string {
-  return `{{ if eq .Data.preferred_language "en" }}${english}{{ else if eq .Data.preferred_language "de" }}${german}{{ else if eq .Data.preferred_language "es" }}${spanish}{{ else }}${french}{{ end }}`;
+  return `{{ if eq .Data.preferred_language "en" }}${english}{{ else if eq .Data.preferred_language "de" }}${german}{{ else if eq .Data.preferred_language "es" }}${spanish}{{ else if eq .Data.preferred_language "it" }}${italian}{{ else if eq .Data.preferred_language "nl" }}${dutch}{{ else }}${french}{{ end }}`;
 }
 
 function requiredValue(
@@ -232,6 +234,8 @@ export function buildSupabaseAuthEmailConfig(
         "Your confirmation code",
         "Ihr Bestätigungscode",
         "Su código de confirmación",
+        "Il Suo codice di conferma",
+        "Uw bevestigingscode",
       ),
       mailer_templates_confirmation_content: templates.confirmation,
       mailer_subjects_recovery: localizedSubject(
@@ -239,6 +243,8 @@ export function buildSupabaseAuthEmailConfig(
         "Reset your banking password",
         "Setzen Sie Ihr Bankpasswort zurück",
         "Restablezca su contraseña bancaria",
+        "Reimposti la Sua password bancaria",
+        "Stel uw bankwachtwoord opnieuw in",
       ),
       mailer_templates_recovery_content: templates.recovery,
       mailer_notifications_password_changed_enabled: true,
@@ -247,6 +253,8 @@ export function buildSupabaseAuthEmailConfig(
         "Your banking password has been changed",
         "Ihr Bankpasswort wurde geändert",
         "Su contraseña bancaria ha sido modificada",
+        "La Sua password bancaria è stata modificata",
+        "Uw bankwachtwoord is gewijzigd",
       ),
       mailer_templates_password_changed_notification_content:
         templates.passwordChanged,

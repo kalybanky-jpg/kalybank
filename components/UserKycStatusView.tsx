@@ -3,6 +3,7 @@
 import React from 'react';
 import { ArrowRight, CalendarDays, CheckCircle2, Clock3, ShieldCheck, XCircle } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import type { Language } from '@/lib/types';
 import { kycStatusLabels } from '@/lib/kyc-i18n';
 import { formatLocalizedDate, formatLocalizedDateTime } from '@/lib/language';
 import { useBranded } from '@/components/brand/BrandProvider';
@@ -12,28 +13,30 @@ const COPY = {
   en: { title: 'My identity status', submitted: 'Submission date', next: 'Next action', waiting: 'No action required. {bankName} is reviewing your file.', correct: 'Correct only the flagged items, then resubmit the same file.', done: 'Your identity is confirmed and your internal account is open.', edit: 'Correct my file', noFile: 'No KYC file submitted.', start: 'Start verification', due: 'Due date' },
   de: { title: 'Status meiner Identität', submitted: 'Einreichungsdatum', next: 'Nächste Aktion', waiting: 'Keine Aktion erforderlich. {bankName} prüft Ihre Unterlagen.', correct: 'Korrigieren Sie nur die markierten Elemente und reichen Sie denselben Vorgang erneut ein.', done: 'Ihre Identität wurde bestätigt und Ihr internes Konto eröffnet.', edit: 'Unterlagen korrigieren', noFile: 'Keine KYC-Unterlagen eingereicht.', start: 'Prüfung starten', due: 'Frist' },
   es: { title: 'Estado de mi identidad', submitted: 'Fecha de envío', next: 'Próxima acción', waiting: 'No se requiere ninguna acción. {bankName} está revisando su expediente.', correct: 'Corrija únicamente los elementos indicados y vuelva a enviar el mismo expediente.', done: 'Su identidad está confirmada y su cuenta interna está abierta.', edit: 'Corregir mi expediente', noFile: 'No se ha enviado ningún expediente KYC.', start: 'Iniciar verificación', due: 'Fecha límite' },
+  it: { title: 'Stato della mia identità', submitted: 'Data di invio', next: 'Prossima azione', waiting: 'Non è richiesta alcuna azione. {bankName} sta esaminando la sua pratica.', correct: 'Corregga soltanto gli elementi segnalati, quindi invii nuovamente la stessa pratica.', done: 'La sua identità è confermata e il suo conto interno è aperto.', edit: 'Correggi la mia pratica', noFile: 'Nessuna pratica KYC inviata.', start: 'Avvia la verifica', due: 'Scadenza' },
+  nl: { title: 'Status van mijn identiteit', submitted: 'Indieningsdatum', next: 'Volgende actie', waiting: 'Er is geen actie nodig. {bankName} beoordeelt uw dossier.', correct: 'Pas alleen de gemarkeerde onderdelen aan en dien hetzelfde dossier opnieuw in.', done: 'Uw identiteit is bevestigd en uw interne rekening is geopend.', edit: 'Mijn dossier aanpassen', noFile: 'Geen KYC-dossier ingediend.', start: 'Controle starten', due: 'Uiterste datum' },
 } as const;
 
-const REASON_LABELS: Record<string, Record<string, string>> = {
-  unreadable_document: { fr: 'Document illisible', en: 'Unreadable document', de: 'Dokument unleserlich', es: 'Documento ilegible' },
-  expired_document: { fr: 'Document expiré', en: 'Expired document', de: 'Dokument abgelaufen', es: 'Documento caducado' },
-  inconsistent_information: { fr: 'Informations incohérentes', en: 'Inconsistent information', de: 'Widersprüchliche Angaben', es: 'Información incoherente' },
-  missing_document: { fr: 'Document manquant', en: 'Missing document', de: 'Dokument fehlt', es: 'Documento ausente' },
-  selfie_mismatch: { fr: 'Selfie non concordant', en: 'Selfie mismatch', de: 'Selfie stimmt nicht überein', es: 'El selfie no coincide' },
-  address_not_verified: { fr: 'Adresse non vérifiable', en: 'Address could not be verified', de: 'Adresse nicht überprüfbar', es: 'No se pudo verificar la dirección' },
-  regulatory_information: { fr: 'Informations réglementaires à compléter', en: 'Regulatory information required', de: 'Regulatorische Angaben erforderlich', es: 'Información normativa requerida' },
-  other: { fr: 'Autre correction demandée', en: 'Other correction required', de: 'Andere Korrektur erforderlich', es: 'Otra corrección necesaria' },
+const REASON_LABELS: Record<string, Record<Language, string>> = {
+  unreadable_document: { fr: 'Document illisible', en: 'Unreadable document', de: 'Dokument unleserlich', es: 'Documento ilegible', it: 'Documento illeggibile', nl: 'Document onleesbaar' },
+  expired_document: { fr: 'Document expiré', en: 'Expired document', de: 'Dokument abgelaufen', es: 'Documento caducado', it: 'Documento scaduto', nl: 'Document verlopen' },
+  inconsistent_information: { fr: 'Informations incohérentes', en: 'Inconsistent information', de: 'Widersprüchliche Angaben', es: 'Información incoherente', it: 'Informazioni non coerenti', nl: 'Inconsistente gegevens' },
+  missing_document: { fr: 'Document manquant', en: 'Missing document', de: 'Dokument fehlt', es: 'Documento ausente', it: 'Documento mancante', nl: 'Document ontbreekt' },
+  selfie_mismatch: { fr: 'Selfie non concordant', en: 'Selfie mismatch', de: 'Selfie stimmt nicht überein', es: 'El selfie no coincide', it: 'Selfie non corrispondente', nl: 'Selfie komt niet overeen' },
+  address_not_verified: { fr: 'Adresse non vérifiable', en: 'Address could not be verified', de: 'Adresse nicht überprüfbar', es: 'No se pudo verificar la dirección', it: 'Indirizzo non verificabile', nl: 'Adres kon niet worden geverifieerd' },
+  regulatory_information: { fr: 'Informations réglementaires à compléter', en: 'Regulatory information required', de: 'Regulatorische Angaben erforderlich', es: 'Información normativa requerida', it: 'Informazioni normative da completare', nl: 'Regelgevingsgegevens vereist' },
+  other: { fr: 'Autre correction demandée', en: 'Other correction required', de: 'Andere Korrektur erforderlich', es: 'Otra corrección necesaria', it: 'Altra correzione richiesta', nl: 'Andere correctie vereist' },
 };
-const ITEM_LABELS: Record<string, Record<string, string>> = {
-  identity: { fr: 'Identité', en: 'Identity', de: 'Identität', es: 'Identidad' },
-  birth: { fr: 'Naissance', en: 'Birth details', de: 'Geburtsdaten', es: 'Nacimiento' },
-  address: { fr: 'Adresse', en: 'Address', de: 'Adresse', es: 'Dirección' },
-  profile: { fr: 'Profil réglementaire', en: 'Regulatory profile', de: 'Regulatorisches Profil', es: 'Perfil normativo' },
-  document_metadata: { fr: 'Informations de la pièce', en: 'Document details', de: 'Dokumentangaben', es: 'Datos del documento' },
-  id_front: { fr: 'Recto', en: 'Document front', de: 'Vorderseite', es: 'Anverso' },
-  id_back: { fr: 'Verso', en: 'Document back', de: 'Rückseite', es: 'Reverso' },
-  selfie: { fr: 'Selfie', en: 'Selfie', de: 'Selfie', es: 'Selfie' },
-  proof_of_address: { fr: 'Justificatif de domicile', en: 'Proof of address', de: 'Adressnachweis', es: 'Justificante de domicilio' },
+const ITEM_LABELS: Record<string, Record<Language, string>> = {
+  identity: { fr: 'Identité', en: 'Identity', de: 'Identität', es: 'Identidad', it: 'Identità', nl: 'Identiteit' },
+  birth: { fr: 'Naissance', en: 'Birth details', de: 'Geburtsdaten', es: 'Nacimiento', it: 'Nascita', nl: 'Geboortegegevens' },
+  address: { fr: 'Adresse', en: 'Address', de: 'Adresse', es: 'Dirección', it: 'Indirizzo', nl: 'Adres' },
+  profile: { fr: 'Profil réglementaire', en: 'Regulatory profile', de: 'Regulatorisches Profil', es: 'Perfil normativo', it: 'Profilo normativo', nl: 'Regelgevingsprofiel' },
+  document_metadata: { fr: 'Informations de la pièce', en: 'Document details', de: 'Dokumentangaben', es: 'Datos del documento', it: 'Dati del documento', nl: 'Documentgegevens' },
+  id_front: { fr: 'Recto', en: 'Document front', de: 'Vorderseite', es: 'Anverso', it: 'Fronte', nl: 'Voorkant' },
+  id_back: { fr: 'Verso', en: 'Document back', de: 'Rückseite', es: 'Reverso', it: 'Retro', nl: 'Achterkant' },
+  selfie: { fr: 'Selfie', en: 'Selfie', de: 'Selfie', es: 'Selfie', it: 'Selfie', nl: 'Selfie' },
+  proof_of_address: { fr: 'Justificatif de domicile', en: 'Proof of address', de: 'Adressnachweis', es: 'Justificante de domicilio', it: 'Prova di residenza', nl: 'Adresbewijs' },
 };
 
 export default function UserKycStatusView() {

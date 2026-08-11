@@ -1,4 +1,4 @@
-export type Language = 'fr' | 'en' | 'de' | 'es';
+export type Language = 'fr' | 'en' | 'de' | 'es' | 'it' | 'nl';
 
 export interface BrandSettings {
   bankName: string;

@@ -96,7 +96,7 @@ const fr = {
     receivingCurrency: 'Devise de réception', accountOrClabe: 'Numéro de compte / CLABE / CPF',
     recipientInstitution: 'Établissement destinataire déclaré', accountOrRib: 'Numéro de compte / RIB',
     accountOrRibPlaceholder: 'Numéro de compte ou RIB', externalBankCode: 'Code externe BIC / SWIFT / établissement',
-    transferMotive: 'Motif du virement (facultatif)', motivePlaceholder: 'Ex. : facture 4029',
+    transferMotive: 'Motif du virement', motivePlaceholder: 'Ex. : facture 4029',
     externalFees: 'Frais externes', externalFeesUnknown: 'non connus par {bankName}', rateAsOf: 'Taux indicatif au {date}',
     beneficiary: 'Bénéficiaire', motive: 'Motif', saveInstruction: 'Enregistrer l’instruction',
     fields: {
@@ -282,7 +282,7 @@ const en: ExtraMessages = {
     destinationCanada: 'Canada (CAD)', destinationEurozone: 'Euro area (EUR)', destinationUsa: 'United States (USD)', destinationSwiss: 'Switzerland (CHF)', destinationUk: 'United Kingdom (GBP)', destinationLatam: 'Latin America', destinationAfrica: 'Africa',
     receivingCurrency: 'Receiving currency', accountOrClabe: 'Account number / CLABE / CPF', recipientInstitution: 'Declared recipient institution',
     accountOrRib: 'Account number / RIB', accountOrRibPlaceholder: 'Account number or RIB', externalBankCode: 'External BIC / SWIFT / institution code',
-    transferMotive: 'Transfer purpose (optional)', motivePlaceholder: 'E.g. invoice 4029', externalFees: 'External fees', externalFeesUnknown: 'not known by {bankName}',
+    transferMotive: 'Transfer purpose', motivePlaceholder: 'E.g. invoice 4029', externalFees: 'External fees', externalFeesUnknown: 'not known by {bankName}',
     rateAsOf: 'Indicative rate as of {date}', beneficiary: 'Recipient', motive: 'Purpose', saveInstruction: 'Save instruction',
     fields: {
       recipientName: 'Recipient name', iban: 'IBAN', bicSwift: 'BIC / SWIFT code', routingNumber: 'Routing number', accountNumber: 'Account number',
@@ -396,7 +396,7 @@ const de: ExtraMessages = {
     destinationCanada: 'Kanada (CAD)', destinationEurozone: 'Euro-Raum (EUR)', destinationUsa: 'Vereinigte Staaten (USD)', destinationSwiss: 'Schweiz (CHF)', destinationUk: 'Vereinigtes Königreich (GBP)', destinationLatam: 'Lateinamerika', destinationAfrica: 'Afrika',
     receivingCurrency: 'Empfangswährung', accountOrClabe: 'Kontonummer / CLABE / CPF', recipientInstitution: 'Angegebenes Empfängerinstitut',
     accountOrRib: 'Kontonummer / RIB', accountOrRibPlaceholder: 'Kontonummer oder RIB', externalBankCode: 'Externer BIC-/SWIFT-/Institutscode',
-    transferMotive: 'Verwendungszweck (optional)', motivePlaceholder: 'Z. B. Rechnung 4029', externalFees: 'Externe Gebühren', externalFeesUnknown: '{bankName} nicht bekannt',
+    transferMotive: 'Verwendungszweck', motivePlaceholder: 'Z. B. Rechnung 4029', externalFees: 'Externe Gebühren', externalFeesUnknown: '{bankName} nicht bekannt',
     rateAsOf: 'Unverbindlicher Kurs vom {date}', beneficiary: 'Empfänger', motive: 'Verwendungszweck', saveInstruction: 'Auftrag speichern',
     fields: {
       recipientName: 'Name des Empfängers', iban: 'IBAN', bicSwift: 'BIC-/SWIFT-Code', routingNumber: 'Routing-Nummer', accountNumber: 'Kontonummer',
@@ -510,7 +510,7 @@ const es: ExtraMessages = {
     destinationCanada: 'Canadá (CAD)', destinationEurozone: 'Zona euro (EUR)', destinationUsa: 'Estados Unidos (USD)', destinationSwiss: 'Suiza (CHF)', destinationUk: 'Reino Unido (GBP)', destinationLatam: 'América Latina', destinationAfrica: 'África',
     receivingCurrency: 'Moneda de recepción', accountOrClabe: 'Número de cuenta / CLABE / CPF', recipientInstitution: 'Entidad beneficiaria declarada',
     accountOrRib: 'Número de cuenta / RIB', accountOrRibPlaceholder: 'Número de cuenta o RIB', externalBankCode: 'Código externo BIC / SWIFT / entidad',
-    transferMotive: 'Concepto de la transferencia (opcional)', motivePlaceholder: 'Ej.: factura 4029', externalFees: 'Comisiones externas', externalFeesUnknown: '{bankName} no las conoce',
+    transferMotive: 'Concepto de la transferencia', motivePlaceholder: 'Ej.: factura 4029', externalFees: 'Comisiones externas', externalFeesUnknown: '{bankName} no las conoce',
     rateAsOf: 'Tipo indicativo a fecha de {date}', beneficiary: 'Beneficiario', motive: 'Concepto', saveInstruction: 'Guardar orden',
     fields: {
       recipientName: 'Nombre del beneficiario', iban: 'IBAN', bicSwift: 'Código BIC / SWIFT', routingNumber: 'Número de ruta', accountNumber: 'Número de cuenta',
@@ -624,7 +624,7 @@ const it: ExtraMessages = {
     destinationCanada: 'Canada (CAD)', destinationEurozone: 'Area euro (EUR)', destinationUsa: 'Stati Uniti (USD)', destinationSwiss: 'Svizzera (CHF)', destinationUk: 'Regno Unito (GBP)', destinationLatam: 'America Latina', destinationAfrica: 'Africa',
     receivingCurrency: 'Valuta di ricezione', accountOrClabe: 'Numero di conto / CLABE / CPF', recipientInstitution: 'Istituto destinatario dichiarato',
     accountOrRib: 'Numero di conto / RIB', accountOrRibPlaceholder: 'Numero di conto o RIB', externalBankCode: 'Codice esterno BIC / SWIFT / istituto',
-    transferMotive: 'Causale del bonifico (facoltativa)', motivePlaceholder: 'Es. fattura 4029', externalFees: 'Commissioni esterne', externalFeesUnknown: 'non note a {bankName}',
+    transferMotive: 'Causale del bonifico', motivePlaceholder: 'Es. fattura 4029', externalFees: 'Commissioni esterne', externalFeesUnknown: 'non note a {bankName}',
     rateAsOf: 'Tasso indicativo al {date}', beneficiary: 'Beneficiario', motive: 'Causale', saveInstruction: 'Salva l’istruzione',
     fields: {
       recipientName: 'Il nome del beneficiario', iban: 'L’IBAN', bicSwift: 'Il codice BIC / SWIFT', routingNumber: 'Il routing number', accountNumber: 'Il numero di conto',
@@ -738,7 +738,7 @@ const nl: ExtraMessages = {
     destinationCanada: 'Canada (CAD)', destinationEurozone: 'Eurozone (EUR)', destinationUsa: 'Verenigde Staten (USD)', destinationSwiss: 'Zwitserland (CHF)', destinationUk: 'Verenigd Koninkrijk (GBP)', destinationLatam: 'Latijns-Amerika', destinationAfrica: 'Afrika',
     receivingCurrency: 'Ontvangstvaluta', accountOrClabe: 'Rekeningnummer / CLABE / CPF', recipientInstitution: 'Opgegeven ontvangende instelling',
     accountOrRib: 'Rekeningnummer / RIB', accountOrRibPlaceholder: 'Rekeningnummer of RIB', externalBankCode: 'Externe BIC-/SWIFT-/instellingscode',
-    transferMotive: 'Omschrijving van de overschrijving (optioneel)', motivePlaceholder: 'Bijv. factuur 4029', externalFees: 'Externe kosten', externalFeesUnknown: 'niet bekend bij {bankName}',
+    transferMotive: 'Omschrijving van de overschrijving', motivePlaceholder: 'Bijv. factuur 4029', externalFees: 'Externe kosten', externalFeesUnknown: 'niet bekend bij {bankName}',
     rateAsOf: 'Indicatieve koers op {date}', beneficiary: 'Begunstigde', motive: 'Omschrijving', saveInstruction: 'Opdracht opslaan',
     fields: {
       recipientName: 'De naam van de begunstigde', iban: 'Het IBAN', bicSwift: 'De BIC-/SWIFT-code', routingNumber: 'Het routingnummer', accountNumber: 'Het rekeningnummer',

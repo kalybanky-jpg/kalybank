@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 import { formatDirectCurrency } from '../lib/currency';
+import { translations } from '../lib/i18n';
 import { formatLocalizedDate, formatLocalizedMonths, formatLocalizedPercent, SUPPORTED_LANGUAGES } from '../lib/language';
 import type { Language, NotificationMessageKey } from '../lib/types';
 import {
@@ -72,6 +73,29 @@ test('les formats régionaux utilisent les six locales exactes', () => {
   assert.match(formatLocalizedMonths(36, 'it'), /36 mesi/);
   assert.match(formatLocalizedMonths(36, 'nl'), /36 maanden/);
   assert.match(formatLocalizedPercent(35, 'fr'), /35\s?%/);
+});
+
+test('les titres des champs de virement restent concis dans les six langues', async () => {
+  const conciseLabelKeys = [
+    'transitNumber',
+    'institutionNumber',
+    'accountNumber',
+    'interacEmail',
+    'routingNumberLabel',
+  ] as const;
+
+  for (const language of languages) {
+    for (const key of conciseLabelKeys) {
+      assert.doesNotMatch(translations[language][key], /[()]/, `${language}.${key}`);
+    }
+    assert.doesNotMatch(extraUserMessages[language].transferModal.transferMotive, /[()]/, `${language}.transferMotive`);
+  }
+
+  const repositoryRoot = path.resolve(import.meta.dirname, '..');
+  const source = await readFile(path.join(repositoryRoot, 'components', 'WireTransferModal.tsx'), 'utf8');
+  for (const placeholder of ['12345', '003', '1234567', '123456789', '123456789012']) {
+    assert.match(source, new RegExp(`placeholder=["']${placeholder}["']`));
+  }
 });
 
 test('les parcours client IT et NL ne réutilisent pas les catalogues FR ou EN', () => {

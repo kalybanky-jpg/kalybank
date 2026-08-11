@@ -18,6 +18,7 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx --test \"tests/**/*.test.ts\" \"tests/**/*.test.tsx\"",
     "test:db": "supabase test db supabase/tests --local",
+    "demo:clean-admin": "tsx scripts/provision-clean-admin-baseline.ts",
     "test:client-purge:integration": "tsx scripts/test-client-purge-integration.ts",
     "supabase:link": "supabase link --project-ref qljqldhvbakornnpalua",
     "db:deploy:check": "supabase db push --linked --dry-run",

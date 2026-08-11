@@ -3,6 +3,9 @@
 > Procédure idempotente pour créer les deux identités de test Monalyz sans
 > versionner de mot de passe, de clé serveur ou de donnée d’environnement.
 
+Pour une pile strictement vide avec un seul accès administrateur public et
+local, utilisez plutôt le [modèle vierge avec admin démo](clean-admin-baseline.md).
+
 | Compte | Adresse | Accès |
 | --- | --- | --- |
 | Administrateur | `admin.demo@monalyz.com` | Back-office, rôle SQL `admin` actif |

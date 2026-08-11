@@ -7,15 +7,16 @@
 1. [Installation](setup.md) pour lancer l’application et Supabase.
 2. [Authentification](authentication.md) pour les sessions et liens e-mail.
 3. [E-mails transactionnels](transactional-email.md) pour choisir Resend ou Brevo.
-4. [Comptes de démonstration](demo-accounts.md) pour les accès de test.
-5. [Exploitation Supabase](database-operations.md) pour les migrations et snapshots.
-6. [Architecture](architecture.md) pour comprendre les frontières de confiance.
-7. [ADR-0002](adr/0002-internal-official-banking-register.md) pour la décision
+4. [Modèle vierge avec admin démo](clean-admin-baseline.md) pour la base locale/CI minimale.
+5. [Comptes de démonstration](demo-accounts.md) pour les jeux fonctionnels complets.
+6. [Exploitation Supabase](database-operations.md) pour les migrations et snapshots.
+7. [Architecture](architecture.md) pour comprendre les frontières de confiance.
+8. [ADR-0002](adr/0002-internal-official-banking-register.md) pour la décision
    de registre bancaire interne.
-8. [Modèle de données](data-model.md) pour les comptes, le grand livre, les
+9. [Modèle de données](data-model.md) pour les comptes, le grand livre, les
    documents, machines d’état et invariants.
-9. [Tests](testing.md) avant toute modification métier.
-10. [Déploiement Netlify](deployment.md) puis
+10. [Tests](testing.md) avant toute modification métier.
+11. [Déploiement Netlify](deployment.md) puis
     [runbook de mise en production](runbooks/netlify-production-release.md)
     pour préparer, publier, recetter et revenir en arrière.
 
@@ -26,6 +27,7 @@
 | [Installation](setup.md) | Développeurs |
 | [Architecture](architecture.md) | Développeurs et reviewers |
 | [Authentification](authentication.md) | Développeurs et opérateurs |
+| [Modèle vierge avec admin démo](clean-admin-baseline.md) | Développeurs et testeurs |
 | [Comptes de démonstration](demo-accounts.md) | Testeurs et opérateurs |
 | [E-mails transactionnels](transactional-email.md) | Opérateurs |
 | [Exploitation Supabase](database-operations.md) | Développeurs et opérateurs |

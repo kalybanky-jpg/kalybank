@@ -1,4 +1,4 @@
 -- Intentionally empty.
--- Monalyz ships no demo identities, fake positions, seeded transactions, or default
--- staff accounts. Staff membership must be granted explicitly to an existing
--- authenticated user in each environment.
+-- Monalyz ships no Auth identity, password, staff membership, fake position,
+-- seeded transaction, or production-derived data. The optional local/CI clean
+-- admin baseline is created after reset through `bun run demo:clean-admin`.

@@ -18,8 +18,8 @@ export default function AdminClientsView() {
   });
 
   return (
-    <div className="space-y-6">
-      <header className="bg-slate-900 text-white rounded-3xl p-6">
+    <div className="min-w-0 space-y-6">
+      <header className="rounded-3xl bg-slate-900 p-4 text-white sm:p-6">
         <div className="flex items-center gap-2 text-blue-300 text-xs font-bold uppercase">
           <Users className="w-4 h-4" />
           <span>Registre clients</span>
@@ -31,12 +31,42 @@ export default function AdminClientsView() {
         </p>
       </header>
 
-      <section className="bg-white rounded-3xl border border-slate-200 p-6">
+      <section className="min-w-0 rounded-3xl border border-slate-200 bg-white p-4 sm:p-6">
         <div className="relative max-w-sm mb-5">
           <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-          <input type="search" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Nom ou e-mail" className="w-full pl-9 pr-3 py-2 border rounded-xl text-xs" />
+          <input type="search" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Nom ou e-mail" className="min-h-11 w-full rounded-xl border py-2 pl-9 pr-3 text-xs" />
         </div>
-        <div className="overflow-x-auto">
+        <div className="grid min-w-0 gap-3 md:hidden">
+          {filtered.map((application) => {
+            const accountCount = accounts.filter(
+              (account) => account.ownerId === application.ownerId,
+            ).length;
+            return (
+              <article key={application.id} className="min-w-0 rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+                <p className="break-words text-xs font-extrabold text-slate-900">
+                  {application.firstName} {application.lastName}
+                </p>
+                <p className="mt-1 break-all text-[10px] text-slate-500">{application.email}</p>
+                <dl className="mt-3 grid min-w-0 grid-cols-1 gap-2 text-[10px] min-[360px]:grid-cols-2">
+                  <div className="rounded-xl bg-white p-2.5">
+                    <dt className="text-slate-500">Contrôle identité</dt>
+                    <dd className="mt-1 break-words font-bold text-slate-700">
+                      {application.workflowStatus?.replaceAll('_', ' ')}
+                    </dd>
+                  </div>
+                  <div className="rounded-xl bg-white p-2.5">
+                    <dt className="text-slate-500">Comptes bancaires</dt>
+                    <dd className="mt-1 font-bold text-slate-700">{accountCount}</dd>
+                  </div>
+                </dl>
+                <p className="mt-3 break-all font-mono text-[10px] text-slate-500">
+                  Dossier {application.id}
+                </p>
+              </article>
+            );
+          })}
+        </div>
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full text-left min-w-[700px]">
             <thead>
               <tr className="border-b text-[10px] uppercase text-slate-500">
@@ -66,8 +96,8 @@ export default function AdminClientsView() {
               ))}
             </tbody>
           </table>
-          {!filtered.length && <p className="py-10 text-center text-sm text-slate-500">Aucun utilisateur.</p>}
         </div>
+        {!filtered.length && <p className="py-10 text-center text-sm text-slate-500">Aucun utilisateur.</p>}
       </section>
     </div>
   );

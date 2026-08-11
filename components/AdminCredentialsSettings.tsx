@@ -126,7 +126,7 @@ export default function AdminCredentialsSettings() {
   };
 
   return (
-    <section className="rounded-3xl border border-slate-200 bg-white p-6 md:col-span-2">
+    <section className="min-w-0 rounded-3xl border border-slate-200 bg-white p-4 sm:p-6 md:col-span-2">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wide text-indigo-700">
@@ -154,7 +154,7 @@ export default function AdminCredentialsSettings() {
 
       <div className="mt-6 grid gap-5 xl:grid-cols-2">
         <form
-          className="rounded-2xl border border-slate-200 bg-slate-50/70 p-5"
+          className="min-w-0 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5"
           onSubmit={(event) => {
             event.preventDefault();
             void saveChange('email', {
@@ -223,7 +223,7 @@ export default function AdminCredentialsSettings() {
           <button
             type="submit"
             disabled={isLoading || Boolean(loadError) || savingKind !== null}
-            className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Save className="h-4 w-4" />
             {savingKind === 'email' ? 'Modification…' : 'Enregistrer la nouvelle adresse'}
@@ -231,7 +231,7 @@ export default function AdminCredentialsSettings() {
         </form>
 
         <form
-          className="rounded-2xl border border-slate-200 bg-slate-50/70 p-5"
+          className="min-w-0 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5"
           onSubmit={(event) => {
             event.preventDefault();
             void saveChange('password', {
@@ -316,7 +316,7 @@ export default function AdminCredentialsSettings() {
           <button
             type="submit"
             disabled={isLoading || Boolean(loadError) || savingKind !== null}
-            className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Save className="h-4 w-4" />
             {savingKind === 'password' ? 'Modification…' : 'Enregistrer le nouveau mot de passe'}

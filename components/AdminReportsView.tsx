@@ -25,8 +25,8 @@ export default function AdminReportsView() {
     pendingTransfers.length + loans.length - terminalFailures - completedOperations;
 
   return (
-    <div className="space-y-6">
-      <header className="bg-slate-900 text-white rounded-3xl p-6">
+    <div className="min-w-0 space-y-6">
+      <header className="rounded-3xl bg-slate-900 p-4 text-white sm:p-6">
         <div className="flex items-center gap-2 text-blue-300 text-xs font-bold uppercase">
           <BarChart3 className="w-4 h-4" />
           <span>Indicateurs applicatifs</span>
@@ -61,7 +61,7 @@ export default function AdminReportsView() {
         ].map((metric) => {
           const Icon = metric.icon;
           return (
-            <article key={metric.label} className="bg-white rounded-3xl border border-slate-200 p-6">
+            <article key={metric.label} className="min-w-0 rounded-3xl border border-slate-200 bg-white p-4 sm:p-6">
               <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${metric.color}`}>
                 <Icon className="w-5 h-5" />
               </div>
@@ -72,9 +72,9 @@ export default function AdminReportsView() {
         })}
       </section>
 
-      <section className="bg-white rounded-3xl border border-slate-200 p-6">
+      <section className="min-w-0 rounded-3xl border border-slate-200 bg-white p-4 sm:p-6">
         <h2 className="font-extrabold text-slate-900">Contrôle d&apos;identité</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
+        <div className="mt-4 grid min-w-0 grid-cols-1 gap-3 min-[360px]:grid-cols-2 sm:grid-cols-4">
           {['submitted', 'under_review', 'approved', 'rejected'].map((status) => (
             <div key={status} className="p-3 bg-slate-50 rounded-xl">
               <p className="text-[10px] text-slate-500">{status.replaceAll('_', ' ')}</p>

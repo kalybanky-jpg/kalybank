@@ -108,9 +108,9 @@ export default function AdminBalanceAdjustmentView() {
   };
 
   return (
-    <div className="space-y-5 pt-1">
+    <div className="min-w-0 space-y-5 pt-1">
       <header className="overflow-hidden rounded-[22px] bg-[#0a154f] text-white shadow-[0_18px_45px_rgba(10,21,79,0.16)]">
-        <div className="relative px-5 py-6 sm:px-7">
+        <div className="relative px-4 py-6 sm:px-7">
           <div className="absolute -right-12 -top-20 h-56 w-56 rounded-full bg-[#5d43ff]/30 blur-2xl" />
           <div className="relative flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
             <div>
@@ -184,10 +184,10 @@ export default function AdminBalanceAdjustmentView() {
                 >
                   <span className="flex items-start justify-between gap-3">
                     <span className="min-w-0">
-                      <span className="block truncate text-xs font-extrabold text-[#0a154f]">
+                      <span className="block break-words text-xs font-extrabold text-[#0a154f]">
                         {account.accountHolderName ?? account.name}
                       </span>
-                      <span className="mt-1 block truncate font-mono text-[9px] text-[#7a84a8]">
+                      <span className="mt-1 block break-all font-mono text-[9px] text-[#7a84a8]">
                         N° {account.accountNumber ?? 'non attribué'}
                         {account.iban ? ` · ${account.iban}` : ''}
                       </span>
@@ -288,10 +288,10 @@ export default function AdminBalanceAdjustmentView() {
 
           {selectedAccount && movement > 0 && (
             <div className="mt-4 rounded-xl border border-[#e4e6ef] bg-[#f8f9fc] p-4">
-              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-                <div>
+              <div className="grid min-w-0 grid-cols-1 items-center gap-3 min-[360px]:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+                <div className="min-w-0">
                   <p className="text-[9px] font-medium text-[#7a84a8]">Solde actuel</p>
-                  <p className="mt-1 text-sm font-extrabold text-[#0a154f]">
+                  <p className="mt-1 break-all text-sm font-extrabold text-[#0a154f]">
                     {formatDirectCurrency(
                       selectedAccount.balance,
                       selectedAccount.currency,
@@ -299,11 +299,11 @@ export default function AdminBalanceAdjustmentView() {
                     )}
                   </p>
                 </div>
-                <ArrowRight className="h-4 w-4 text-[#939bb7]" />
-                <div className="text-right">
+                <ArrowRight className="hidden h-4 w-4 text-[#939bb7] min-[360px]:block" />
+                <div className="min-w-0 min-[360px]:text-right">
                   <p className="text-[9px] font-medium text-[#7a84a8]">Nouveau solde</p>
                   <p
-                    className={`mt-1 text-sm font-extrabold ${
+                    className={`mt-1 break-all text-sm font-extrabold ${
                       targetBalance < 0
                         ? 'text-rose-700'
                         : direction === 'credit'

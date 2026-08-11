@@ -27,6 +27,7 @@ import BrandLogo from '@/components/brand/BrandLogo';
 import { useBranded } from '@/components/brand/BrandProvider';
 import SupportButton from '@/components/support/SupportButton';
 import { useSupport } from '@/components/support/SupportProvider';
+import { DialogBackdrop, DialogPanel, Drawer } from '@/components/ui/Dialog';
 
 interface SidebarProps {
   isOpenOnMobile?: boolean;
@@ -162,7 +163,7 @@ export default function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps)
               type="button"
               onClick={() => handleNavClick('support')}
               id="admin-support-messages-btn"
-              className="mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-md bg-gradient-to-r from-[#6044ff] to-[#4128ef] px-4 py-2.5 text-[11px] font-semibold text-white shadow-lg shadow-indigo-950/30 transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300"
+              className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-gradient-to-r from-[#6044ff] to-[#4128ef] px-4 py-2.5 text-[11px] font-semibold text-white shadow-lg shadow-indigo-950/30 transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300"
             >
               <MessageCircle className="h-4 w-4" aria-hidden="true" />
               Ouvrir la messagerie
@@ -202,28 +203,27 @@ export default function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps)
         {content}
       </aside>
 
-      {isOpenOnMobile && (
-        <div className="fixed inset-0 z-50 flex overflow-hidden overscroll-contain lg:hidden">
-          <motion.button
-            type="button"
-            aria-label={shell.closeMenu}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onCloseMobile}
-            className="fixed inset-0 bg-[#020617]/70 backdrop-blur-sm"
-          />
-          <motion.div
+      <Drawer
+        open={Boolean(isOpenOnMobile)}
+        onClose={() => onCloseMobile?.()}
+        ariaLabelledBy="mobile-navigation-title"
+      >
+        <DialogBackdrop className="fixed inset-0 z-50 flex overflow-hidden overscroll-contain bg-[#020617]/70 backdrop-blur-sm lg:hidden">
+          <DialogPanel
+            as={motion.div}
             initial={{ x: -282 }}
             animate={{ x: 0 }}
             exit={{ x: -282 }}
             transition={{ type: 'spring', damping: 26, stiffness: 220 }}
-            className="relative z-10 h-[100dvh] max-w-full"
+            className="relative z-10 h-[100dvh] max-w-full bg-[#050b2b] shadow-2xl"
           >
+            <h2 id="mobile-navigation-title" className="sr-only">
+              {shell.mainNavigation}
+            </h2>
             {content}
-          </motion.div>
-        </div>
-      )}
+          </DialogPanel>
+        </DialogBackdrop>
+      </Drawer>
     </>
   );
 }

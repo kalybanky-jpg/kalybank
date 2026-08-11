@@ -235,8 +235,8 @@ export default function AdminSettingsView() {
   };
 
   return (
-    <div className="space-y-6">
-      <header className="bg-slate-900 text-white rounded-3xl p-6">
+    <div className="min-w-0 space-y-6">
+      <header className="rounded-3xl bg-slate-900 p-4 text-white sm:p-6">
         <div className="flex items-center gap-2 text-blue-300 text-xs font-bold uppercase">
           <Settings className="w-4 h-4" />
           <span>Configuration de déploiement</span>
@@ -249,7 +249,7 @@ export default function AdminSettingsView() {
         <AdminCredentialsSettings />
         <form
           onSubmit={submitLoanSettings}
-          className="bg-white rounded-3xl border border-slate-200 p-6 md:col-span-2"
+          className="min-w-0 rounded-3xl border border-slate-200 bg-white p-4 sm:p-6 md:col-span-2"
         >
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
@@ -283,7 +283,7 @@ export default function AdminSettingsView() {
           </div>
 
           <div className="mt-6 grid gap-5 lg:grid-cols-2">
-            <fieldset className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
+            <fieldset className="min-w-0 rounded-2xl border border-slate-100 bg-slate-50/70 p-3 sm:p-4">
               <legend className="px-2 text-xs font-extrabold uppercase tracking-wide text-slate-700">
                 Montants
               </legend>
@@ -329,7 +329,7 @@ export default function AdminSettingsView() {
               </div>
             </fieldset>
 
-            <fieldset className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
+            <fieldset className="min-w-0 rounded-2xl border border-slate-100 bg-slate-50/70 p-3 sm:p-4">
               <legend className="px-2 text-xs font-extrabold uppercase tracking-wide text-slate-700">
                 Durées
               </legend>
@@ -481,7 +481,7 @@ export default function AdminSettingsView() {
               role="switch"
               aria-checked={loanDraft.isActive}
               onClick={() => updateLoanDraft('isActive', !loanDraft.isActive)}
-              className={`inline-flex min-w-28 items-center justify-center rounded-full px-4 py-2 text-xs font-bold transition-colors ${
+              className={`inline-flex min-h-11 w-full min-w-28 items-center justify-center rounded-full px-4 py-2 text-xs font-bold transition-colors sm:w-auto ${
                 loanDraft.isActive
                   ? 'bg-emerald-100 text-emerald-800'
                   : 'bg-slate-200 text-slate-600'
@@ -508,7 +508,7 @@ export default function AdminSettingsView() {
             <button
               type="submit"
               disabled={isSavingLoan || Object.keys(loanErrors).length > 0}
-              className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
             >
               <Save className="h-4 w-4" />
               {isSavingLoan ? 'Enregistrement…' : 'Enregistrer les paramètres du prêt'}
@@ -524,7 +524,7 @@ export default function AdminSettingsView() {
 
         <form
           onSubmit={submitPrefix}
-          className="bg-white rounded-3xl border border-slate-200 p-6 md:col-span-2"
+          className="min-w-0 rounded-3xl border border-slate-200 bg-white p-4 sm:p-6 md:col-span-2"
         >
           <Hash className="w-8 h-8 text-indigo-600" />
           <h2 className="font-extrabold text-slate-900 mt-4">
@@ -551,10 +551,10 @@ export default function AdminSettingsView() {
                 placeholder="12345"
               />
             </label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="rounded-2xl bg-slate-50 p-4">
                 <p className="text-[10px] uppercase text-slate-500">Exemple</p>
-                <p className="mt-2 font-mono font-bold text-slate-900">{example}</p>
+                <p className="mt-2 break-all font-mono font-bold text-slate-900">{example}</p>
               </div>
               <div className="rounded-2xl bg-slate-50 p-4">
                 <p className="text-[10px] uppercase text-slate-500">Capacité</p>
@@ -577,7 +577,7 @@ export default function AdminSettingsView() {
           )}
           <button
             disabled={isSaving || capacity === null}
-            className="mt-4 flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-xs font-bold text-white disabled:opacity-50"
+            className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-xs font-bold text-white disabled:opacity-50 sm:w-auto"
           >
             <Save className="h-4 w-4" />
             {isSaving ? 'Enregistrement…' : 'Enregistrer le préfixe'}
@@ -590,7 +590,7 @@ export default function AdminSettingsView() {
           )}
         </form>
 
-        <article className="bg-white rounded-3xl border border-slate-200 p-6">
+        <article className="min-w-0 rounded-3xl border border-slate-200 bg-white p-4 sm:p-6">
           <Database className={`w-8 h-8 ${configured ? 'text-emerald-600' : 'text-rose-600'}`} />
           <h2 className="font-extrabold text-slate-900 mt-4">Backend Supabase</h2>
           <p className="text-xs text-slate-500 mt-1">
@@ -602,7 +602,7 @@ export default function AdminSettingsView() {
           </p>
         </article>
 
-        <article className="bg-white rounded-3xl border border-slate-200 p-6">
+        <article className="min-w-0 rounded-3xl border border-slate-200 bg-white p-4 sm:p-6">
           <ShieldCheck className="w-8 h-8 text-blue-600" />
           <h2 className="font-extrabold text-slate-900 mt-4">Source des taux</h2>
           <p className="text-xs text-slate-500 mt-1">
@@ -627,7 +627,7 @@ export default function AdminSettingsView() {
             href="https://frankfurter.dev/"
             target="_blank"
             rel="noreferrer"
-            className="mt-3 inline-block text-[11px] font-bold text-blue-600 hover:text-blue-800"
+            className="mt-3 inline-flex min-h-11 items-center break-words text-[11px] font-bold text-blue-600 hover:text-blue-800"
           >
             Documentation officielle Frankfurter
           </a>

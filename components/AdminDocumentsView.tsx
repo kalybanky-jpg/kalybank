@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import { useBrand } from '@/components/brand/BrandProvider';
+import { Dialog, DialogBackdrop, DialogPanel } from '@/components/ui/Dialog';
 
 const DOCUMENT_TYPES: Array<{
   value: OfficialDocumentType;
@@ -147,9 +148,9 @@ export default function AdminDocumentsView() {
   };
 
   return (
-    <div className="space-y-6">
-      <header className="bg-slate-900 text-white rounded-3xl p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
+    <div className="min-w-0 space-y-6">
+      <header className="flex flex-col gap-4 rounded-3xl bg-slate-900 p-4 text-white sm:flex-row sm:items-center sm:justify-between sm:p-6">
+        <div className="min-w-0">
           <div className="flex items-center gap-2 text-blue-300 text-xs font-bold uppercase">
             <FileCheck2 className="w-4 h-4" />
             <span>Émission et traçabilité</span>
@@ -167,14 +168,14 @@ export default function AdminDocumentsView() {
             setError('');
             setIsIssueOpen(true);
           }}
-          className="px-4 py-3 bg-blue-600 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2"
+          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-xs font-extrabold sm:w-auto"
         >
           <Plus className="w-4 h-4" />
           Émettre un document
         </button>
       </header>
 
-      <section className="bg-white rounded-3xl border border-slate-200 p-6">
+      <section className="min-w-0 rounded-3xl border border-slate-200 bg-white p-4 sm:p-6">
         <h2 className="font-extrabold text-slate-900 mb-4">
           Registre des documents
         </h2>
@@ -182,15 +183,15 @@ export default function AdminDocumentsView() {
           {officialDocuments.map((document) => (
             <article
               key={document.id}
-              className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+              className="flex min-w-0 flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between"
             >
-              <div className="flex gap-3">
+              <div className="flex min-w-0 gap-3">
                 <FileText className="w-5 h-5 text-blue-600 shrink-0" />
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs font-extrabold text-slate-900">
                     {document.title}
                   </p>
-                  <p className="font-mono text-[10px] text-slate-500 mt-1">
+                  <p className="mt-1 break-all font-mono text-[10px] text-slate-500">
                     {document.documentNumber} · v{document.version} ·{' '}
                     {document.status}
                   </p>
@@ -205,7 +206,7 @@ export default function AdminDocumentsView() {
               {document.status === 'issued' && (
                 <a
                   href={`/api/official-documents/${document.id}`}
-                  className="px-3 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold flex items-center justify-center gap-2"
+                  className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white sm:w-auto"
                 >
                   <Download className="w-4 h-4" />
                   Télécharger
@@ -221,23 +222,23 @@ export default function AdminDocumentsView() {
         </div>
       </section>
 
-      <section className="bg-white rounded-3xl border border-slate-200 p-6">
+      <section className="min-w-0 rounded-3xl border border-slate-200 bg-white p-4 sm:p-6">
         <h2 className="font-extrabold text-slate-900 mb-4 flex items-center gap-2">
           <ShieldCheck className="w-5 h-5 text-indigo-600" />
           Journal d&apos;audit
         </h2>
         <div className="space-y-3">
           {activityLogs.map((event) => (
-            <article key={event.id} className="p-4 border rounded-2xl flex gap-3">
+            <article key={event.id} className="flex min-w-0 gap-3 rounded-2xl border p-4">
               <FileText className="w-5 h-5 text-blue-600 shrink-0" />
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs font-bold text-slate-900">
                   {event.description}
                 </p>
                 <p className="text-[10px] text-slate-500 mt-1">
                   {event.timestamp}
                 </p>
-                <p className="font-mono text-[10px] text-slate-400">{event.id}</p>
+                <p className="break-all font-mono text-[10px] text-slate-400">{event.id}</p>
               </div>
             </article>
           ))}
@@ -245,14 +246,16 @@ export default function AdminDocumentsView() {
       </section>
 
       {isIssueOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/75 flex items-center justify-center p-4 overflow-y-auto">
-          <form
+        <Dialog open onClose={() => setIsIssueOpen(false)} ariaLabelledBy="admin-document-dialog-title">
+          <DialogBackdrop className="fixed inset-0 z-50 flex items-end justify-center overflow-hidden bg-slate-950/75 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)] sm:items-center sm:px-4 sm:pb-4 sm:pt-[max(1rem,env(safe-area-inset-top))]">
+          <DialogPanel
+            as="form"
             onSubmit={submit}
-            className="bg-white rounded-3xl max-w-xl w-full p-6 space-y-4 my-auto"
+            className="max-h-dvh w-full min-w-0 max-w-xl space-y-4 overflow-y-auto overscroll-contain rounded-t-3xl bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-3xl sm:p-6"
           >
-            <header className="flex justify-between border-b pb-4">
-              <div>
-                <h2 className="font-extrabold text-slate-900">
+            <header className="flex min-w-0 items-start justify-between gap-3 border-b pb-4">
+              <div className="min-w-0">
+                <h2 id="admin-document-dialog-title" className="break-words font-extrabold text-slate-900">
                   Émettre un document officiel
                 </h2>
                 <p className="text-xs text-slate-500">
@@ -263,6 +266,7 @@ export default function AdminDocumentsView() {
                 type="button"
                 onClick={() => setIsIssueOpen(false)}
                 aria-label="Fermer"
+                className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl hover:bg-slate-100"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -355,7 +359,7 @@ export default function AdminDocumentsView() {
             )}
 
             {documentType === 'account_statement' && (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <label className="text-xs font-bold">
                   Début
                   <input
@@ -395,8 +399,9 @@ export default function AdminDocumentsView() {
             >
               {isSaving ? 'Génération et publication…' : 'Émettre et publier le PDF'}
             </button>
-          </form>
-        </div>
+          </DialogPanel>
+          </DialogBackdrop>
+        </Dialog>
       )}
     </div>
   );

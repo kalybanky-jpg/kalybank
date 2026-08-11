@@ -36,6 +36,7 @@ test('mobile navigation remains usable on short and notched screens', () => {
   assert.match(sidebar, /overflow-y-auto overscroll-contain/);
   assert.match(sidebar, /safe-area-inset-bottom/);
 
-  assert.match(shell, /document\.body\.style\.overflow = 'hidden'/);
+  assert.match(sidebar, /<Drawer/);
+  assert.doesNotMatch(shell, /document\.body\.style\.overflow = 'hidden'/);
   assert.match(shell, /<main className="min-w-0 flex-1">/);
 });

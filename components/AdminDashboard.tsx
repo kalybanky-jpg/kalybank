@@ -203,7 +203,7 @@ export default function AdminDashboard() {
   ];
 
   return (
-    <div className="mx-auto max-w-[1320px] px-4 pb-7 sm:px-7 lg:px-10">
+    <div className="mx-auto min-w-0 max-w-[1320px] px-3 pb-7 sm:px-7 lg:px-10">
       <section
         className={`mb-4 flex flex-col gap-3 rounded-[14px] border p-4 sm:flex-row sm:items-center sm:justify-between ${
           accountNumberConfiguration
@@ -224,7 +224,7 @@ export default function AdminDashboard() {
         <button
           type="button"
           onClick={() => setActiveTab('settings')}
-          className="rounded-lg bg-[#4b2df1] px-4 py-2.5 text-[10px] font-semibold text-white"
+          className="min-h-11 w-full rounded-lg bg-[#4b2df1] px-4 py-2.5 text-[10px] font-semibold text-white sm:w-auto"
         >
           {accountNumberConfiguration ? 'Modifier le préfixe' : 'Configurer maintenant'}
         </button>
@@ -256,22 +256,22 @@ export default function AdminDashboard() {
 
       <div className="mt-4 grid items-start gap-4 xl:grid-cols-[1.56fr_1fr]">
         <div className="space-y-4">
-          <section className={`${cardClass} p-5`}>
-            <div className="flex items-center justify-between">
+          <section className={`${cardClass} min-w-0 p-4 sm:p-5`}>
+            <div className="flex min-w-0 flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h2 className="text-[13px] font-semibold text-[#0a154f]">Pipeline des prêts</h2>
               <button
                 type="button"
                 onClick={() => setActiveTab('loanRequests')}
-                className="rounded-md border border-[#d9d5f8] px-3 py-1.5 text-[9px] font-medium text-[#4b2df1]"
+                className="min-h-11 w-full rounded-md border border-[#d9d5f8] px-3 py-2 text-[9px] font-medium text-[#4b2df1] sm:w-auto"
               >
                 Voir le pipeline détaillé
               </button>
             </div>
-            <div className="mt-5 grid grid-cols-6">
+            <div className="mt-5 grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6 lg:gap-0">
               {pipeline.map((step, index) => (
                 <div key={step.label} className="relative text-center">
                   {index < pipeline.length - 1 && (
-                    <div className="absolute left-[62%] top-3 flex w-[76%] items-center">
+                    <div className="absolute left-[62%] top-3 hidden w-[76%] items-center lg:flex">
                       <span className="h-px flex-1 bg-[#cfd4e3]" />
                       <ArrowRight className="-ml-1 h-3 w-3 text-[#aab2c9]" strokeWidth={1.4} />
                     </div>
@@ -292,17 +292,45 @@ export default function AdminDashboard() {
           </section>
 
           <section className={`${cardClass} p-4`}>
-            <div className="flex items-center justify-between px-1 pb-3">
+            <div className="flex min-w-0 flex-col items-start gap-2 px-1 pb-3 min-[360px]:flex-row min-[360px]:items-center min-[360px]:justify-between">
               <h2 className="text-[13px] font-semibold text-[#0a154f]">Demandes prioritaires</h2>
               <button
                 type="button"
                 onClick={() => setActiveTab('loanRequests')}
-                className="text-[9px] font-medium text-[#4b2df1]"
+                className="min-h-11 rounded-lg px-2 py-2 text-[9px] font-medium text-[#4b2df1]"
               >
                 Voir toutes les demandes
               </button>
             </div>
-            <div className="overflow-x-auto">
+            <div className="grid min-w-0 gap-3 md:hidden">
+              {loans.slice(0, 5).map((loan) => {
+                const ready = loan.workflowStatus === 'approved_for_external_funding';
+                const review = loan.workflowStatus === 'under_review';
+                return (
+                  <article key={loan.id} className="min-w-0 rounded-xl border border-[#edf0f5] bg-[#f7f8fc] p-3 text-[10px] text-[#0a154f]">
+                    <div className="flex min-w-0 flex-col gap-2 min-[360px]:flex-row min-[360px]:items-start min-[360px]:justify-between">
+                      <div className="min-w-0">
+                        <p className="break-words font-bold">{loan.clientName}</p>
+                        <p className="mt-1 break-all font-mono text-[#69729f]">{loan.reference}</p>
+                      </div>
+                      <strong className="shrink-0">{money(loan.requestedAmount, loan.currency)}</strong>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <span className={`rounded px-2 py-1 ${ready ? 'bg-[#e1f7e8] text-[#158d47]' : review ? 'bg-[#e8efff] text-[#315cf4]' : 'bg-[#f1eaff] text-[#6543eb]'}`}>
+                        {ready ? 'Prêt au décaissement' : review ? 'En analyse' : 'Validation manager'}
+                      </span>
+                      <span className={`rounded px-2 py-1 ${loan.complianceProgress >= 75 ? 'bg-[#e1f7e8] text-[#158d47]' : 'bg-[#fff0e1] text-[#f07a17]'}`}>
+                        {loan.complianceProgress >= 75 ? 'Conformité validée' : 'Conformité en attente'}
+                      </span>
+                    </div>
+                    <button type="button" onClick={() => setActiveTab('loanRequests')} className={`mt-3 min-h-11 w-full rounded-md border px-3 py-2 font-medium ${ready ? 'border-[#4b2df1] bg-[#4b2df1] text-white' : 'border-[#9d8cff] text-[#4b2df1]'}`}>
+                      {ready ? 'Autoriser' : 'Voir'}
+                    </button>
+                  </article>
+                );
+              })}
+            </div>
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full min-w-[620px] border-collapse text-left">
                 <thead>
                   <tr className="bg-[#f7f8fc] text-[8px] font-medium text-[#25336b]">
@@ -358,32 +386,57 @@ export default function AdminDashboard() {
                   })}
                 </tbody>
               </table>
-              {!loans.length && (
-                <p className="py-10 text-center text-[10px] text-[#69729f]">Aucune demande prioritaire</p>
-              )}
             </div>
+            {!loans.length && (
+              <p className="py-10 text-center text-[10px] text-[#69729f]">Aucune demande prioritaire</p>
+            )}
             <div className="flex items-center justify-between px-1 pt-3 text-[9px] text-[#5c6695]">
               <span>{loans.length} résultat{loans.length > 1 ? 's' : ''}</span>
               <div className="flex items-center gap-1">
-                <button type="button" className="rounded bg-[#f4f5f9] px-2 py-1">‹</button>
-                <span className="rounded bg-[#4b2df1] px-2 py-1 text-white">1</span>
-                <button type="button" className="rounded bg-[#f4f5f9] px-2 py-1">›</button>
+                <button type="button" aria-label="Page précédente" className="min-h-11 min-w-11 rounded bg-[#f4f5f9] px-2 py-1">‹</button>
+                <span className="flex min-h-11 min-w-11 items-center justify-center rounded bg-[#4b2df1] px-2 py-1 text-white">1</span>
+                <button type="button" aria-label="Page suivante" className="min-h-11 min-w-11 rounded bg-[#f4f5f9] px-2 py-1">›</button>
               </div>
             </div>
           </section>
 
           <section className={`${cardClass} p-4`}>
-            <div className="flex items-center justify-between px-1 pb-3">
+            <div className="flex min-w-0 flex-col items-start gap-2 px-1 pb-3 min-[360px]:flex-row min-[360px]:items-center min-[360px]:justify-between">
               <h2 className="text-[13px] font-semibold text-[#0a154f]">Décaissements du jour</h2>
               <button
                 type="button"
                 onClick={() => setActiveTab('transfers')}
-                className="text-[9px] font-medium text-[#4b2df1]"
+                className="min-h-11 rounded-lg px-2 py-2 text-[9px] font-medium text-[#4b2df1]"
               >
                 Voir tous les décaissements
               </button>
             </div>
-            <div className="overflow-x-auto">
+            <div className="grid min-w-0 gap-3 md:hidden">
+              {loans.slice(0, 5).map((loan) => {
+                const complete = loan.workflowStatus === 'external_settlement_confirmed';
+                const progress = complete ? 100 : loan.complianceProgress;
+                return (
+                  <article key={loan.id} className="min-w-0 rounded-xl border border-[#edf0f5] bg-[#f7f8fc] p-3 text-[10px] text-[#0a154f]">
+                    <div className="flex min-w-0 flex-col gap-2 min-[360px]:flex-row min-[360px]:items-start min-[360px]:justify-between">
+                      <div className="min-w-0">
+                        <p className="break-words font-bold">Vers {loan.clientName}</p>
+                        <p className="mt-1 break-all font-mono text-[#69729f]">{loan.disbursementAccount || 'Compte à sélectionner'}</p>
+                      </div>
+                      <strong className="shrink-0">{money(loan.approvedAmount || loan.requestedAmount, loan.currency)}</strong>
+                    </div>
+                    <div className="mt-3 flex items-center gap-2">
+                      <div className="min-w-0 flex-1"><ProgressBar value={progress} /></div>
+                      <strong>{Math.round(progress)}%</strong>
+                    </div>
+                    <p className={`mt-2 flex items-center gap-1 ${complete ? 'text-[#0aae4f]' : progress > 0 ? 'text-[#f07a17]' : 'text-[#69729f]'}`}>
+                      {complete ? <CheckCircle2 className="h-3 w-3" /> : <Clock3 className="h-3 w-3" />}
+                      {complete ? 'Transféré' : progress > 0 ? 'En cours' : 'En attente'}
+                    </p>
+                  </article>
+                );
+              })}
+            </div>
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full min-w-[610px] text-left">
                 <thead>
                   <tr className="bg-[#f7f8fc] text-[8px] text-[#25336b]">
@@ -429,10 +482,10 @@ export default function AdminDashboard() {
                   })}
                 </tbody>
               </table>
-              {!loans.length && (
-                <p className="py-9 text-center text-[10px] text-[#69729f]">Aucun décaissement prévu</p>
-              )}
             </div>
+            {!loans.length && (
+              <p className="py-9 text-center text-[10px] text-[#69729f]">Aucun décaissement prévu</p>
+            )}
           </section>
         </div>
 
@@ -443,7 +496,7 @@ export default function AdminDashboard() {
               <button
                 type="button"
                 onClick={() => setActiveTab('compliance')}
-                className="text-[9px] font-medium text-[#4b2df1]"
+                className="min-h-11 rounded-lg px-2 py-2 text-[9px] font-medium text-[#4b2df1]"
               >
                 Voir tout
               </button>
@@ -457,7 +510,7 @@ export default function AdminDashboard() {
               ].map((item) => {
                 const Icon = item.icon;
                 return (
-                  <div key={item.label} className="grid grid-cols-[34px_1fr_40px_64px] items-center gap-2">
+                  <div key={item.label} className="grid min-w-0 grid-cols-[34px_minmax(0,1fr)_40px_64px] items-center gap-2">
                     <span className={`flex h-8 w-8 items-center justify-center rounded-full ${item.colors}`}>
                       <Icon className="h-4 w-4" strokeWidth={1.8} />
                     </span>
@@ -484,19 +537,19 @@ export default function AdminDashboard() {
               <button
                 type="button"
                 onClick={() => setActiveTab('compliance')}
-                className="text-[9px] font-medium text-[#4b2df1]"
+                className="min-h-11 rounded-lg px-2 py-2 text-[9px] font-medium text-[#4b2df1]"
               >
                 Voir détails
               </button>
             </div>
-            <div className="mt-4 flex items-center gap-6">
+            <div className="mt-4 flex min-w-0 flex-col items-start gap-4 min-[360px]:flex-row min-[360px]:items-center sm:gap-6">
               <ComplianceRing value={averageCompliance} />
               <p className="text-[10px] leading-5 text-[#69729f]">
                 Cette application n’affiche que la progression. À 100 %, le virement est prêt pour
                 sa finalisation sur le compte courant du client.
               </p>
             </div>
-            <div className="mt-3 grid grid-cols-2 gap-x-7 gap-y-2">
+            <div className="mt-3 grid min-w-0 grid-cols-1 gap-x-7 gap-y-2 sm:grid-cols-2">
               {[
                 ['Double validation interne', trackedChecks.doubleValidation],
                 ['Escalade hiérarchique', trackedChecks.escalade],
@@ -532,14 +585,14 @@ export default function AdminDashboard() {
               <button
                 type="button"
                 onClick={() => setActiveTab('documents')}
-                className="text-[9px] font-medium text-[#4b2df1]"
+                className="min-h-11 rounded-lg px-2 py-2 text-[9px] font-medium text-[#4b2df1]"
               >
                 Voir toute l’activité
               </button>
             </div>
             <div className="mt-4 space-y-3">
               {activityLogs.slice(0, 5).map((event) => (
-                <div key={event.id} className="grid grid-cols-[36px_1fr_48px] items-center gap-2 text-[8px]">
+                <div key={event.id} className="grid min-w-0 grid-cols-[36px_minmax(0,1fr)_48px] items-center gap-2 text-[8px]">
                   <span className="text-[#536092]">{event.timestamp.split(' ').slice(-1)}</span>
                   <span className="truncate text-[#1d2a62]">{event.description}</span>
                   <span
@@ -562,7 +615,7 @@ export default function AdminDashboard() {
             <button
               type="button"
               onClick={() => setActiveTab('documents')}
-              className="mt-4 w-full text-center text-[9px] font-medium text-[#4b2df1]"
+              className="mt-4 min-h-11 w-full rounded-lg px-3 py-2 text-center text-[9px] font-medium text-[#4b2df1]"
             >
               Afficher plus d’activités ↓
             </button>

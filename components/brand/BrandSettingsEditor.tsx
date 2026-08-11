@@ -171,7 +171,7 @@ export default function BrandSettingsEditor() {
   };
 
   return (
-    <form onSubmit={publish} className="rounded-3xl border border-slate-200 bg-white p-6 md:col-span-2">
+    <form onSubmit={publish} className="min-w-0 rounded-3xl border border-slate-200 bg-white p-4 sm:p-6 md:col-span-2">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <ImageIcon className="h-8 w-8 text-violet-600" />
@@ -233,7 +233,7 @@ export default function BrandSettingsEditor() {
       <button
         type="submit"
         disabled={!hasChanges || Boolean(validationError) || isSaving}
-        className="mt-5 inline-flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-3 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+        className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-3 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
       >
         <Save className="h-4 w-4" />
         {isSaving

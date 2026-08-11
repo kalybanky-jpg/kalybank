@@ -178,7 +178,7 @@ export default function AdminSupportMessagesView() {
   const showInitialLoading = loadState === 'loading' && conversations.length === 0;
 
   return (
-    <div className="space-y-5 py-1">
+    <div className="min-w-0 space-y-5 py-1">
       <header className="flex flex-col gap-4 rounded-3xl bg-slate-950 p-5 text-white sm:flex-row sm:items-center sm:justify-between sm:p-6">
         <div className="flex min-w-0 items-start gap-3">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-violet-500/20 text-violet-200">
@@ -198,7 +198,7 @@ export default function AdminSupportMessagesView() {
           type="button"
           onClick={() => void loadConversations()}
           disabled={isRefreshing || loadState === 'loading'}
-          className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/10 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-white/15 disabled:cursor-wait disabled:opacity-60"
+          className="inline-flex min-h-11 w-full shrink-0 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/10 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-white/15 disabled:cursor-wait disabled:opacity-60 sm:w-auto"
         >
           <RefreshCw
             className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
@@ -238,7 +238,7 @@ export default function AdminSupportMessagesView() {
           <button
             type="button"
             onClick={() => void loadConversations({ initial: true })}
-            className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-violet-700"
+            className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-violet-700 sm:w-auto"
           >
             <RefreshCw className="h-4 w-4" aria-hidden="true" />
             Réessayer
@@ -302,7 +302,7 @@ export default function AdminSupportMessagesView() {
                     <button
                       type="button"
                       onClick={() => setQuery('')}
-                      className="mt-4 min-h-10 rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-violet-700 hover:bg-violet-50"
+                      className="mt-4 min-h-11 w-full rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-violet-700 hover:bg-violet-50 sm:w-auto"
                     >
                       Effacer la recherche
                     </button>
@@ -366,7 +366,7 @@ export default function AdminSupportMessagesView() {
                     <button
                       type="button"
                       onClick={() => setMobileDetailOpen(false)}
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 lg:hidden"
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 lg:hidden"
                       aria-label="Retour à la liste des conversations"
                     >
                       <ArrowLeft className="h-4 w-4" aria-hidden="true" />
@@ -382,7 +382,7 @@ export default function AdminSupportMessagesView() {
                         {selectedConversation.visitor.email && (
                           <span className="inline-flex min-w-0 items-center gap-1">
                             <Mail className="h-3 w-3 shrink-0" aria-hidden="true" />
-                            <span className="truncate">{selectedConversation.visitor.email}</span>
+                            <span className="break-all">{selectedConversation.visitor.email}</span>
                           </span>
                         )}
                         <span>{formatDate(selectedConversation.occurredAt)}</span>
@@ -461,7 +461,7 @@ export default function AdminSupportMessagesView() {
                                   return (
                                     <li
                                       key={`${message.id}-attachment-${attachmentIndex}`}
-                                      className={`flex items-center gap-2 rounded-lg px-2.5 py-2 ${
+                                      className={`flex min-h-11 items-center gap-2 rounded-lg px-2.5 py-2 ${
                                         isCustomer ? 'bg-white/15' : 'bg-slate-100'
                                       }`}
                                     >
@@ -471,12 +471,12 @@ export default function AdminSupportMessagesView() {
                                           href={href}
                                           target="_blank"
                                           rel="noreferrer"
-                                          className="min-w-0 truncate font-bold underline underline-offset-2"
+                                          className="flex min-h-11 min-w-0 flex-1 items-center break-all font-bold underline underline-offset-2"
                                         >
                                           {label}
                                         </a>
                                       ) : (
-                                        <span className="min-w-0 truncate font-bold">{label}</span>
+                                        <span className="min-w-0 break-all font-bold">{label}</span>
                                       )}
                                     </li>
                                   );

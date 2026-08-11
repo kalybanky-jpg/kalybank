@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
@@ -23,17 +23,6 @@ export default function MainAppLayout({ forcedRole }: MainAppLayoutProps) {
   const { role, language, isLoading, lastError } = useAppStore();
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const brandedMessages = useBranded(extraUserMessages[language]);
-
-  useEffect(() => {
-    if (!isMobileSidebarOpen) return;
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [isMobileSidebarOpen]);
 
   // Route access is enforced by middleware; the role is always derived from
   // the authenticated staff_members row, never from the URL or client state.

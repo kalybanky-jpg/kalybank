@@ -82,7 +82,7 @@ export default function PasswordField({
           placeholder={placeholder}
           aria-describedby={descriptionIds}
           aria-invalid={invalid}
-          className={`w-full rounded-xl border py-3 pl-10 pr-12 text-sm font-normal normal-case tracking-normal outline-none transition placeholder:font-normal focus:ring-4 ${fieldColors} ${focusColor} ${
+          className={`w-full rounded-xl border py-3 pl-10 pr-14 text-sm font-normal normal-case tracking-normal outline-none transition placeholder:font-normal focus:ring-4 ${fieldColors} ${focusColor} ${
             invalid ? 'border-rose-500' : ''
           }`}
         />
@@ -92,7 +92,7 @@ export default function PasswordField({
           title={isVisible ? hidePasswordLabel : showPasswordLabel}
           aria-pressed={isVisible}
           onClick={() => setIsVisible((visible) => !visible)}
-          className={`absolute right-1.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${
+          className={`absolute right-0.5 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-lg transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${
             dark
               ? `text-slate-400 hover:bg-slate-800 hover:text-white focus-visible:ring-offset-slate-950 ${
                   accent === 'amber'

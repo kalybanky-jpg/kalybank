@@ -6,6 +6,7 @@ import { formatDirectCurrency } from '@/lib/currency';
 import type { PendingTransfer } from '@/lib/types';
 import { CheckCircle2, Clock, Search, Send, X, XCircle } from 'lucide-react';
 import { useBrand } from '@/components/brand/BrandProvider';
+import { Dialog, DialogBackdrop, DialogPanel } from '@/components/ui/Dialog';
 
 const STATUS_LABELS: Record<string, string> = {
   submitted: 'À valider par le chef d’agence',
@@ -85,8 +86,8 @@ export default function AdminTransfersView() {
   };
 
   return (
-    <div className="space-y-6">
-      <header className="bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 rounded-3xl p-6 text-white shadow-xl">
+    <div className="min-w-0 space-y-6">
+      <header className="rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 p-4 text-white shadow-xl sm:p-6">
         <div className="flex items-center gap-2 text-indigo-300 text-xs font-bold uppercase">
           <Send className="w-4 h-4" />
           <span>Validation du chef d&apos;agence</span>
@@ -95,13 +96,13 @@ export default function AdminTransfersView() {
           Demandes de virement
         </h1>
         <p className="text-xs sm:text-sm text-slate-300 mt-2 max-w-3xl">
-          Les contrôles et l&apos;exécution financière sont réalisés hors de {brand.bankName}
+          Les contrôles et l&apos;exécution financière sont réalisés hors de {brand.bankName}{' '}
           par le personnel de la banque. Le chef d&apos;agence valide le dossier, puis
           confirme ici que le virement a effectivement été exécuté.
         </p>
       </header>
 
-      <section className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm">
+      <section className="min-w-0 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
         <div className="relative max-w-sm mb-5">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
           <input
@@ -109,11 +110,52 @@ export default function AdminTransfersView() {
             placeholder="Référence, bénéficiaire ou identifiant masqué"
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
-            className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+            className="min-h-11 w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-xs"
           />
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="grid min-w-0 gap-3 md:hidden">
+          {filteredTransfers.map((transfer) => {
+            const status = transfer.workflowStatus ?? 'submitted';
+            return (
+              <article key={transfer.id} className="min-w-0 rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+                <div className="flex min-w-0 flex-col gap-3 min-[360px]:flex-row min-[360px]:items-start min-[360px]:justify-between">
+                  <div className="min-w-0">
+                    <p className="break-words text-xs font-extrabold text-slate-900">
+                      {transfer.recipientName}
+                    </p>
+                    <p className="mt-1 break-all font-mono text-[10px] text-slate-500">
+                      {transfer.recipientAccount}
+                    </p>
+                  </div>
+                  <p className="shrink-0 text-sm font-extrabold text-blue-700">
+                    {formatDirectCurrency(transfer.amount, transfer.currency, 'fr')}
+                  </p>
+                </div>
+                <div className="mt-3 min-w-0 rounded-xl bg-white p-2.5 text-[10px]">
+                  <p className="text-slate-500">Référence / date</p>
+                  <p className="mt-1 break-all font-mono font-bold text-slate-800">
+                    {transfer.id}
+                  </p>
+                  <p className="mt-0.5 text-slate-500">{transfer.date}</p>
+                </div>
+                <span className={`mt-3 inline-flex max-w-full items-center gap-1 break-words rounded-full px-2.5 py-1 text-[10px] font-extrabold ${statusClass(status)}`}>
+                  {status === 'external_settlement_confirmed' ? (
+                    <CheckCircle2 className="h-3 w-3 shrink-0" />
+                  ) : (
+                    <Clock className="h-3 w-3 shrink-0" />
+                  )}
+                  {STATUS_LABELS[status] ?? status}
+                </span>
+                <button type="button" onClick={() => openTransfer(transfer)} className="mt-4 min-h-11 w-full rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-bold text-white">
+                  Examiner
+                </button>
+              </article>
+            );
+          })}
+        </div>
+
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full text-left min-w-[800px]">
             <thead>
               <tr className="border-b text-[10px] uppercase tracking-wider text-slate-500">
@@ -168,35 +210,36 @@ export default function AdminTransfersView() {
               })}
             </tbody>
           </table>
-          {!filteredTransfers.length && (
-            <p className="text-center py-10 text-sm text-slate-500">
-              Aucune demande trouvée.
-            </p>
-          )}
         </div>
+        {!filteredTransfers.length && (
+          <p className="py-10 text-center text-sm text-slate-500">
+            Aucune demande trouvée.
+          </p>
+        )}
       </section>
 
       {selected && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <section className="bg-white rounded-3xl p-6 max-w-xl w-full space-y-5 my-auto">
-            <header className="flex justify-between items-start border-b pb-4">
-              <div>
-                <h2 className="font-extrabold text-lg text-slate-900">
+        <Dialog open onClose={() => setSelected(null)} ariaLabelledBy="admin-transfer-dialog-title">
+          <DialogBackdrop className="fixed inset-0 z-50 flex items-end justify-center overflow-hidden bg-slate-950/70 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)] backdrop-blur-sm sm:items-center sm:px-4 sm:pb-4 sm:pt-[max(1rem,env(safe-area-inset-top))]">
+          <DialogPanel className="max-h-dvh w-full min-w-0 max-w-xl space-y-5 overflow-y-auto overscroll-contain rounded-t-3xl bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-3xl sm:p-6">
+            <header className="flex min-w-0 items-start justify-between gap-3 border-b pb-4">
+              <div className="min-w-0">
+                <h2 id="admin-transfer-dialog-title" className="break-words text-lg font-extrabold text-slate-900">
                   Virement {selected.id}
                 </h2>
                 <p className="text-xs text-slate-500">
                   {STATUS_LABELS[selected.workflowStatus ?? 'submitted']}
                 </p>
               </div>
-              <button type="button" onClick={() => setSelected(null)} aria-label="Fermer">
+              <button type="button" onClick={() => setSelected(null)} aria-label="Fermer" className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl hover:bg-slate-100">
                 <X className="w-5 h-5 text-slate-500" />
               </button>
             </header>
 
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="rounded-xl bg-slate-50 p-3">
+            <div className="grid min-w-0 grid-cols-1 gap-3 text-xs min-[360px]:grid-cols-2">
+              <div className="min-w-0 rounded-xl bg-slate-50 p-3">
                 <p className="text-slate-500">Bénéficiaire</p>
-                <p className="font-bold text-slate-900">{selected.recipientName}</p>
+                <p className="break-words font-bold text-slate-900">{selected.recipientName}</p>
               </div>
               <div className="rounded-xl bg-slate-50 p-3">
                 <p className="text-slate-500">Montant</p>
@@ -236,8 +279,8 @@ export default function AdminTransfersView() {
                         }[checkDefinitions[index - 1].kind] as keyof typeof selected.complianceChecks];
                     const enabled = status !== 'termine' && (index === 0 || previous === 'termine');
                     return (
-                      <div key={check.kind} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-3">
-                        <div>
+                      <div key={check.kind} className="flex min-w-0 flex-col items-stretch gap-3 rounded-xl border border-slate-200 p-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
                           <p className="text-xs font-bold text-slate-900">{index + 1}. {check.label}</p>
                           <p className={`text-[11px] ${status === 'termine' ? 'text-emerald-600' : enabled ? 'text-indigo-600' : 'text-slate-500'}`}>
                             {checkStatusLabel(status)}
@@ -247,7 +290,7 @@ export default function AdminTransfersView() {
                           type="button"
                           disabled={isSubmitting || !enabled || !note.trim()}
                           onClick={() => void run(() => reviewTransferCheck(selected.id, check.kind, note.trim()))}
-                          className={`rounded-xl px-3 py-2 text-[11px] font-bold text-white disabled:opacity-40 ${check.kind === 'final_authorization' ? 'bg-emerald-600' : 'bg-blue-600'}`}
+                          className={`min-h-11 w-full rounded-xl px-3 py-2 text-[11px] font-bold text-white disabled:opacity-40 sm:w-auto ${check.kind === 'final_authorization' ? 'bg-emerald-600' : 'bg-blue-600'}`}
                         >
                           {check.kind === 'final_authorization' ? 'Confirmer définitivement' : 'Valider ce contrôle'}
                         </button>
@@ -264,14 +307,14 @@ export default function AdminTransfersView() {
                     rows={3}
                   />
                 </label>
-                <div className="grid sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <button
                     type="button"
                     disabled={isSubmitting || !note.trim()}
                     onClick={() =>
                       void run(() => rejectTransfer(selected.id, note.trim()))
                     }
-                    className="py-3 bg-rose-50 text-rose-700 rounded-xl font-bold disabled:opacity-50"
+                    className="min-h-11 w-full rounded-xl bg-rose-50 px-3 py-3 font-bold text-rose-700 disabled:opacity-50"
                   >
                     <XCircle className="inline w-4 h-4 mr-2" />
                     Refuser la demande
@@ -295,8 +338,9 @@ export default function AdminTransfersView() {
                 Ce dossier est finalisé et conservé dans le journal d&apos;audit.
               </div>
             )}
-          </section>
-        </div>
+          </DialogPanel>
+          </DialogBackdrop>
+        </Dialog>
       )}
     </div>
   );

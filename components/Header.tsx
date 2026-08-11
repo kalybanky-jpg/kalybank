@@ -84,7 +84,7 @@ export default function Header({ onToggleMobileMenu }: HeaderProps) {
           <button
             type="button"
             onClick={() => setIsNotificationsDrawerOpen(true)}
-            className="relative flex min-h-10 min-w-10 items-center justify-center rounded-xl p-2 text-[#0b1651] hover:bg-white"
+            className="relative flex min-h-11 min-w-11 items-center justify-center rounded-xl p-2 text-[#0b1651] hover:bg-white"
             aria-label={t.header.notifications}
           >
             <Bell className="h-[21px] w-[21px]" strokeWidth={1.8} />
@@ -99,7 +99,7 @@ export default function Header({ onToggleMobileMenu }: HeaderProps) {
             <button
               type="button"
               onClick={() => setIsProfileOpen((open) => !open)}
-              className="flex min-h-10 items-center gap-3 rounded-xl p-1 text-left hover:bg-white/80 sm:p-1.5"
+              className="flex min-h-11 items-center gap-3 rounded-xl p-1 text-left hover:bg-white/80 sm:p-1.5"
               aria-label={t.header.sessionMenu}
               aria-expanded={isProfileOpen}
             >
@@ -133,7 +133,7 @@ export default function Header({ onToggleMobileMenu }: HeaderProps) {
                     onClick={() => void signOut()}
                     disabled={isSigningOut}
                     aria-busy={isSigningOut}
-                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-50"
+                    className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-50"
                   >
                     <LogOut className="h-4 w-4" />
                     {t.header.logout}

@@ -89,7 +89,9 @@ export default function LoanApplicationModal() {
     ? calculateLoanMonthlyPayment(requestedAmount, annualRate, durationMonths, baseCurrency)
     : 0;
 
-  const handleNextStep = () => {
+  const handleNextStep = (event?: React.SyntheticEvent) => {
+    event?.preventDefault();
+
     const newErrors: Record<string, string> = {};
     if (!isLoanAvailable) {
       newErrors.configuration = configurationUnavailableMessage;
@@ -438,6 +440,7 @@ export default function LoanApplicationModal() {
 
                 {step < 2 ? (
                   <button
+                    key="next-btn"
                     type="button"
                     onClick={handleNextStep}
                     disabled={!isLoanAvailable}
@@ -448,6 +451,7 @@ export default function LoanApplicationModal() {
                   </button>
                 ) : (
                   <button
+                    key="submit-btn"
                     type="submit"
                     disabled={isSubmitting || !isLoanAvailable}
                     id="submit-loan-application-btn"

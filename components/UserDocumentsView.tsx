@@ -124,25 +124,25 @@ export default function UserDocumentsView() {
   const t = useBranded(messages[language]);
 
   return (
-    <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-6">
-      <header className="bg-slate-900 text-white rounded-3xl p-6">
+    <div className="mx-auto max-w-6xl min-w-0 space-y-4 p-4 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:space-y-6 sm:p-6 sm:pb-[calc(6rem+env(safe-area-inset-bottom))]">
+      <header className="min-w-0 rounded-3xl bg-slate-900 p-4 text-white sm:p-6">
         <div className="flex items-center gap-2 text-blue-300 text-xs font-bold uppercase">
           <FileCheck2 className="w-4 h-4" />
           <span>{t.eyebrow}</span>
         </div>
-        <h1 className="text-2xl font-extrabold mt-1">{t.title}</h1>
-        <p className="text-xs sm:text-sm text-slate-300 mt-2 max-w-2xl">
+        <h1 className="mt-1 break-words text-xl font-extrabold sm:text-2xl">{t.title}</h1>
+        <p className="mt-2 max-w-2xl break-words text-xs text-slate-300 sm:text-sm">
           {t.subtitle}
         </p>
       </header>
 
-      <section className="bg-white rounded-3xl border border-slate-200 p-6">
-        <h2 className="font-extrabold text-slate-900 mb-4">{t.available}</h2>
+      <section className="min-w-0 rounded-3xl border border-slate-200 bg-white p-4 sm:p-6">
+        <h2 className="mb-4 break-words font-extrabold text-slate-900">{t.available}</h2>
         <div className="divide-y divide-slate-100">
           {officialDocuments.map((document) => (
             <article
               key={document.id}
-              className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+              className="flex min-w-0 flex-col gap-4 py-4 sm:flex-row sm:items-center sm:justify-between"
             >
               <div className="flex gap-3 min-w-0">
                 <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
@@ -152,11 +152,11 @@ export default function UserDocumentsView() {
                   <p className="font-extrabold text-sm text-slate-900 truncate">
                     {officialDocumentTitle(language, document.documentType)}
                   </p>
-                  <p className="text-[11px] text-slate-500 mt-1">
+                  <p className="mt-1 break-words text-[11px] text-slate-500 [overflow-wrap:anywhere]">
                     {t.types[document.documentType]} · {document.documentNumber} · v
                     {document.version}
                   </p>
-                  <p className="text-[10px] text-slate-400 mt-1">
+                  <p className="mt-1 break-words text-[10px] text-slate-400 [overflow-wrap:anywhere]">
                     {document.issuedAt
                       ? formatLocalizedDateTime(document.issuedAt, language)
                       : t.pending}
@@ -167,14 +167,14 @@ export default function UserDocumentsView() {
               {document.status === 'issued' ? (
                 <a
                   href={`/api/official-documents/${document.id}`}
-                  className="px-4 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2"
+                  className="flex w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white sm:w-auto"
                 >
                   <Download className="w-4 h-4" />
                   {t.download}
                 </a>
               ) : (
                 <span
-                  className={`px-3 py-2 rounded-xl text-xs font-bold ${
+                  className={`self-start rounded-xl px-3 py-2 text-xs font-bold sm:self-auto ${
                     document.status === 'revoked'
                       ? 'bg-rose-50 text-rose-700'
                       : 'bg-amber-50 text-amber-800'

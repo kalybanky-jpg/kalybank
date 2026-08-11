@@ -8,6 +8,7 @@ const SUPPORT_IDENTITY_MARKER_VERSION = 'mz1';
 const SUPPORT_IDENTITY_HMAC_CONTEXT = 'mz1:';
 const SUPPORT_IDENTITY_TAG_HEX_LENGTH = 32;
 const MAX_TAWK_VISITOR_NAME_LENGTH = 180;
+const REQUIRED_WIDGET_LOCALES = ['fr', 'en', 'de', 'es'] as const;
 
 export class TawkConfigurationError extends Error {
   constructor(message: string) {
@@ -146,12 +147,31 @@ export function resolveTawkWidgetId(
 export function getTawkServerConfig(
   environment: NodeJS.ProcessEnv = process.env,
 ): TawkServerConfig {
+  const widgetIds = parseTawkWidgetIds(environment.TAWK_WIDGET_IDS);
+  const missingLocales = REQUIRED_WIDGET_LOCALES.filter(
+    (locale) => !widgetIds[locale],
+  );
+  if (missingLocales.length > 0) {
+    throw new TawkConfigurationError(
+      `TAWK_WIDGET_IDS must define dedicated widgets for: ${missingLocales.join(', ')}.`,
+    );
+  }
+
+  const localizedWidgetIds = REQUIRED_WIDGET_LOCALES.map(
+    (locale) => widgetIds[locale],
+  );
+  if (new Set(localizedWidgetIds).size !== localizedWidgetIds.length) {
+    throw new TawkConfigurationError(
+      'TAWK_WIDGET_IDS must use a distinct widget for each supported language.',
+    );
+  }
+
   return {
     propertyId: parseSafeTawkId(
       requiredEnvironmentValue(environment, 'TAWK_PROPERTY_ID'),
       'TAWK_PROPERTY_ID',
     ),
-    widgetIds: parseTawkWidgetIds(environment.TAWK_WIDGET_IDS),
+    widgetIds,
     apiKey: requiredEnvironmentValue(environment, 'TAWK_API_KEY'),
     webhookIdentitySecret: requiredEnvironmentValue(
       environment,

@@ -8,12 +8,15 @@ import { extraUserMessages } from '../lib/user-i18n';
 const readSource = (relativePath: string) =>
   readFile(new URL(`../${relativePath}`, import.meta.url), 'utf8');
 
-test('le widget tawk est monté uniquement dans les coques authentifiées', async () => {
-  const [rootLayout, mainLayout, onboardingLayout, login, register, resetPin] =
+test('le widget tawk est réservé aux clients avec un lanceur flottant', async () => {
+  const [rootLayout, mainLayout, onboardingLayout, header, provider, button, login, register, resetPin] =
     await Promise.all([
       readSource('app/layout.tsx'),
       readSource('components/MainAppLayout.tsx'),
       readSource('app/onboarding/layout.tsx'),
+      readSource('components/Header.tsx'),
+      readSource('components/support/SupportProvider.tsx'),
+      readSource('components/support/SupportButton.tsx'),
       readSource('app/login/page.tsx'),
       readSource('app/register/page.tsx'),
       readSource('app/reset-pin/page.tsx'),
@@ -21,7 +24,14 @@ test('le widget tawk est monté uniquement dans les coques authentifiées', asyn
 
   assert.doesNotMatch(rootLayout, /SupportProvider|embed\.tawk\.to/);
   assert.match(mainLayout, /<SupportProvider>/);
+  assert.match(mainLayout, /currentRole === 'user' && <SupportButton variant="floating"/);
   assert.match(onboardingLayout, /<SupportProvider>/);
+  assert.match(onboardingLayout, /<SupportButton variant="floating"/);
+  assert.doesNotMatch(header, /SupportButton/);
+  assert.match(provider, /const tawkEnabled = role !== 'admin'/);
+  assert.match(provider, /if \(!tawkEnabled\) return/);
+  assert.match(button, /if \(role === 'admin' \|\| \(variant === 'floating' && chatOpen\)\) return null/);
+  assert.match(button, /bottom-\[calc\(1rem\+env\(safe-area-inset-bottom\)\)\]/);
   for (const publicPage of [login, register, resetPin]) {
     assert.doesNotMatch(publicPage, /SupportProvider|embed\.tawk\.to|Tawk_API/);
   }
@@ -39,6 +49,16 @@ test('le provider tawk utilise le contrat Secure Mode et nettoie chaque session'
   assert.match(source, /await switchTawkWidget\(api, identity\)/);
   assert.match(source, /await loginTawk\(api, identity\)/);
   assert.match(source, /api\.autoStart = false/);
+  assert.match(source, /if \(api\.start && api\.login && api\.logout && api\.switchWidget\)/);
+  assert.match(source, /startTawk\(api\)/);
+  assert.match(source, /apiBeforeLoad\.onChatMessageVisitor = keepVisitorMessageVisible/);
+  assert.match(source, /apiBeforeLoad\.onOfflineSubmit = keepVisitorMessageVisible/);
+  assert.match(source, /apiBeforeLoad\.onLoad = \(\) => \{[\s\S]*?pendingOpenRef\.current[\s\S]*?showMaximizedWidget\(\)[\s\S]*?hideNativeWidget\(\)/);
+  assert.match(source, /if \(!pendingOpenRef\.current && !chatOpenRef\.current\) \{[\s\S]*?hideNativeWidget\(\);[\s\S]*?setChatOpenState\(false\);[\s\S]*?return;/);
+  assert.match(source, /apiBeforeLoad\.onChatMaximized = \(\) => \{[\s\S]*?pendingOpenRef\.current = false;[\s\S]*?setChatOpenState\(true\)/);
+  assert.match(source, /if \(chatOpenRef\.current \|\| api\.isChatMaximized\?\.\(\) === true\)/);
+  assert.match(source, /setChatOpenState\(true\)/);
+  assert.match(source, /setChatOpenState\(false\)/);
   assert.match(source, /reject\(new Error\('TAWK_CALLBACK_TIMEOUT'\)\)/);
   assert.match(source, /nextUserId !== previousUserId/);
   assert.match(source, /currentUserDisplayName/);
@@ -50,10 +70,11 @@ test('le provider tawk utilise le contrat Secure Mode et nettoie chaque session'
 });
 
 test('Web Push reste volontaire et persiste uniquement via les RPC sécurisées', async () => {
-  const [pushSource, settingsSource, adminSettingsSource, workerSource] = await Promise.all([
+  const [pushSource, settingsSource, userSettingsSource, providerSource, workerSource] = await Promise.all([
     readSource('lib/support/web-push.ts'),
     readSource('components/support/WebPushSettings.tsx'),
-    readSource('components/AdminSettingsView.tsx'),
+    readSource('components/UserSettingsView.tsx'),
+    readSource('components/support/SupportProvider.tsx'),
     readSource('public/sw.js'),
   ]);
 
@@ -66,7 +87,9 @@ test('Web Push reste volontaire et persiste uniquement via les RPC sécurisées'
   assert.match(pushSource, /unregisterSubscription\(userId, subscription\.endpoint\)/);
   assert.doesNotMatch(pushSource, /\.from\(['"]push_subscriptions['"]\)/);
   assert.match(settingsSource, /type="button"[\s\S]*?enablePush\(\)/);
-  assert.match(adminSettingsSource, /<WebPushSettings/);
+  assert.match(userSettingsSource, /<WebPushSettings/);
+  assert.match(providerSource, /synchronizeWebPushOnly/);
+  assert.match(providerSource, /authUserIdRef\.current \?\? identityRef\.current\?\.userId/);
   assert.match(workerSource, /addEventListener\('push'/);
   assert.match(workerSource, /addEventListener\('pushsubscriptionchange'/);
   assert.match(workerSource, /credentials:\s*'same-origin'/);
@@ -117,8 +140,15 @@ test('les quatre langues exposent les libellés complets du support', () => {
   }
 });
 
-test('le bouton natif affiche aussi son libellé indisponible', async () => {
+test('le bouton de support expose ses états et sa variante flottante responsive', async () => {
   const source = await readSource('components/support/SupportButton.tsx');
   assert.match(source, /const label = unavailable \? copy\.unavailable : copy\.openChat/);
-  assert.match(source, /<span>\{label\}<\/span>/);
+  assert.match(source, /'floating'/);
+  assert.match(source, /hidden sm:inline/);
+  assert.match(source, /variant === 'floating'/);
+  assert.match(source, /variant === 'floating' && chatOpen/);
+  assert.match(source, /sm:bottom-\[calc\(1\.5rem\+env\(safe-area-inset-bottom\)\)\]/);
+  assert.match(source, /sm:right-\[calc\(1\.5rem\+env\(safe-area-inset-right\)\)\]/);
+  assert.match(source, /z-30/);
+  assert.doesNotMatch(source, /z-40/);
 });

@@ -61,3 +61,18 @@ idempotency state.
 Server notification copy lives in `../_shared/support-i18n.ts`. Add a complete
 catalog entry there when the application's supported-language list grows;
 unknown and region-qualified values use the existing French fallback.
+
+The visitor interface uses one dedicated tawk.to widget for each Monalyz
+language (`fr`, `en`, `de`, and `es`). Configure the language and every
+Online/Away/Offline and Pre-Chat content block in the tawk.to dashboard for each
+widget. The Next.js server rejects an incomplete or shared locale mapping rather
+than silently displaying the wrong language.
+
+## Back-office archive
+
+Completed conversations are available to administrators in Monalyz through the
+server-only `/api/admin/support-conversations` projection. The browser never
+receives `raw_body`, delivery metadata, or the signed identity marker. The view
+is an archive, not a live agent console: tawk.to emits
+`chat:transcript_created` only after the conversation ends, and existing tawk.to
+history is not backfilled automatically.

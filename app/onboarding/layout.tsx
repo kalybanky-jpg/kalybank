@@ -8,10 +8,7 @@ export default function OnboardingLayout({ children }: { children: React.ReactNo
   return (
     <SupportProvider>
       {children}
-      <SupportButton
-        variant="icon"
-        className="fixed right-4 top-4 z-40 border border-white/20 bg-white/95 shadow-lg backdrop-blur sm:right-6 sm:top-6"
-      />
+      <SupportButton variant="floating" />
     </SupportProvider>
   );
 }

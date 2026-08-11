@@ -7,7 +7,7 @@ import { useAppStore } from '@/lib/store';
 import { extraUserMessages } from '@/lib/user-i18n';
 import { useSupport } from './SupportProvider';
 
-type SupportButtonVariant = 'sidebar' | 'icon' | 'primary';
+type SupportButtonVariant = 'sidebar' | 'icon' | 'primary' | 'floating';
 
 interface SupportButtonProps {
   variant?: SupportButtonVariant;
@@ -22,6 +22,8 @@ const variantClasses: Record<SupportButtonVariant, string> = {
     'relative rounded-xl p-2 text-[#0b1651] transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4f35f1]',
   primary:
     'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#4b2df1] px-5 py-3 text-xs font-bold text-white shadow-[0_8px_22px_rgba(75,45,241,0.2)] transition hover:bg-[#3f25db] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#4b2df1]/25',
+  floating:
+    'fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-30 inline-flex min-h-14 min-w-14 items-center justify-center gap-2 rounded-full bg-[#4b2df1] px-4 text-xs font-bold text-white shadow-[0_14px_34px_rgba(49,35,184,0.34)] transition hover:-translate-y-0.5 hover:bg-[#3f25db] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#4b2df1]/25 sm:bottom-[calc(1.5rem+env(safe-area-inset-bottom))] sm:right-[calc(1.5rem+env(safe-area-inset-right))] sm:min-w-0 sm:rounded-2xl sm:px-5',
 };
 
 export default function SupportButton({
@@ -32,10 +34,12 @@ export default function SupportButton({
   const { language, role } = useAppStore();
   const effectiveLanguage = role === 'admin' ? 'fr' : language;
   const copy = useBranded(extraUserMessages[effectiveLanguage].support);
-  const { openSupport, tawkStatus } = useSupport();
+  const { openSupport, tawkStatus, chatOpen } = useSupport();
   const unavailable = tawkStatus === 'unavailable';
   const loading = tawkStatus === 'loading';
   const label = unavailable ? copy.unavailable : copy.openChat;
+
+  if (role === 'admin' || (variant === 'floating' && chatOpen)) return null;
 
   return (
     <button
@@ -45,22 +49,26 @@ export default function SupportButton({
       disabled={unavailable}
       aria-label={label}
       aria-busy={loading}
-      title={variant === 'icon' ? label : undefined}
+      title={variant === 'icon' || variant === 'floating' ? label : undefined}
       className={`${variantClasses[variant]} ${className} disabled:cursor-not-allowed disabled:opacity-55`}
     >
       {loading ? (
         <LoaderCircle
           aria-hidden="true"
-          className={`${variant === 'icon' ? 'h-[21px] w-[21px]' : 'h-4 w-4'} animate-spin`}
+          className={`${variant === 'icon' || variant === 'floating' ? 'h-[21px] w-[21px]' : 'h-4 w-4'} animate-spin`}
         />
       ) : (
         <Headphones
           aria-hidden="true"
-          className={variant === 'icon' ? 'h-[21px] w-[21px]' : 'h-4 w-4'}
+          className={variant === 'icon' || variant === 'floating' ? 'h-[21px] w-[21px]' : 'h-4 w-4'}
           strokeWidth={1.8}
         />
       )}
-      {variant !== 'icon' && <span>{label}</span>}
+      {variant !== 'icon' && (
+        <span className={variant === 'floating' ? 'hidden sm:inline' : undefined}>
+          {label}
+        </span>
+      )}
     </button>
   );
 }

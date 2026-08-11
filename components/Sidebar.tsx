@@ -11,6 +11,7 @@ import {
   Headphones,
   LayoutGrid,
   LogOut,
+  MessageCircle,
   SendHorizontal,
   Settings,
   ShieldCheck,
@@ -69,6 +70,7 @@ export default function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps)
     },
     { id: 'documents', label: t.auditLogs, icon: Folder },
     { id: 'reports', label: t.reports, icon: BarChart3 },
+    { id: 'support', label: 'Messagerie', icon: MessageCircle },
     { id: 'settings', label: t.settings, icon: Settings },
   ];
 
@@ -80,9 +82,9 @@ export default function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps)
   };
 
   const content = (
-    <div className="monalyz-sidebar flex h-full w-[282px] flex-col px-6 pb-7 pt-7 text-white">
+    <div className="monalyz-sidebar flex h-full min-h-full w-[282px] max-w-[calc(100vw-1.5rem)] flex-col overflow-y-auto overscroll-contain px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-[calc(1.5rem+env(safe-area-inset-top))] text-white sm:px-6">
       <div>
-        <div className="mb-8 flex items-center justify-between px-1">
+        <div className="mb-6 flex items-center justify-between px-1 sm:mb-8">
           <button
             type="button"
             aria-label={shell.homeAria}
@@ -100,7 +102,7 @@ export default function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps)
             <button
               type="button"
               onClick={onCloseMobile}
-              className="rounded-lg p-1.5 text-white/70 hover:bg-white/10 hover:text-white lg:hidden"
+              className="flex min-h-11 min-w-11 items-center justify-center rounded-lg p-1.5 text-white/70 hover:bg-white/10 hover:text-white lg:hidden"
               aria-label={shell.closeMenu}
             >
               <X className="h-5 w-5" />
@@ -145,18 +147,39 @@ export default function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps)
       </div>
 
       <div className="mt-auto">
-        <div className="mb-6 rounded-2xl border border-white/15 bg-white/[0.025] p-5">
-          <Headphones className="mb-4 h-8 w-8 text-[#7054ff]" strokeWidth={1.8} />
-          <h2 className="text-[15px] font-semibold">{t.needHelp}</h2>
-          <p className="mt-1.5 text-[11px] leading-5 text-white/66">
-            {role === 'admin' ? shell.adminHelp : shell.userHelp}
-          </p>
-          <SupportButton
-            variant="sidebar"
-            id="help-contact-us-btn"
-            className="mt-4"
-          />
-        </div>
+        {role === 'admin' ? (
+          <div className="mb-6 rounded-2xl border border-white/15 bg-white/[0.025] p-4 sm:p-5">
+            <MessageCircle
+              className="mb-4 h-8 w-8 text-[#7054ff]"
+              strokeWidth={1.8}
+              aria-hidden="true"
+            />
+            <h2 className="text-[15px] font-semibold">Messagerie support</h2>
+            <p className="mt-1.5 text-[11px] leading-5 text-white/66">
+              Consultez les conversations clients clôturées et leurs pièces jointes.
+            </p>
+            <button
+              type="button"
+              onClick={() => handleNavClick('support')}
+              id="admin-support-messages-btn"
+              className="mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-md bg-gradient-to-r from-[#6044ff] to-[#4128ef] px-4 py-2.5 text-[11px] font-semibold text-white shadow-lg shadow-indigo-950/30 transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300"
+            >
+              <MessageCircle className="h-4 w-4" aria-hidden="true" />
+              Ouvrir la messagerie
+            </button>
+          </div>
+        ) : (
+          <div className="mb-6 rounded-2xl border border-white/15 bg-white/[0.025] p-4 sm:p-5">
+            <Headphones className="mb-4 h-8 w-8 text-[#7054ff]" strokeWidth={1.8} />
+            <h2 className="text-[15px] font-semibold">{t.needHelp}</h2>
+            <p className="mt-1.5 text-[11px] leading-5 text-white/66">{shell.userHelp}</p>
+            <SupportButton
+              variant="sidebar"
+              id="help-contact-us-btn"
+              className="mt-4"
+            />
+          </div>
+        )}
 
         <button
           type="button"
@@ -175,12 +198,12 @@ export default function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps)
 
   return (
     <>
-      <aside className="sticky top-0 z-30 hidden h-screen shrink-0 lg:block">
+      <aside className="sticky top-0 z-30 hidden h-[100dvh] shrink-0 lg:block">
         {content}
       </aside>
 
       {isOpenOnMobile && (
-        <div className="fixed inset-0 z-50 flex lg:hidden">
+        <div className="fixed inset-0 z-50 flex overflow-hidden overscroll-contain lg:hidden">
           <motion.button
             type="button"
             aria-label={shell.closeMenu}
@@ -195,7 +218,7 @@ export default function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps)
             animate={{ x: 0 }}
             exit={{ x: -282 }}
             transition={{ type: 'spring', damping: 26, stiffness: 220 }}
-            className="relative z-10 h-full"
+            className="relative z-10 h-[100dvh] max-w-full"
           >
             {content}
           </motion.div>

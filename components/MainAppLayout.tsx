@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
@@ -13,6 +13,7 @@ import AccountStatementsModal from '@/components/AccountStatementsModal';
 import { extraUserMessages } from '@/lib/user-i18n';
 import { useBranded } from '@/components/brand/BrandProvider';
 import { SupportProvider } from '@/components/support/SupportProvider';
+import SupportButton from '@/components/support/SupportButton';
 
 interface MainAppLayoutProps {
   forcedRole?: 'user' | 'admin';
@@ -23,13 +24,24 @@ export default function MainAppLayout({ forcedRole }: MainAppLayoutProps) {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const brandedMessages = useBranded(extraUserMessages[language]);
 
+  useEffect(() => {
+    if (!isMobileSidebarOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isMobileSidebarOpen]);
+
   // Route access is enforced by middleware; the role is always derived from
   // the authenticated staff_members row, never from the URL or client state.
   const currentRole = role;
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center text-sm font-bold">
+      <div className="min-h-app-screen bg-slate-950 text-white flex items-center justify-center text-sm font-bold">
         {forcedRole === 'admin'
           ? 'Chargement sécurisé…'
           : brandedMessages.shell.loadingSession}
@@ -39,7 +51,7 @@ export default function MainAppLayout({ forcedRole }: MainAppLayoutProps) {
 
   if (forcedRole === 'admin' && currentRole !== 'admin') {
     return (
-      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-6 text-center">
+      <div className="min-h-app-screen bg-slate-950 text-white flex items-center justify-center p-6 text-center">
         <div>
           <h1 className="text-xl font-extrabold">Accès Back-Office refusé</h1>
           <p className="text-sm text-slate-400 mt-2">
@@ -52,7 +64,7 @@ export default function MainAppLayout({ forcedRole }: MainAppLayoutProps) {
 
   return (
     <SupportProvider>
-      <div className="min-h-screen bg-[#f7f8fc] flex text-slate-800 font-sans antialiased selection:bg-[#4b2df1] selection:text-white">
+      <div className="min-h-app-screen w-full max-w-full overflow-x-clip bg-[#f7f8fc] flex text-slate-800 font-sans antialiased selection:bg-[#4b2df1] selection:text-white">
         {/* Sidebar */}
         <Sidebar
           isOpenOnMobile={isMobileSidebarOpen}
@@ -60,12 +72,12 @@ export default function MainAppLayout({ forcedRole }: MainAppLayoutProps) {
         />
 
         {/* Main Workspace Column */}
-        <div className="flex-1 flex flex-col min-w-0 min-h-screen overflow-x-hidden">
+        <div className="min-h-app-screen flex-1 flex flex-col min-w-0 max-w-full overflow-x-clip">
           {/* Sticky Header */}
           <Header onToggleMobileMenu={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)} />
 
           {/* Dynamic View Content */}
-          <main className="flex-1">
+          <main className="min-w-0 flex-1">
             {currentRole === 'admin' ? <AdminDashboard /> : <UserDashboard />}
           </main>
         </div>
@@ -76,6 +88,7 @@ export default function MainAppLayout({ forcedRole }: MainAppLayoutProps) {
         <NotificationsDrawer />
         <AccountStatementsModal />
       </div>
+      {currentRole === 'user' && <SupportButton variant="floating" />}
     </SupportProvider>
   );
 }

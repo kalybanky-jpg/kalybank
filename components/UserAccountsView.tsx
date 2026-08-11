@@ -28,30 +28,30 @@ export default function UserAccountsView() {
     );
 
   return (
-    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
-      <header className="bg-slate-900 text-white rounded-3xl p-6">
+    <div className="mx-auto max-w-7xl min-w-0 space-y-4 p-4 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:space-y-6 sm:p-6 sm:pb-[calc(6rem+env(safe-area-inset-bottom))]">
+      <header className="min-w-0 rounded-3xl bg-slate-900 p-4 text-white sm:p-6">
         <div className="flex items-center gap-2 text-blue-300 text-xs font-bold uppercase">
           <WalletCards className="w-4 h-4" />
           <span>{t.accounts.eyebrow}</span>
         </div>
-        <h1 className="text-2xl font-extrabold mt-1">{t.accounts.title}</h1>
+        <h1 className="mt-1 break-words text-xl font-extrabold sm:text-2xl">{t.accounts.title}</h1>
         <p className="text-xs sm:text-sm text-slate-300 mt-2 max-w-2xl">
           {t.accounts.subtitle}
         </p>
       </header>
 
-      <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <section className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
         {accounts.map((account) => (
-          <article key={account.id} className="bg-white rounded-3xl border border-slate-200 p-6">
-            <p className="text-sm font-extrabold text-slate-900">
+          <article key={account.id} className="min-w-0 rounded-3xl border border-slate-200 bg-white p-4 sm:p-6">
+            <p className="break-words text-sm font-extrabold text-slate-900">
               {accountTypeLabel(language, account.accountType)}
             </p>
-            <p className="text-2xl font-black text-slate-900 mt-2">
+            <p className="mt-2 break-words text-xl font-black text-slate-900 sm:text-2xl">
               {isMaskedBalance
                 ? '••••••'
                 : displayMoney(account.balance, account.currency)}
             </p>
-            <p className="text-xs text-slate-500 mt-2">
+            <p className="mt-2 break-words text-xs text-slate-500 [overflow-wrap:anywhere]">
               {t.accounts.availableBalance}:{' '}
               <strong>
                 {isMaskedBalance
@@ -62,22 +62,24 @@ export default function UserAccountsView() {
                     )}
               </strong>
             </p>
-            <dl className="mt-4 pt-4 border-t text-[11px] space-y-2">
-              <div className="flex justify-between gap-3">
+            <dl className="mt-4 space-y-3 border-t pt-4 text-[11px]">
+              <div className="grid min-w-0 grid-cols-1 gap-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:gap-3">
                 <dt className="text-slate-500">{t.accounts.accountStatus}</dt>
-                <dd className="font-bold text-emerald-700">{t.accounts.activeAccount}</dd>
+                <dd className="min-w-0 break-words font-bold text-emerald-700 sm:text-right">
+                  {t.accounts.activeAccount}
+                </dd>
               </div>
-              <div className="flex justify-between gap-3">
+              <div className="grid min-w-0 grid-cols-1 gap-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:gap-3">
                 <dt className="text-slate-500">{t.accounts.lastUpdate}</dt>
-                <dd className="font-bold text-slate-800">
+                <dd className="min-w-0 break-words font-bold text-slate-800 sm:text-right">
                   {account.asOf
                     ? formatLocalizedDateTime(account.asOf, language)
                     : t.common.unavailable}
                 </dd>
               </div>
-              <div className="flex justify-between gap-3">
+              <div className="grid min-w-0 grid-cols-1 gap-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:gap-3">
                 <dt className="text-slate-500">{t.accounts.accountNumber}</dt>
-                <dd className="font-mono font-bold text-slate-800">
+                <dd className="min-w-0 break-all font-mono font-bold text-slate-800 sm:text-right">
                   {accountNumberLabel(
                     account.accountNumber,
                     t.accounts.accountNumberPending,
@@ -94,16 +96,18 @@ export default function UserAccountsView() {
         )}
       </section>
 
-      <section className="bg-white rounded-3xl border border-slate-200 p-6">
-        <div className="flex items-center justify-between gap-4 mb-4">
-          <div>
-            <h2 className="font-extrabold text-slate-900">{t.accounts.recentTransactions}</h2>
+      <section className="min-w-0 rounded-3xl border border-slate-200 bg-white p-4 sm:p-6">
+        <div className="mb-4 flex min-w-0 flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <div className="min-w-0">
+            <h2 className="break-words font-extrabold text-slate-900">
+              {t.accounts.recentTransactions}
+            </h2>
             <p className="text-[11px] text-slate-500">{t.accounts.recentTransactionsHint}</p>
           </div>
           <button
             type="button"
             onClick={() => setIsStatementsModalOpen(true)}
-            className="px-3 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold flex items-center gap-2"
+            className="flex w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white sm:w-auto"
           >
             <FileDown className="w-4 h-4" />
             {t.accounts.downloadStatement}
@@ -111,16 +115,16 @@ export default function UserAccountsView() {
         </div>
         <div className="space-y-2">
           {transactions.map((transaction) => (
-            <div key={transaction.id} className="p-3 bg-slate-50 rounded-xl flex justify-between gap-4">
-              <div>
-                <p className="text-xs font-bold text-slate-900">
+            <div key={transaction.id} className="flex min-w-0 justify-between gap-3 rounded-xl bg-slate-50 p-3">
+              <div className="min-w-0">
+                <p className="break-words text-xs font-bold text-slate-900">
                   {ledgerEntryLabel(language, transaction.entryKind, transaction.metadata)}
                 </p>
-                <p className="text-[10px] text-slate-500">
+                <p className="break-words text-[10px] text-slate-500">
                   {formatLocalizedDateTime(transaction.date, language)}
                 </p>
               </div>
-              <Clock className="w-4 h-4 text-emerald-600" />
+              <Clock className="h-4 w-4 shrink-0 text-emerald-600" />
             </div>
           ))}
           {!transactions.length && (

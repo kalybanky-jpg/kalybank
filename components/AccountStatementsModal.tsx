@@ -76,50 +76,51 @@ export default function AccountStatementsModal() {
       onClose={() => setIsStatementsModalOpen(false)}
       ariaLabelledBy="account-statements-modal-title"
     >
-      <DialogBackdrop className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+      <DialogBackdrop className="fixed inset-0 z-50 flex items-end justify-center overflow-hidden bg-slate-950/70 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)] backdrop-blur-sm sm:items-center sm:px-4 sm:pb-4 sm:pt-[max(1rem,env(safe-area-inset-top))]">
         <DialogPanel
           as="section"
-          className="bg-white rounded-3xl max-w-lg w-full p-6 space-y-5"
+          className="flex max-h-dvh min-h-0 w-full min-w-0 max-w-lg flex-col overflow-hidden rounded-t-3xl border border-slate-200 bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-3xl"
         >
-        <header className="flex items-start justify-between border-b pb-4">
-          <div className="flex gap-3">
-            <FileText className="w-7 h-7 text-blue-600" />
-            <div>
+        <header className="flex shrink-0 items-start justify-between gap-3 border-b p-4 sm:p-6">
+          <div className="flex min-w-0 gap-3">
+            <FileText className="h-7 w-7 shrink-0 text-blue-600" />
+            <div className="min-w-0">
               <h2
                 id="account-statements-modal-title"
-                className="font-extrabold text-slate-900"
+                className="break-words font-extrabold text-slate-900"
               >
                 {t.title}
               </h2>
-              <p className="text-xs text-slate-500">{t.subtitle}</p>
+              <p className="mt-1 break-words text-xs text-slate-500">{t.subtitle}</p>
             </div>
           </div>
           <button
             type="button"
             onClick={() => setIsStatementsModalOpen(false)}
             aria-label={t.close}
+            className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
           >
-            <X className="w-5 h-5 text-slate-500" />
+            <X className="h-5 w-5" />
           </button>
         </header>
 
-        <div className="space-y-3 max-h-80 overflow-y-auto">
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-4 sm:p-6">
           {statements.map((statement) => (
             <div
               key={statement.id}
-              className="p-4 border rounded-2xl flex items-center justify-between gap-3"
+              className="flex min-w-0 flex-col gap-3 rounded-2xl border p-4 sm:flex-row sm:items-center sm:justify-between"
             >
-              <div>
-                <p className="text-xs font-extrabold text-slate-900">
+              <div className="min-w-0">
+                <p className="break-words text-xs font-extrabold text-slate-900">
                   {officialDocumentTitle(language, statement.documentType)}
                 </p>
-                <p className="font-mono text-[10px] text-slate-500 mt-1">
+                <p className="mt-1 break-all font-mono text-[10px] text-slate-500">
                   {statement.documentNumber}
                 </p>
               </div>
               <a
                 href={`/api/official-documents/${statement.id}`}
-                className="px-3 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold flex gap-2"
+                className="flex min-h-11 w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white sm:w-auto"
               >
                 <Download className="w-4 h-4" />
                 {t.download}
@@ -131,9 +132,11 @@ export default function AccountStatementsModal() {
           )}
         </div>
 
-        <p className="p-3 bg-blue-50 text-blue-900 border border-blue-200 rounded-xl text-xs">
-          {t.hint}
-        </p>
+        <div className="shrink-0 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6 sm:pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+          <p className="break-words rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900">
+            {t.hint}
+          </p>
+        </div>
         </DialogPanel>
       </DialogBackdrop>
     </Dialog>

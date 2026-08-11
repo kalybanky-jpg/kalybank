@@ -43,13 +43,13 @@ import UserAccountsView from './UserAccountsView';
 import { useBranded } from '@/components/brand/BrandProvider';
 
 const cardClass =
-  'rounded-[14px] border border-[#e4e7f0] bg-white shadow-[0_8px_30px_rgba(25,34,80,0.025)]';
+  'min-w-0 rounded-[14px] border border-[#e4e7f0] bg-white shadow-[0_8px_30px_rgba(25,34,80,0.025)]';
 
 function ComplianceRing({ value, label, language }: { value: number; label: string; language: 'fr' | 'en' | 'de' | 'es' }) {
   const safeValue = Math.max(0, Math.min(100, Math.round(value)));
   return (
     <div
-      className="relative flex h-[112px] w-[112px] shrink-0 items-center justify-center rounded-full"
+      className="relative flex h-[112px] w-[112px] shrink-0 self-center items-center justify-center rounded-full sm:self-auto"
       style={{
         background: `conic-gradient(#4a2bf4 ${safeValue * 3.6}deg, #e8ebf4 0deg)`,
       }}
@@ -135,13 +135,13 @@ export default function UserDashboard() {
     );
 
   return (
-    <div className="mx-auto max-w-[1320px] px-4 pb-7 sm:px-7 lg:px-10">
-      <div className="grid items-start gap-5 xl:grid-cols-[1.28fr_1fr]">
-        <div className="space-y-5">
-          <section className="relative overflow-hidden rounded-[14px] bg-gradient-to-br from-[#061348] via-[#071653] to-[#0b1459] px-6 py-6 text-white shadow-[0_16px_42px_rgba(5,18,71,0.16)]">
+    <div className="mx-auto w-full min-w-0 max-w-[1320px] px-3 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:px-7 sm:pb-10 lg:px-10 lg:pb-8">
+      <div className="grid min-w-0 items-start gap-4 sm:gap-5 xl:grid-cols-[minmax(0,1.28fr)_minmax(0,1fr)]">
+        <div className="min-w-0 space-y-4 sm:space-y-5">
+          <section className="relative min-w-0 overflow-hidden rounded-[14px] bg-gradient-to-br from-[#061348] via-[#071653] to-[#0b1459] px-4 py-5 text-white shadow-[0_16px_42px_rgba(5,18,71,0.16)] sm:px-6 sm:py-6">
             <div className="absolute -right-20 -top-24 h-72 w-72 rounded-full bg-[#301bb8]/25 blur-3xl" />
-            <div className="relative flex items-start justify-between">
-              <div>
+            <div className="relative flex min-w-0 items-start justify-between gap-3">
+              <div className="min-w-0">
                 <div className="flex items-center gap-2 text-[12px] font-semibold text-white/90">
                   <span>{t.totalBalance}</span>
                   <button
@@ -158,15 +158,15 @@ export default function UserDashboard() {
                     )}
                   </button>
                 </div>
-                <strong className="mt-3 block text-[35px] font-semibold leading-none tracking-wide">
+                <strong className="mt-3 block break-words text-[clamp(1.75rem,9vw,2.1875rem)] font-semibold leading-none tracking-tight tabular-nums sm:tracking-wide">
                   {isMaskedBalance ? '••••••' : money(totalBalance)}
                 </strong>
-                <p className="mt-3 text-[12px]">
+                <p className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px]">
                   <span className="font-semibold text-[#26d871]">+ {money(monthlyCredits)}</span>
-                  <span className="ml-5 text-white/72">{t.thisMonth}</span>
+                  <span className="text-white/72">{t.thisMonth}</span>
                 </p>
               </div>
-              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white/15">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/15 sm:h-11 sm:w-11">
                 <CircleDollarSign className="h-5 w-5 text-white/90" strokeWidth={1.7} />
               </span>
             </div>
@@ -198,13 +198,13 @@ export default function UserDashboard() {
               <circle cx="253" cy="19" r="3" fill="#9e54ff" />
             </svg>
 
-            <div className="relative mt-10">
+            <div className="relative mt-8 sm:mt-10">
               <h2 className="mb-3 text-[13px] font-semibold">{t.myAccounts}</h2>
               <div className="overflow-hidden rounded-[11px] border border-white/15 bg-black/5 px-3">
                 {currentAccount && (
-                  <div className="flex w-full items-center gap-4 py-3.5 text-left">
+                  <div className="grid w-full min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2 py-3 text-left sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:gap-4 sm:py-3.5">
                     <span
-                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#7048ff] to-[#4026e9]"
+                      className="row-span-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#7048ff] to-[#4026e9] sm:row-span-1"
                     >
                       <Landmark className="h-6 w-6" strokeWidth={1.7} />
                     </span>
@@ -216,7 +216,7 @@ export default function UserDashboard() {
                         {currentAccount.accountNumber || banking.dashboard.accountNumberPending}
                       </span>
                     </span>
-                    <strong className="text-[13px] font-semibold">
+                    <strong className="col-start-2 min-w-0 break-words text-[12px] font-semibold tabular-nums sm:col-start-auto sm:text-[13px]">
                       {isMaskedBalance
                         ? '••••••'
                         : money(currentAccount.balance, currentAccount.currency)}
@@ -232,13 +232,13 @@ export default function UserDashboard() {
             </div>
           </section>
 
-          <section className={`${cardClass} p-5`}>
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#ddf8e5] text-[#0aab4c]">
+          <section className={`${cardClass} p-4 sm:p-5`}>
+            <div className="flex min-w-0 items-start justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#ddf8e5] text-[#0aab4c] sm:h-11 sm:w-11">
                   <Landmark className="h-6 w-6" strokeWidth={1.8} />
                 </span>
-                <div>
+                <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-[14px] font-semibold text-[#0a154f]">
                       {activeLoan ? loanMotiveLabel(language, activeLoan.motiveCode) : t.personalLoan}
@@ -254,7 +254,7 @@ export default function UserDashboard() {
               <button
                 type="button"
                 onClick={() => setActiveTab('loan')}
-                className="text-[10px] font-medium text-[#4b2df1]"
+                className="min-h-10 shrink-0 rounded-lg px-2 text-[10px] font-medium text-[#4b2df1]"
               >
                 {t.seeAll}
               </button>
@@ -262,8 +262,8 @@ export default function UserDashboard() {
 
             {activeLoan ? (
               <>
-                <div className="relative mt-5 grid grid-cols-4">
-                  <div className="absolute left-[10%] right-[10%] top-3 h-px bg-gradient-to-r from-[#11aa50] via-[#11aa50] to-[#e0e4ed]" />
+                <div className="relative mt-5 grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-0">
+                  <div className="absolute left-[10%] right-[10%] top-3 hidden h-px bg-gradient-to-r from-[#11aa50] via-[#11aa50] to-[#e0e4ed] sm:block" />
                   {[
                     [t.stepReceived, 1],
                     [t.stepAnalysis, 2],
@@ -275,7 +275,7 @@ export default function UserDashboard() {
                     const complete = stepNumber < normalizedStep;
                     const current = stepNumber === normalizedStep;
                     return (
-                      <div key={String(label)} className="relative z-10 text-center">
+                      <div key={String(label)} className="relative z-10 min-w-0 rounded-xl bg-[#f8f9fc] px-2 py-3 text-center sm:rounded-none sm:bg-transparent sm:px-1 sm:py-0">
                         <span
                           className={`mx-auto flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold text-white ${
                             complete
@@ -287,11 +287,11 @@ export default function UserDashboard() {
                         >
                           {stepNumber}
                         </span>
-                        <span className="mt-2 block text-[9px] font-medium text-[#0a154f]">
+                        <span className="mt-2 block break-words text-[9px] font-medium leading-3 text-[#0a154f]">
                           {label}
                         </span>
                         <span
-                          className={`mt-1 block text-[8px] ${
+                          className={`mt-1 block break-words text-[8px] ${
                             complete ? 'text-[#0aae4f]' : current ? 'text-[#4b2df1]' : 'text-[#69729f]'
                           }`}
                         >
@@ -302,22 +302,22 @@ export default function UserDashboard() {
                   })}
                 </div>
 
-                <div className="mt-5 grid gap-5 border-b border-[#eef0f5] pb-5 lg:grid-cols-[1fr_1fr]">
-                  <dl className="grid grid-cols-[125px_1fr] gap-y-3 text-[10px]">
+                <div className="mt-5 grid min-w-0 gap-5 border-b border-[#eef0f5] pb-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                  <dl className="grid min-w-0 grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] gap-x-3 gap-y-3 text-[10px]">
                     <dt className="text-[#69729f]">{t.dossierRef}</dt>
-                    <dd className="font-semibold text-[#0a154f]">{activeLoan.reference}</dd>
+                    <dd className="min-w-0 break-all text-right font-semibold text-[#0a154f] sm:text-left">{activeLoan.reference}</dd>
                     <dt className="text-[#69729f]">{t.requestDate}</dt>
-                    <dd className="font-semibold text-[#0a154f]">{formatLocalizedDate(activeLoan.requestDate, language)}</dd>
+                    <dd className="min-w-0 break-words text-right font-semibold text-[#0a154f] sm:text-left">{formatLocalizedDate(activeLoan.requestDate, language)}</dd>
                     <dt className="text-[#69729f]">{t.requestedAmount}</dt>
-                    <dd className="font-semibold text-[#0a154f]">
+                    <dd className="min-w-0 break-words text-right font-semibold text-[#0a154f] sm:text-left">
                       {money(activeLoan.requestedAmount, activeLoan.currency)}
                     </dd>
                     <dt className="text-[#69729f]">{t.approvedAmount}</dt>
-                    <dd className="font-semibold text-[#0a154f]">
+                    <dd className="min-w-0 break-words text-right font-semibold text-[#0a154f] sm:text-left">
                       {money(activeLoan.approvedAmount, activeLoan.currency)}
                     </dd>
                     <dt className="text-[#69729f]">{t.disbursementMode}</dt>
-                    <dd className="font-semibold text-[#0a154f]">
+                    <dd className="min-w-0 break-words text-right font-semibold text-[#0a154f] sm:text-left">
                       {activeLoan.creditedPositionId ? t.directDeposit : extra.common.unavailable}
                     </dd>
                   </dl>
@@ -361,7 +361,7 @@ export default function UserDashboard() {
                     ].map((item) => {
                       const Icon = item.icon;
                       return (
-                        <div key={item.label} className="flex items-center gap-3 border-r border-[#edf0f5] pr-2 last:border-r-0">
+                        <div key={item.label} className="flex min-w-0 items-center gap-3 border-b border-[#edf0f5] pb-3 last:border-b-0 last:pb-0 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-2 sm:last:border-r-0">
                           <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${item.colors}`}>
                             <Icon className="h-5 w-5" strokeWidth={1.8} />
                           </span>
@@ -377,7 +377,7 @@ export default function UserDashboard() {
                     <button
                       type="button"
                       onClick={() => setActiveTab('loan')}
-                      className="rounded-lg border border-[#a99bff] px-10 py-2.5 text-[11px] font-medium text-[#4b2df1]"
+                      className="min-h-11 w-full rounded-lg border border-[#a99bff] px-5 py-2.5 text-[11px] font-medium text-[#4b2df1] sm:w-auto sm:px-10"
                     >
                       {t.loanDetailsBtn}
                     </button>
@@ -400,8 +400,8 @@ export default function UserDashboard() {
           </section>
         </div>
 
-        <div className="space-y-4">
-          <section className={`${cardClass} p-5`}>
+        <div className="min-w-0 space-y-4">
+          <section className={`${cardClass} p-4 sm:p-5`}>
             <h2 className="text-[13px] font-semibold text-[#0a154f]">{t.quickActions}</h2>
             <div className="mt-4 grid grid-cols-3 gap-2">
               {[
@@ -430,12 +430,12 @@ export default function UserDashboard() {
                     key={item.label}
                     type="button"
                     onClick={item.action}
-                    className="group flex flex-col items-center text-center"
+                    className="group flex min-h-24 min-w-0 flex-col items-center rounded-xl px-1 py-2 text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4b2df1]"
                   >
                     <span className={`flex h-14 w-14 items-center justify-center rounded-full ${item.colors}`}>
                       <Icon className="h-7 w-7 transition-transform group-hover:scale-105" strokeWidth={1.8} />
                     </span>
-                    <span className="mt-3 max-w-[92px] text-[11px] font-semibold leading-[17px] text-[#0a154f]">
+                    <span className="mt-3 max-w-full break-words text-[10px] font-semibold leading-[15px] text-[#0a154f] sm:max-w-[92px] sm:text-[11px] sm:leading-[17px]">
                       {item.label}
                     </span>
                   </button>
@@ -444,13 +444,13 @@ export default function UserDashboard() {
             </div>
           </section>
 
-          <section className={`${cardClass} p-5`}>
-            <div className="flex items-center justify-between">
+          <section className={`${cardClass} p-4 sm:p-5`}>
+            <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
               <h2 className="text-[13px] font-semibold text-[#0a154f]">{t.recentTransactions}</h2>
               <button
                 type="button"
                 onClick={() => setIsStatementsModalOpen(true)}
-                className="text-[10px] font-medium text-[#4b2df1]"
+                className="min-h-10 rounded-lg py-2 text-left text-[10px] font-medium text-[#4b2df1] sm:px-2 sm:text-right"
               >
                 {banking.accounts.downloadStatement}
               </button>
@@ -465,7 +465,7 @@ export default function UserDashboard() {
                       ? ArrowUpRight
                       : WalletCards;
                 return (
-                  <div key={transaction.id} className="flex items-center gap-3 py-1">
+                  <div key={transaction.id} className="flex min-w-0 items-center gap-2.5 py-2 sm:gap-3 sm:py-1">
                     <span
                       className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
                         positive ? 'bg-[#e4f8ea] text-[#09a849]' : 'bg-[#f2f3f7] text-[#0a154f]'
@@ -480,7 +480,7 @@ export default function UserDashboard() {
                       <span className="block truncate text-[8px] text-[#69729f]">{formatLocalizedDate(transaction.date, language)}</span>
                     </span>
                     <strong
-                      className={`text-[10px] ${
+                      className={`shrink-0 text-right text-[9px] tabular-nums sm:text-[10px] ${
                         positive ? 'text-[#0aae4f]' : 'text-[#0a154f]'
                       }`}
                     >
@@ -498,13 +498,13 @@ export default function UserDashboard() {
             </div>
           </section>
 
-          <section className={`${cardClass} border-[#6c4bff] p-5`}>
-            <div className="flex items-center justify-between">
+          <section className={`${cardClass} border-[#6c4bff] p-4 sm:p-5`}>
+            <div className="flex items-center justify-between gap-3">
               <h2 className="text-[13px] font-semibold text-[#0a154f]">{t.pendingTransfers}</h2>
               <button
                 type="button"
                 onClick={() => setActiveTab('transfers')}
-                className="text-[10px] font-medium text-[#4b2df1]"
+                className="min-h-10 shrink-0 rounded-lg px-2 text-[10px] font-medium text-[#4b2df1]"
               >
                 {t.seeEverything}
               </button>
@@ -515,7 +515,7 @@ export default function UserDashboard() {
                   type="button"
                   key={transfer.id}
                   onClick={() => setActiveTab('transfers')}
-                  className="flex w-full items-center gap-3 py-2.5 text-left"
+                  className="flex w-full min-w-0 items-center gap-3 py-3 text-left"
                 >
                   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fff0e4] text-[#ff7416]">
                     <FileText className="h-4 w-4" strokeWidth={1.8} />
@@ -528,12 +528,14 @@ export default function UserDashboard() {
                       {transfer.recipientAccount}
                     </span>
                   </span>
-                  <strong className="text-[10px] text-[#0a154f]">
-                    {money(transfer.amount, transfer.currency)}
-                  </strong>
-                  <span className="flex items-center gap-1 text-[8px] font-medium text-[#f27a1a]">
-                    <Clock3 className="h-3 w-3" />
-                    {t.pendingStatus}
+                  <span className="shrink-0 text-right">
+                    <strong className="block text-[9px] text-[#0a154f] tabular-nums sm:text-[10px]">
+                      {money(transfer.amount, transfer.currency)}
+                    </strong>
+                    <span className="mt-1 flex items-center justify-end gap-1 text-[8px] font-medium text-[#f27a1a]">
+                      <Clock3 className="h-3 w-3" />
+                      {t.pendingStatus}
+                    </span>
                   </span>
                 </button>
               ))}
@@ -545,7 +547,7 @@ export default function UserDashboard() {
             </div>
           </section>
 
-          <section className={`${cardClass} p-5`}>
+          <section className={`${cardClass} p-4 sm:p-5`}>
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-[13px] font-semibold text-[#0a154f]">
                 {t.securityCompliance}
@@ -564,7 +566,7 @@ export default function UserDashboard() {
                     : t.inProgress}
               </span>
             </div>
-            <div className="mt-4 flex items-center gap-5">
+            <div className="mt-4 flex flex-col items-stretch gap-4 sm:flex-row sm:items-center sm:gap-5">
               <ComplianceRing value={complianceProgress} label={t.progress} language={language} />
               <div className="min-w-0 flex-1">
                 <p className="text-[9px] leading-4 text-[#69729f]">

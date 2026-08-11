@@ -301,28 +301,28 @@ export default function WireTransferModal() {
         onClose={() => setIsTransferModalOpen(false)}
         ariaLabelledBy="wire-transfer-modal-title"
       >
-        <DialogBackdrop className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
+        <DialogBackdrop className="fixed inset-0 z-50 flex items-end justify-center overflow-hidden bg-black/60 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)] backdrop-blur-sm sm:items-center sm:px-4 sm:pb-4 sm:pt-[max(1rem,env(safe-area-inset-top))]">
           <DialogPanel
             as={motion.div}
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-8"
+            className="relative flex max-h-dvh min-h-0 w-full min-w-0 max-w-2xl flex-col overflow-hidden rounded-t-3xl border border-slate-200 bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-3xl"
           >
           {/* Header */}
-          <div className="bg-slate-900 p-6 text-white flex items-center justify-between border-b border-slate-800">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-2xl bg-blue-500/20 text-blue-400 border border-blue-400/30 flex items-center justify-center">
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-800 bg-slate-900 p-4 text-white sm:p-6">
+            <div className="flex min-w-0 items-center space-x-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-blue-400/30 bg-blue-500/20 text-blue-400">
                 <Send className="w-5 h-5" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <h3
                   id="wire-transfer-modal-title"
-                  className="text-base sm:text-lg font-extrabold"
+                  className="break-words text-base font-extrabold sm:text-lg"
                 >
                   {t.newTransferTitle}
                 </h3>
-                <p className="text-[11px] sm:text-xs text-slate-400">
+                <p className="break-words text-[11px] text-slate-400 sm:text-xs">
                   {transferCopy.subtitle}
                 </p>
               </div>
@@ -331,7 +331,7 @@ export default function WireTransferModal() {
               type="button"
               onClick={() => setIsTransferModalOpen(false)}
               id="close-transfer-modal-btn"
-              className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition"
+              className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl p-2 text-slate-400 transition hover:bg-white/10 hover:text-white"
               aria-label={copy.common.close}
             >
               <X className="w-5 h-5" />
@@ -340,16 +340,16 @@ export default function WireTransferModal() {
 
           {!isSuccess && (
             /* Steps tracker */
-            <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+            <div className="grid shrink-0 grid-cols-3 gap-1 border-b border-slate-100 bg-slate-50 px-4 py-3 sm:flex sm:items-center sm:justify-between sm:px-6 sm:py-4">
               {stepNames.map((name, index) => {
                 const stepNum = index + 1;
                 const isActive = step === stepNum;
                 const isCompleted = step > stepNum;
                 return (
                   <React.Fragment key={stepNum}>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex min-w-0 flex-col items-center gap-1 text-center sm:flex-row sm:space-x-2 sm:text-left">
                       <span
-                        className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold transition-colors ${
+                        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold transition-colors ${
                           isCompleted
                             ? 'bg-blue-600 text-white'
                             : isActive
@@ -360,7 +360,7 @@ export default function WireTransferModal() {
                         {isCompleted ? '✓' : stepNum}
                       </span>
                       <span
-                        className={`text-xs font-bold transition-colors ${
+                        className={`min-w-0 break-words text-[10px] font-bold leading-tight transition-colors sm:text-xs ${
                           isActive ? 'text-slate-900' : 'text-slate-400'
                         }`}
                       >
@@ -377,22 +377,23 @@ export default function WireTransferModal() {
           )}
 
           {isSuccess ? (
-            <div className="p-12 text-center space-y-4">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-center sm:p-12">
               <div className="w-16 h-16 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-full flex items-center justify-center mx-auto">
                 <CheckCircle2 className="w-10 h-10" />
               </div>
-              <h3 className="text-xl font-extrabold text-slate-900">{t.transferSuccessMsg}</h3>
-              <p className="text-xs sm:text-sm text-slate-600 max-w-md mx-auto">
+              <h3 className="break-words text-xl font-extrabold text-slate-900">{t.transferSuccessMsg}</h3>
+              <p className="mx-auto max-w-md break-words text-xs text-slate-600 sm:text-sm">
                 {banking.common.internalOperationsNotice}{' '}
                 {banking.transfers.progressHint}
               </p>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="p-6 space-y-6 text-xs sm:text-sm">
+            <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col text-xs sm:text-sm">
+              <div className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain p-4 sm:p-6">
               {(submitError || Object.values(errors).some((err) => err && err.trim() !== '')) && (
                 <div className="bg-rose-50 text-rose-800 border border-rose-200/60 p-3.5 rounded-2xl flex items-start space-x-2.5" id="wire-error-banner">
                   <span className="text-base">⚠️</span>
-                  <div className="text-xs">
+                  <div className="min-w-0 break-words text-xs">
                     <p className="font-bold">
                       {transferCopy.errorIntro}
                     </p>
@@ -507,7 +508,7 @@ export default function WireTransferModal() {
                               <span className="mr-1.5">⚠️</span> {errors.canadaSelection}
                             </p>
                           )}
-                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                          <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 sm:grid-cols-3">
                             <div>
                               <label className="block text-xs font-bold text-slate-700 mb-1">{t.transitNumber} *</label>
                               <input
@@ -552,7 +553,7 @@ export default function WireTransferModal() {
                                 <p className="text-rose-600 text-[10px] mt-1 font-bold">⚠️ {errors.institutionNumber}</p>
                               )}
                             </div>
-                            <div className="col-span-2 sm:col-span-1">
+                            <div className="min-[360px]:col-span-2 sm:col-span-1">
                               <label className="block text-xs font-bold text-slate-700 mb-1">{t.accountNumber} *</label>
                               <input
                                 type="text"
@@ -968,7 +969,7 @@ export default function WireTransferModal() {
                     {/* Amount & Real-Time Exchange Rate Conversion Box */}
                     <div className="bg-blue-900 text-white p-4 rounded-2xl space-y-3 border border-blue-800 shadow-md">
                       <div className="flex items-center justify-end">
-                        <span className="text-[10px] text-emerald-300 font-mono font-bold">
+                        <span className="max-w-full break-all text-right font-mono text-[10px] font-bold text-emerald-300">
                           {sourceAccount
                             ? `1 ${sourceAccount.currency} = ${convertAnyAmount(
                                 1,
@@ -1006,19 +1007,19 @@ export default function WireTransferModal() {
 
                         <div className="bg-blue-950/80 p-3 rounded-xl border border-blue-700">
                           <p className="text-[11px] text-blue-200 mb-0.5 font-bold">{t.amountToReceive} ({targetCurr})</p>
-                          <p className="text-lg sm:text-xl font-extrabold text-emerald-300">
+                          <p className="break-words text-lg font-extrabold text-emerald-300 sm:text-xl">
                             {formatDirectCurrency(convertedTargetAmount, targetCurr, language)}
                           </p>
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between text-xs text-blue-100 pt-2 border-t border-blue-800/80">
-                        <span>{transferCopy.externalFees}: <strong className="text-amber-200">{transferCopy.externalFeesUnknown}</strong></span>
-                        <span>{interpolate(transferCopy.rateAsOf, { date: formatLocalizedDateTime(rates.updatedAt, language) })}</span>
+                      <div className="flex flex-col items-start gap-1 border-t border-blue-800/80 pt-2 text-xs text-blue-100 sm:flex-row sm:items-center sm:justify-between">
+                        <span className="break-words">{transferCopy.externalFees}: <strong className="text-amber-200">{transferCopy.externalFeesUnknown}</strong></span>
+                        <span className="break-words sm:text-right">{interpolate(transferCopy.rateAsOf, { date: formatLocalizedDateTime(rates.updatedAt, language) })}</span>
                       </div>
                     </div>
 
-                    <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-slate-600 text-xs space-y-1">
+                    <div className="space-y-1 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600 [&_strong]:break-words">
                       <p className="font-bold text-slate-800">{t.newTransferTitle}</p>
                       <p>{transferCopy.beneficiary}: <strong className="text-slate-900">{recipientName}</strong></p>
                       <p>{t.sourceAccount}: <strong className="text-slate-900">{sourceAccount ? accountTypeLabel(language, sourceAccount.accountType) : copy.common.unavailable}</strong></p>
@@ -1027,15 +1028,16 @@ export default function WireTransferModal() {
                   </motion.div>
                 )}
               </AnimatePresence>
+              </div>
 
               {/* Action Buttons */}
-              <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+              <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-slate-100 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:flex-row sm:items-center sm:justify-between sm:p-6 sm:pb-[max(1.5rem,env(safe-area-inset-bottom))]">
                 {step > 1 ? (
                   <button
                     key="back-btn"
                     type="button"
                     onClick={handlePrevStep}
-                    className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold transition text-xs flex items-center space-x-1"
+                    className="flex min-h-11 w-full items-center justify-center space-x-1 rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-600 transition hover:bg-slate-50 sm:w-auto"
                   >
                     <ArrowLeft className="w-3.5 h-3.5" />
                     <span>{copy.common.back}</span>
@@ -1045,7 +1047,7 @@ export default function WireTransferModal() {
                     key="close-btn"
                     type="button"
                     onClick={() => setIsTransferModalOpen(false)}
-                    className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 font-bold transition text-xs"
+                    className="min-h-11 w-full rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-500 transition hover:bg-slate-50 sm:w-auto"
                   >
                     {t.close}
                   </button>
@@ -1056,9 +1058,9 @@ export default function WireTransferModal() {
                     key="next-btn"
                     type="button"
                     onClick={handleNextStep}
-                    className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold transition text-xs flex items-center space-x-1"
+                    className="flex min-h-11 w-full items-center justify-center space-x-1 rounded-xl bg-slate-900 px-5 py-2.5 text-xs font-extrabold text-white transition hover:bg-slate-800 sm:w-auto"
                   >
-                    <span>{copy.common.next}</span>
+                    <span className="whitespace-normal text-center leading-tight">{copy.common.next}</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 ) : (
@@ -1067,10 +1069,10 @@ export default function WireTransferModal() {
                     type="submit"
                     disabled={isSubmitting}
                     id="submit-wire-transfer-btn"
-                    className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-extrabold transition shadow-md text-xs flex items-center space-x-2"
+                    className="flex min-h-11 w-full items-center justify-center space-x-2 rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-extrabold text-white shadow-md transition hover:bg-blue-700 disabled:opacity-50 sm:w-auto"
                   >
                     <Send className="w-4 h-4" />
-                    <span>{isSubmitting ? copy.common.saving : transferCopy.saveInstruction}</span>
+                    <span className="whitespace-normal text-center leading-tight">{isSubmitting ? copy.common.saving : transferCopy.saveInstruction}</span>
                   </button>
                 )}
               </div>

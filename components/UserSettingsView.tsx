@@ -125,29 +125,29 @@ export default function UserSettingsView() {
   };
 
   return (
-    <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
-      <header className="bg-slate-900 text-white rounded-3xl p-6">
+    <div className="mx-auto max-w-4xl min-w-0 space-y-4 p-4 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:space-y-6 sm:p-6 sm:pb-[calc(6rem+env(safe-area-inset-bottom))]">
+      <header className="min-w-0 rounded-3xl bg-slate-900 p-4 text-white sm:p-6">
         <div className="flex items-center gap-2 text-blue-300 text-xs font-bold uppercase">
           <Settings className="w-4 h-4" />
           <span>{t.settings.eyebrow}</span>
         </div>
-        <h1 className="text-2xl font-extrabold mt-1">{t.settings.title}</h1>
+        <h1 className="mt-1 break-words text-xl font-extrabold sm:text-2xl">{t.settings.title}</h1>
       </header>
 
-      <form onSubmit={save} className="bg-white rounded-3xl border border-slate-200 p-6 space-y-5">
-        {error && <p role="alert" className="p-3 bg-rose-50 text-rose-700 rounded-xl text-xs">{error}</p>}
-        {message && <p className="p-3 bg-emerald-50 text-emerald-700 rounded-xl text-xs">{message}</p>}
+      <form onSubmit={save} className="min-w-0 space-y-5 rounded-3xl border border-slate-200 bg-white p-4 sm:p-6">
+        {error && <p role="alert" className="break-words rounded-xl bg-rose-50 p-3 text-xs text-rose-700">{error}</p>}
+        {message && <p className="break-words rounded-xl bg-emerald-50 p-3 text-xs text-emerald-700">{message}</p>}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <label className="text-xs font-bold text-slate-700">
+        <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
+          <label className="min-w-0 text-xs font-bold text-slate-700">
             {t.settings.displayName}
-            <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} className="mt-1.5 w-full p-3 border rounded-xl" />
+            <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} className="mt-1.5 w-full min-w-0 rounded-xl border p-3" />
           </label>
-          <label className="text-xs font-bold text-slate-700">
+          <label className="min-w-0 text-xs font-bold text-slate-700">
             {t.settings.phone}
-            <input type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} className="mt-1.5 w-full p-3 border rounded-xl" />
+            <input type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} className="mt-1.5 w-full min-w-0 rounded-xl border p-3" />
           </label>
-          <label className="text-xs font-bold text-slate-700">
+          <label className="min-w-0 text-xs font-bold text-slate-700">
             {t.settings.interfaceLanguage}
             <select
               value={language}
@@ -156,7 +156,7 @@ export default function UserSettingsView() {
                   setError(t.settings.languageFailed);
                 });
               }}
-              className="mt-1.5 w-full p-3 border rounded-xl"
+              className="mt-1.5 w-full min-w-0 rounded-xl border p-3"
             >
               <option value="fr">Français</option>
               <option value="en">English</option>
@@ -164,20 +164,20 @@ export default function UserSettingsView() {
               <option value="es">Español</option>
             </select>
           </label>
-          <label className="text-xs font-bold text-slate-700">
+          <label className="min-w-0 text-xs font-bold text-slate-700">
             {currencyCopy.baseCurrency}
             <input
               type="text"
               value={baseCurrency}
               readOnly
               aria-readonly="true"
-              className="mt-1.5 w-full cursor-not-allowed rounded-xl border border-slate-200 bg-slate-100 p-3 text-slate-600"
+              className="mt-1.5 w-full min-w-0 cursor-not-allowed rounded-xl border border-slate-200 bg-slate-100 p-3 text-slate-600"
             />
             <span className="mt-1.5 block text-[11px] font-normal leading-relaxed text-slate-500">
               {currencyCopy.baseCurrencyHint}
             </span>
           </label>
-          <label className="text-xs font-bold text-slate-700">
+          <label className="min-w-0 text-xs font-bold text-slate-700">
             {currencyCopy.currencySelector}
             <select
               value={draftCurrency}
@@ -185,7 +185,7 @@ export default function UserSettingsView() {
               disabled={isCurrencySaving || isSaving}
               aria-busy={isCurrencySaving}
               aria-describedby="display-currency-hint display-currency-status"
-              className="mt-1.5 w-full p-3 border rounded-xl disabled:cursor-wait disabled:opacity-60"
+              className="mt-1.5 w-full min-w-0 rounded-xl border p-3 disabled:cursor-wait disabled:opacity-60"
             >
               {SUPPORTED_CURRENCIES.map((item) => (
                 <option key={item} value={item}>{item}</option>
@@ -209,12 +209,12 @@ export default function UserSettingsView() {
           </label>
         </div>
 
-        <label className="flex items-center justify-between gap-4 p-4 bg-slate-50 rounded-2xl">
-          <span>
+        <label className="flex min-w-0 flex-col items-start gap-3 rounded-2xl bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <span className="min-w-0">
             <strong className="block text-xs text-slate-900">{t.settings.hideAmounts}</strong>
             <span className="text-[11px] text-slate-500">{t.settings.hideAmountsHint}</span>
           </span>
-          <input type="checkbox" checked={isMaskedBalance} onChange={toggleMaskBalance} />
+          <input className="shrink-0" type="checkbox" checked={isMaskedBalance} onChange={toggleMaskBalance} />
         </label>
 
         <div className="p-4 bg-blue-50 border border-blue-200 rounded-2xl flex gap-3">
@@ -226,7 +226,7 @@ export default function UserSettingsView() {
 
         <WebPushSettings />
 
-        <button disabled={isSaving || isCurrencySaving} className="px-5 py-3 bg-blue-600 text-white rounded-xl font-bold text-xs disabled:opacity-50 flex items-center gap-2">
+        <button disabled={isSaving || isCurrencySaving} className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-xs font-bold text-white disabled:opacity-50 sm:w-auto">
           <Save className="w-4 h-4" />
           {isSaving ? t.common.saving : t.common.save}
         </button>

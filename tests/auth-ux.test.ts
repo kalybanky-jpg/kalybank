@@ -75,6 +75,19 @@ test('every supported language provides complete authentication form guidance', 
   }
 });
 
+test('registration field guidance stays concise and professional', () => {
+  for (const language of SUPPORTED_LANGUAGES) {
+    const { baseCurrencyHint, passwordHint } = publicMessages[language].register;
+
+    for (const hint of [baseCurrencyHint, passwordHint]) {
+      assert.ok(
+        hint.trim().split(/\s+/).length <= 12,
+        `${language} registration guidance is too long`,
+      );
+    }
+  }
+});
+
 test('password field renders its visible label, guidance, and accessibility contract', () => {
   const markup = renderToStaticMarkup(
     React.createElement(PasswordField, {
@@ -163,16 +176,17 @@ test('registration and recovery share the strong Supabase password policy', asyn
 
 test('registration email guidance never guarantees delivery for an existing account', () => {
   const conditionalMarkers = {
-    fr: ['Si cette adresse', 'Si un code peut être envoyé'],
-    en: ['If this address', 'If a code can be sent'],
-    de: ['Wenn diese Adresse', 'Wenn für diese Anfrage'],
-    es: ['Si esta dirección', 'Si se puede enviar'],
+    fr: ['Si cette adresse', 'Si un code peut être envoyé', 'réinitialisez votre mot de passe'],
+    en: ['If this address', 'If a code can be sent', 'reset your password'],
+    de: ['Wenn diese Adresse', 'Wenn für diese Anfrage', 'setzen Sie Ihr Passwort zurück'],
+    es: ['Si esta dirección', 'Si se puede enviar', 'restablezca su contraseña'],
   } as const;
 
   for (const language of SUPPORTED_LANGUAGES) {
-    const [requestMarker, resendMarker] = conditionalMarkers[language];
+    const [requestMarker, resendMarker, recoveryMarker] = conditionalMarkers[language];
     assert.match(publicMessages[language].register.checkEmailBody, new RegExp(`^${requestMarker}`));
     assert.match(publicMessages[language].register.resendSuccess, new RegExp(`^${resendMarker}`));
+    assert.match(publicMessages[language].register.checkEmailBody, new RegExp(recoveryMarker));
   }
 });
 

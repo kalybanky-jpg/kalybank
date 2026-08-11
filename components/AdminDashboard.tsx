@@ -26,6 +26,7 @@ import AdminBalanceAdjustmentView from './AdminBalanceAdjustmentView';
 import AdminDocumentsView from './AdminDocumentsView';
 import AdminReportsView from './AdminReportsView';
 import AdminSettingsView from './AdminSettingsView';
+import AdminSupportMessagesView from './AdminSupportMessagesView';
 
 const cardClass =
   'rounded-[14px] border border-[#e4e7f0] bg-white shadow-[0_8px_30px_rgba(25,34,80,0.025)]';
@@ -93,6 +94,9 @@ export default function AdminDashboard() {
   }
   if (activeTab === 'reports') {
     return <div className="mx-auto max-w-[1320px] px-4 pb-8 sm:px-7 lg:px-10"><AdminReportsView /></div>;
+  }
+  if (activeTab === 'support') {
+    return <div className="mx-auto max-w-[1320px] px-4 pb-8 sm:px-7 lg:px-10"><AdminSupportMessagesView /></div>;
   }
   if (activeTab === 'settings') {
     return <div className="mx-auto max-w-[1320px] px-4 pb-8 sm:px-7 lg:px-10"><AdminSettingsView /></div>;

@@ -108,7 +108,8 @@ test('invalid widget mappings fail closed', () => {
 test('server configuration builds the public identity without exposing its API key', () => {
   const environment = {
     TAWK_PROPERTY_ID: 'property-id',
-    TAWK_WIDGET_IDS: '{"default":"default-widget","fr":"french-widget"}',
+    TAWK_WIDGET_IDS:
+      '{"default":"french-widget","fr":"french-widget","en":"english-widget","de":"german-widget","es":"spanish-widget"}',
     TAWK_API_KEY: 'server-only-api-key',
     TAWK_WEBHOOK_IDENTITY_SECRET: WEBHOOK_IDENTITY_SECRET,
     VAPID_PUBLIC_KEY,
@@ -146,5 +147,34 @@ test('server configuration builds the public identity without exposing its API k
         VAPID_PUBLIC_KEY: 'not-a-p256-key',
       }),
     TawkConfigurationError,
+  );
+});
+
+test('server configuration requires one distinct widget per supported language', () => {
+  const baseEnvironment = {
+    TAWK_PROPERTY_ID: 'property-id',
+    TAWK_API_KEY: 'server-only-api-key',
+    TAWK_WEBHOOK_IDENTITY_SECRET: WEBHOOK_IDENTITY_SECRET,
+    VAPID_PUBLIC_KEY,
+    NODE_ENV: 'test',
+  } as NodeJS.ProcessEnv;
+
+  assert.throws(
+    () =>
+      getTawkServerConfig({
+        ...baseEnvironment,
+        TAWK_WIDGET_IDS:
+          '{"default":"french-widget","fr":"french-widget","en":"english-widget","de":"german-widget"}',
+      }),
+    /dedicated widgets for: es/,
+  );
+  assert.throws(
+    () =>
+      getTawkServerConfig({
+        ...baseEnvironment,
+        TAWK_WIDGET_IDS:
+          '{"default":"french-widget","fr":"french-widget","en":"shared-widget","de":"shared-widget","es":"spanish-widget"}',
+      }),
+    /distinct widget for each supported language/,
   );
 });

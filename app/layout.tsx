@@ -1,6 +1,6 @@
 import './globals.css';
 import { cookies, headers } from 'next/headers';
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import Providers from '@/components/Providers';
 import {
   LANGUAGE_COOKIE,
@@ -21,6 +21,14 @@ const metadataOrigin =
 
 const description =
   'Instructions, contrôles et traçabilité d’opérations financières exécutées hors application.';
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  // Keep the full application inside the device safe area. The floating chat
+  // launcher still adds env(safe-area-inset-*) spacing where it is available.
+  viewportFit: 'contain',
+};
 
 export async function generateMetadata(): Promise<Metadata> {
   const brand = await getRequestBrandSettings();

@@ -42,12 +42,12 @@ export default function UserKycStatusView() {
   const application = kycApplications[0];
 
   if (!application) return (
-    <div className="mx-auto max-w-3xl px-4 py-8">
-      <section className="rounded-3xl border bg-white p-8 text-center">
+    <div className="mx-auto max-w-3xl min-w-0 p-4 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:p-6 sm:pb-[calc(6rem+env(safe-area-inset-bottom))]">
+      <section className="min-w-0 rounded-3xl border bg-white p-4 text-center sm:p-8">
         <ShieldCheck className="mx-auto h-12 w-12 text-blue-600" />
-        <h1 className="mt-4 text-xl font-extrabold">{copy.title}</h1>
+        <h1 className="mt-4 break-words text-xl font-extrabold">{copy.title}</h1>
         <p className="mt-2 text-sm text-slate-500">{copy.noFile}</p>
-        <a href="/onboarding" className="mt-6 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white">{copy.start}<ArrowRight className="h-4 w-4" /></a>
+        <a href="/onboarding" className="mt-6 inline-flex w-full min-w-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white sm:w-auto">{copy.start}<ArrowRight className="h-4 w-4 shrink-0" /></a>
       </section>
     </div>
   );
@@ -59,29 +59,29 @@ export default function UserKycStatusView() {
   const nextAction = approved ? copy.done : needsAction ? copy.correct : copy.waiting;
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8 sm:px-7">
-      <header className="mb-6"><h1 className="text-2xl font-extrabold text-slate-950">{copy.title}</h1></header>
-      <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex items-start gap-4">
+    <div className="mx-auto max-w-4xl min-w-0 p-4 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:p-6 sm:pb-[calc(6rem+env(safe-area-inset-bottom))]">
+      <header className="mb-4 sm:mb-6"><h1 className="break-words text-xl font-extrabold text-slate-950 sm:text-2xl">{copy.title}</h1></header>
+      <section className="min-w-0 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+        <div className="flex min-w-0 items-start gap-3 sm:gap-4">
           <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${approved ? 'bg-emerald-100 text-emerald-700' : needsAction ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}><Icon className="h-6 w-6" /></span>
-          <div>
+          <div className="min-w-0">
             <span className="text-xs font-bold uppercase tracking-wide text-slate-500">KYC</span>
-            <h2 className="mt-1 text-xl font-extrabold">{kycStatusLabels[language][status]}</h2>
+            <h2 className="mt-1 break-words text-lg font-extrabold sm:text-xl">{kycStatusLabels[language][status]}</h2>
           </div>
         </div>
         <dl className="mt-6 grid gap-4 sm:grid-cols-2">
-          <div className="rounded-2xl bg-slate-50 p-4"><dt className="flex items-center gap-2 text-xs text-slate-500"><CalendarDays className="h-4 w-4" />{copy.submitted}</dt><dd className="mt-2 text-sm font-bold">{formatLocalizedDateTime(application.submittedAt, language)}</dd></div>
-          <div className="rounded-2xl bg-slate-50 p-4"><dt className="text-xs text-slate-500">{copy.next}</dt><dd className="mt-2 text-sm font-bold">{nextAction}</dd></div>
+          <div className="min-w-0 rounded-2xl bg-slate-50 p-4"><dt className="flex items-center gap-2 text-xs text-slate-500"><CalendarDays className="h-4 w-4 shrink-0" />{copy.submitted}</dt><dd className="mt-2 break-words text-sm font-bold">{formatLocalizedDateTime(application.submittedAt, language)}</dd></div>
+          <div className="min-w-0 rounded-2xl bg-slate-50 p-4"><dt className="text-xs text-slate-500">{copy.next}</dt><dd className="mt-2 break-words text-sm font-bold">{nextAction}</dd></div>
         </dl>
         {needsAction && <>
           <div className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
             <p className="font-extrabold">
               {(REASON_LABELS[application.correctionReasonCode ?? 'other'] ?? REASON_LABELS.other)[language]}
             </p>
-            {application.requestedItems.length > 0 && <p className="mt-2 text-xs">{application.requestedItems.map((item) => (ITEM_LABELS[item] ?? REASON_LABELS.other)[language]).join(' · ')}</p>}
+            {application.requestedItems.length > 0 && <p className="mt-2 break-words text-xs [overflow-wrap:anywhere]">{application.requestedItems.map((item) => (ITEM_LABELS[item] ?? REASON_LABELS.other)[language]).join(' · ')}</p>}
             {application.correctionDueAt && <p className="mt-2 text-xs">{copy.due} : {formatLocalizedDate(application.correctionDueAt, language)}</p>}
           </div>
-          <a href="/onboarding" className="mt-5 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white">{copy.edit}<ArrowRight className="h-4 w-4" /></a>
+          <a href="/onboarding" className="mt-5 inline-flex w-full min-w-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white sm:w-auto">{copy.edit}<ArrowRight className="h-4 w-4 shrink-0" /></a>
         </>}
       </section>
     </div>

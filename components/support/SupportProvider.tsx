@@ -37,11 +37,14 @@ interface TawkLoginData {
 interface TawkApi {
   autoStart?: boolean;
   customStyle?: { zIndex: number | string };
+  start?: (options?: { showWidget?: boolean }) => void;
   onBeforeLoad?: () => void;
   onLoad?: () => void;
   onChatMaximized?: () => void;
   onChatMinimized?: () => void;
   onChatHidden?: () => void;
+  onChatMessageVisitor?: (message: string) => void;
+  onOfflineSubmit?: (data: unknown) => void;
   login?: (data: TawkLoginData, callback: TawkCallback) => void;
   logout?: (callback: TawkCallback) => void;
   switchWidget?: (
@@ -51,6 +54,7 @@ interface TawkApi {
   showWidget?: () => void;
   hideWidget?: () => void;
   maximize?: () => void;
+  isChatMaximized?: () => boolean;
   shutdown?: () => void;
 }
 
@@ -70,6 +74,7 @@ type TawkStatus = 'loading' | 'ready' | 'unavailable';
 
 interface SupportContextValue {
   tawkStatus: TawkStatus;
+  chatOpen: boolean;
   openSupport: () => Promise<void>;
   signOut: () => Promise<void>;
   isSigningOut: boolean;
@@ -182,7 +187,7 @@ async function waitForTawkApi(): Promise<TawkApi> {
   const startedAt = Date.now();
   while (Date.now() - startedAt < TAWK_API_TIMEOUT_MS) {
     const api = currentTawkApi();
-    if (api.login && api.logout && api.switchWidget) return api;
+    if (api.start && api.login && api.logout && api.switchWidget) return api;
     await new Promise((resolve) => window.setTimeout(resolve, 50));
   }
   throw new Error('TAWK_API_TIMEOUT');
@@ -232,6 +237,11 @@ async function loginTawk(api: TawkApi, identity: TawkIdentity) {
   );
 }
 
+function startTawk(api: TawkApi) {
+  if (!api.start) throw new Error('TAWK_START_UNAVAILABLE');
+  api.start();
+}
+
 async function switchTawkWidget(api: TawkApi, identity: TawkIdentity) {
   if (!api.switchWidget) throw new Error('TAWK_SWITCH_UNAVAILABLE');
   await invokeTawkCallback((callback) =>
@@ -266,10 +276,10 @@ async function clearTawkUser(api: TawkApi) {
 
 export function SupportProvider({ children }: { children: React.ReactNode }) {
   const { language, role, currentUserDisplayName } = useAppStore();
-  // Match the language users actually see: the current back-office shell is
-  // French-only, while customer and onboarding surfaces follow the preference.
-  const effectiveLanguage = role === 'admin' ? 'fr' : language;
+  const tawkEnabled = role !== 'admin';
+  const effectiveLanguage = language;
   const [tawkStatus, setTawkStatus] = useState<TawkStatus>('loading');
+  const [chatOpen, setChatOpen] = useState(false);
   const [webPushStatus, setWebPushStatus] = useState<WebPushStatus>('loading');
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [authRevision, setAuthRevision] = useState(0);
@@ -282,17 +292,35 @@ export function SupportProvider({ children }: { children: React.ReactNode }) {
   const signingOutRef = useRef(false);
   const signedOutCleanupRef = useRef<Promise<void> | null>(null);
 
+  const setChatOpenState = useCallback((open: boolean) => {
+    chatOpenRef.current = open;
+    setChatOpen(open);
+  }, []);
+
   const hideNativeWidget = useCallback(() => {
     currentTawkApi().hideWidget?.();
   }, []);
 
   const showMaximizedWidget = useCallback(() => {
     const api = currentTawkApi();
+    if (!api.showWidget || !api.maximize) {
+      pendingOpenRef.current = false;
+      return;
+    }
+    pendingOpenRef.current = true;
     api.showWidget?.();
     api.maximize?.();
-    pendingOpenRef.current = false;
-    chatOpenRef.current = true;
   }, []);
+
+  const keepVisitorMessageVisible = useCallback(() => {
+    pendingOpenRef.current = false;
+    const api = currentTawkApi();
+    if (chatOpenRef.current || api.isChatMaximized?.() === true) {
+      setChatOpenState(true);
+      return;
+    }
+    showMaximizedWidget();
+  }, [setChatOpenState, showMaximizedWidget]);
 
   const handleSignedOut = useCallback(() => {
     // This can be triggered by both Supabase and the store's pre-redirect
@@ -301,27 +329,86 @@ export function SupportProvider({ children }: { children: React.ReactNode }) {
     authUserIdRef.current = null;
     identityRef.current = null;
     pendingOpenRef.current = false;
-    chatOpenRef.current = false;
-    currentTawkApi().hideWidget?.();
+    setChatOpenState(false);
+    if (tawkEnabled) currentTawkApi().hideWidget?.();
     setTawkStatus('unavailable');
     setWebPushStatus('prompt');
 
     if (signingOutRef.current || signedOutCleanupRef.current) return;
 
     const pendingOperation = operationRef.current.catch(() => undefined);
-    const immediateCleanup = logoutTawk().catch(() => undefined);
+    const immediateCleanup = tawkEnabled
+      ? logoutTawk().catch(() => undefined)
+      : Promise.resolve();
     signedOutCleanupRef.current = immediateCleanup;
     operationRef.current = Promise.all([pendingOperation, immediateCleanup]).then(
       () => undefined,
     );
     void unsubscribeBrowserPush().catch(() => undefined);
-  }, []);
+  }, [setChatOpenState, tawkEnabled]);
+
+  useEffect(() => {
+    if (tawkEnabled) return;
+
+    let cancelled = false;
+    authEpochRef.current += 1;
+    identityRef.current = null;
+    pendingOpenRef.current = false;
+    chatOpenRef.current = false;
+    window.setTimeout(() => {
+      if (!cancelled) setChatOpenState(false);
+    }, 0);
+    const api = window.Tawk_API;
+    api?.hideWidget?.();
+    api?.shutdown?.();
+
+    const synchronizeWebPushOnly = async () => {
+      setTawkStatus('unavailable');
+      const supabase = createClient();
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser();
+      if (cancelled) return;
+
+      if (error) {
+        setWebPushStatus('error');
+        return;
+      }
+
+      authUserIdRef.current = user?.id ?? null;
+      if (!user) {
+        setWebPushStatus('prompt');
+        return;
+      }
+
+      try {
+        setWebPushStatus(await reconcileWebPush(user.id));
+      } catch {
+        if (!cancelled) setWebPushStatus('error');
+      }
+    };
+
+    void synchronizeWebPushOnly();
+    return () => {
+      cancelled = true;
+    };
+  }, [authRevision, setChatOpenState, tawkEnabled]);
 
   useEffect(() => {
     let cancelled = false;
 
+    if (!tawkEnabled) return () => {
+      cancelled = true;
+    };
+
     const synchronize = async () => {
       const expectedAuthEpoch = authEpochRef.current;
+      const shouldRestoreOpenChat = chatOpenRef.current || pendingOpenRef.current;
+      if (shouldRestoreOpenChat) {
+        pendingOpenRef.current = true;
+        setChatOpenState(false);
+      }
       const isStaleIdentity = (identity?: TawkIdentity) =>
         cancelled ||
         expectedAuthEpoch !== authEpochRef.current ||
@@ -339,22 +426,38 @@ export function SupportProvider({ children }: { children: React.ReactNode }) {
       if (isStaleIdentity(identity)) return;
 
       const previousIdentity = identityRef.current;
-      const shouldRestoreOpenChat = chatOpenRef.current || pendingOpenRef.current;
       const apiBeforeLoad = currentTawkApi();
       apiBeforeLoad.autoStart = false;
       apiBeforeLoad.customStyle = { zIndex: '40 !important' };
       apiBeforeLoad.onBeforeLoad = hideNativeWidget;
-      apiBeforeLoad.onLoad = hideNativeWidget;
+      apiBeforeLoad.onLoad = () => {
+        if (pendingOpenRef.current) showMaximizedWidget();
+        else if (!chatOpenRef.current) hideNativeWidget();
+      };
       apiBeforeLoad.onChatMaximized = () => {
-        chatOpenRef.current = true;
+        // tawk.to can restore its own previously maximized state after a page
+        // reload. Because the application deliberately hides the native launcher, only
+        // accept this callback when our launcher requested the opening (or the
+        // current session already confirmed an open chat).
+        if (!pendingOpenRef.current && !chatOpenRef.current) {
+          hideNativeWidget();
+          setChatOpenState(false);
+          return;
+        }
+        pendingOpenRef.current = false;
+        setChatOpenState(true);
       };
       apiBeforeLoad.onChatMinimized = () => {
-        chatOpenRef.current = false;
+        pendingOpenRef.current = false;
+        setChatOpenState(false);
         hideNativeWidget();
       };
       apiBeforeLoad.onChatHidden = () => {
-        chatOpenRef.current = false;
+        pendingOpenRef.current = false;
+        setChatOpenState(false);
       };
+      apiBeforeLoad.onChatMessageVisitor = keepVisitorMessageVisible;
+      apiBeforeLoad.onOfflineSubmit = keepVisitorMessageVisible;
 
       await loadTawkScript(identity);
       const api = await waitForTawkApi();
@@ -388,6 +491,7 @@ export function SupportProvider({ children }: { children: React.ReactNode }) {
         await logoutTawk().catch(() => undefined);
         return;
       }
+      startTawk(api);
 
       identityRef.current = identity;
       authUserIdRef.current = identity.userId;
@@ -409,7 +513,7 @@ export function SupportProvider({ children }: { children: React.ReactNode }) {
         if (!cancelled) {
           identityRef.current = null;
           pendingOpenRef.current = false;
-          chatOpenRef.current = false;
+          setChatOpenState(false);
           const api = currentTawkApi();
           api.hideWidget?.();
           api.shutdown?.();
@@ -425,7 +529,10 @@ export function SupportProvider({ children }: { children: React.ReactNode }) {
     currentUserDisplayName,
     effectiveLanguage,
     hideNativeWidget,
+    keepVisitorMessageVisible,
+    setChatOpenState,
     showMaximizedWidget,
+    tawkEnabled,
   ]);
 
   useEffect(() => {
@@ -452,16 +559,18 @@ export function SupportProvider({ children }: { children: React.ReactNode }) {
 
       if (accountChanged) {
         authEpochRef.current += 1;
-        currentTawkApi().hideWidget?.();
+        if (tawkEnabled) currentTawkApi().hideWidget?.();
         identityRef.current = null;
         pendingOpenRef.current = false;
-        chatOpenRef.current = false;
-        setTawkStatus('loading');
+        setChatOpenState(false);
+        setTawkStatus(tawkEnabled ? 'loading' : 'unavailable');
 
-        // Serialize the official logout ahead of the next identity bootstrap.
-        operationRef.current = operationRef.current
-          .catch(() => undefined)
-          .then(async () => clearTawkUser(await waitForTawkApi()));
+        if (tawkEnabled) {
+          // Serialize the official logout ahead of the next identity bootstrap.
+          operationRef.current = operationRef.current
+            .catch(() => undefined)
+            .then(async () => clearTawkUser(await waitForTawkApi()));
+        }
       }
 
       authUserIdRef.current = nextUserId;
@@ -476,9 +585,11 @@ export function SupportProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => data.subscription.unsubscribe();
-  }, [handleSignedOut]);
+  }, [handleSignedOut, setChatOpenState, tawkEnabled]);
 
   useEffect(() => {
+    if (!tawkEnabled) return;
+
     const emergencyTeardown = () => {
       const api = currentTawkApi();
       api.hideWidget?.();
@@ -501,26 +612,30 @@ export function SupportProvider({ children }: { children: React.ReactNode }) {
       currentTawkApi().hideWidget?.();
       authUserIdRef.current = null;
       identityRef.current = null;
+      setChatOpenState(false);
       void logoutTawk().catch(() => undefined);
     };
-  }, []);
+  }, [setChatOpenState, tawkEnabled]);
 
   const openSupport = useCallback(async () => {
+    if (!tawkEnabled) return;
     pendingOpenRef.current = true;
     if (tawkStatus !== 'ready') {
       await operationRef.current.catch(() => undefined);
     }
     if (identityRef.current && currentTawkApi().maximize) {
       showMaximizedWidget();
+    } else {
+      pendingOpenRef.current = false;
     }
-  }, [showMaximizedWidget, tawkStatus]);
+  }, [showMaximizedWidget, tawkEnabled, tawkStatus]);
 
   const enablePush = useCallback(async () => {
-    const identity = identityRef.current;
-    if (!identity) throw new Error('SUPPORT_IDENTITY_UNAVAILABLE');
+    const userId = authUserIdRef.current ?? identityRef.current?.userId ?? null;
+    if (!userId) throw new Error('SUPPORT_IDENTITY_UNAVAILABLE');
     setWebPushStatus('enabling');
     try {
-      setWebPushStatus(await enableWebPush(identity.userId));
+      setWebPushStatus(await enableWebPush(userId));
     } catch (error) {
       setWebPushStatus(
         typeof Notification !== 'undefined' && Notification.permission === 'denied'
@@ -532,11 +647,11 @@ export function SupportProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const disablePush = useCallback(async () => {
-    const identity = identityRef.current;
-    if (!identity) throw new Error('SUPPORT_IDENTITY_UNAVAILABLE');
+    const userId = authUserIdRef.current ?? identityRef.current?.userId ?? null;
+    if (!userId) throw new Error('SUPPORT_IDENTITY_UNAVAILABLE');
     setWebPushStatus('disabling');
     try {
-      await disableWebPush(identity.userId);
+      await disableWebPush(userId);
       setWebPushStatus('prompt');
     } catch (error) {
       setWebPushStatus('error');
@@ -548,13 +663,13 @@ export function SupportProvider({ children }: { children: React.ReactNode }) {
     if (signingOutRef.current) return;
     signingOutRef.current = true;
     setIsSigningOut(true);
-    const identity = identityRef.current;
+    const supportUserId = authUserIdRef.current ?? identityRef.current?.userId ?? null;
 
     const supabase = createClient();
     try {
-      await logoutTawk().catch(() => undefined);
-      if (identity) {
-        await disableWebPush(identity.userId, { bestEffort: true }).catch(() => undefined);
+      if (tawkEnabled) await logoutTawk().catch(() => undefined);
+      if (supportUserId) {
+        await disableWebPush(supportUserId, { bestEffort: true }).catch(() => undefined);
       } else {
         await unsubscribeBrowserPush().catch(() => undefined);
       }
@@ -568,17 +683,19 @@ export function SupportProvider({ children }: { children: React.ReactNode }) {
     } finally {
       identityRef.current = null;
       authUserIdRef.current = null;
+      setChatOpenState(false);
       setTawkStatus('unavailable');
       setWebPushStatus('prompt');
       signingOutRef.current = false;
       setIsSigningOut(false);
       window.location.replace('/login');
     }
-  }, []);
+  }, [setChatOpenState, tawkEnabled]);
 
   const value = useMemo<SupportContextValue>(
     () => ({
       tawkStatus,
+      chatOpen,
       openSupport,
       signOut,
       isSigningOut,
@@ -587,6 +704,7 @@ export function SupportProvider({ children }: { children: React.ReactNode }) {
       disablePush,
     }),
     [
+      chatOpen,
       disablePush,
       enablePush,
       isSigningOut,

@@ -164,35 +164,35 @@ export default function LoanApplicationModal() {
         onClose={() => setIsLoanModalOpen(false)}
         ariaLabelledBy="loan-application-modal-title"
       >
-        <DialogBackdrop className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
+        <DialogBackdrop className="fixed inset-0 z-50 flex items-end justify-center overflow-hidden bg-black/60 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)] backdrop-blur-sm sm:items-center sm:px-4 sm:pb-4 sm:pt-[max(1rem,env(safe-area-inset-top))]">
           <DialogPanel
             as={motion.div}
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="relative w-full max-w-xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-8"
+            className="relative flex max-h-dvh min-h-0 w-full min-w-0 max-w-xl flex-col overflow-hidden rounded-t-3xl border border-slate-200 bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-3xl"
           >
           {/* Header */}
-          <div className="bg-slate-900 p-6 text-white flex items-center justify-between border-b border-slate-800">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-400/30 flex items-center justify-center">
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-800 bg-slate-900 p-4 text-white sm:p-6">
+            <div className="flex min-w-0 items-center space-x-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/30 bg-emerald-500/20 text-emerald-400">
                 <Building2 className="w-5 h-5" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <h3
                   id="loan-application-modal-title"
-                  className="text-base sm:text-lg font-extrabold"
+                  className="break-words text-base font-extrabold sm:text-lg"
                 >
                   {t.loanApplicationTitle}
                 </h3>
-                <p className="text-[11px] sm:text-xs text-slate-400">{copy.loanModal.subtitle}</p>
+                <p className="break-words text-[11px] text-slate-400 sm:text-xs">{copy.loanModal.subtitle}</p>
               </div>
             </div>
             <button
               type="button"
               onClick={() => setIsLoanModalOpen(false)}
               id="close-loan-modal-btn"
-              className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition"
+              className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl p-2 text-slate-400 transition hover:bg-white/10 hover:text-white"
               aria-label={copy.common.close}
             >
               <X className="w-5 h-5" />
@@ -201,16 +201,16 @@ export default function LoanApplicationModal() {
 
           {!isSuccess && (
             /* Multi-step indicator bar */
-            <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+            <div className="grid shrink-0 grid-cols-2 gap-2 border-b border-slate-100 bg-slate-50 px-4 py-3 sm:flex sm:items-center sm:justify-between sm:px-6 sm:py-4">
               {stepNames.map((name, index) => {
                 const stepNum = index + 1;
                 const isActive = step === stepNum;
                 const isCompleted = step > stepNum;
                 return (
                   <React.Fragment key={stepNum}>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex min-w-0 flex-col items-center gap-1 text-center sm:flex-row sm:space-x-2 sm:text-left">
                       <span
-                        className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold transition-colors ${
+                        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold transition-colors ${
                           isCompleted
                             ? 'bg-emerald-600 text-white'
                             : isActive
@@ -221,7 +221,7 @@ export default function LoanApplicationModal() {
                         {isCompleted ? '✓' : stepNum}
                       </span>
                       <span
-                        className={`text-xs font-bold transition-colors ${
+                        className={`min-w-0 break-words text-[10px] font-bold leading-tight transition-colors sm:text-xs ${
                           isActive ? 'text-slate-900' : 'text-slate-400'
                         }`}
                       >
@@ -238,20 +238,21 @@ export default function LoanApplicationModal() {
           )}
 
           {isSuccess ? (
-            <div className="p-12 text-center space-y-4">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-center sm:p-12">
               <div className="w-16 h-16 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-full flex items-center justify-center mx-auto">
                 <CheckCircle2 className="w-10 h-10" />
               </div>
-              <h3 className="text-xl font-extrabold text-slate-900">{t.loanSubmittedSuccess}</h3>
-              <p className="text-sm font-mono text-indigo-700 font-bold bg-indigo-50 p-2 rounded-xl border border-indigo-200 inline-block">
+              <h3 className="break-words text-xl font-extrabold text-slate-900">{t.loanSubmittedSuccess}</h3>
+              <p className="inline-block max-w-full break-all rounded-xl border border-indigo-200 bg-indigo-50 p-2 font-mono text-sm font-bold text-indigo-700">
                 {submittedReference}
               </p>
-              <p className="text-xs text-slate-600 max-w-md mx-auto">
+              <p className="mx-auto max-w-md break-words text-xs text-slate-600">
                 {copy.loanModal.disclaimer}
               </p>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="p-6 space-y-5 text-xs sm:text-sm">
+            <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col text-xs sm:text-sm">
+              <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain p-4 sm:p-6">
               {!isLoanAvailable && (
                 <div
                   className="bg-amber-50 text-amber-900 border border-amber-200 p-3.5 rounded-2xl flex items-start space-x-2.5"
@@ -259,13 +260,13 @@ export default function LoanApplicationModal() {
                   id="loan-configuration-unavailable-banner"
                 >
                   <span className="text-base" aria-hidden="true">⚠️</span>
-                  <p className="text-xs font-bold">{configurationUnavailableMessage}</p>
+                  <p className="min-w-0 break-words text-xs font-bold">{configurationUnavailableMessage}</p>
                 </div>
               )}
               {Object.keys(errors).length > 0 && (
                 <div className="bg-rose-50 text-rose-800 border border-rose-200/60 p-3.5 rounded-2xl flex items-start space-x-2.5" id="loan-error-banner">
                   <span className="text-base">⚠️</span>
-                  <div className="text-xs">
+                  <div className="min-w-0 break-words text-xs">
                     <p className="font-bold">
                       {copy.loanModal.errorIntro}
                     </p>
@@ -321,9 +322,9 @@ export default function LoanApplicationModal() {
                   >
                     {/* Amount Slider */}
                     <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:justify-between">
                         <span className="font-bold text-slate-800">{t.requestedAmount}</span>
-                        <span className="text-base font-extrabold text-emerald-700">
+                        <span className="break-words text-base font-extrabold text-emerald-700 sm:text-right">
                           {formatDirectCurrency(requestedAmount, baseCurrency, language)}
                         </span>
                       </div>
@@ -343,24 +344,24 @@ export default function LoanApplicationModal() {
                         aria-valuetext={formatDirectCurrency(requestedAmount, baseCurrency, language)}
                         className="w-full accent-emerald-600 cursor-pointer"
                       />
-                      <div className="flex justify-between text-[10px] text-slate-500 font-bold">
-                        <span>{formatDirectCurrency(minimumAmount, baseCurrency, language)}</span>
-                        <span>
+                      <div className="grid grid-cols-2 gap-2 text-[10px] font-bold text-slate-500 sm:grid-cols-3">
+                        <span className="min-w-0 break-words text-left">{formatDirectCurrency(minimumAmount, baseCurrency, language)}</span>
+                        <span className="hidden min-w-0 break-words text-center sm:block">
                           {formatDirectCurrency(
                             minimumAmount + (maximumAmount - minimumAmount) / 2,
                             baseCurrency,
                             language,
                           )}
                         </span>
-                        <span>{formatDirectCurrency(maximumAmount, baseCurrency, language)}</span>
+                        <span className="min-w-0 break-words text-right">{formatDirectCurrency(maximumAmount, baseCurrency, language)}</span>
                       </div>
                     </div>
 
                     {/* Duration Slider */}
                     <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:justify-between">
                         <span className="font-bold text-slate-800">{t.durationLabel}</span>
-                        <span className="text-base font-extrabold text-blue-700">
+                        <span className="break-words text-base font-extrabold text-blue-700 sm:text-right">
                           {formatLocalizedMonths(durationMonths, language)}
                         </span>
                       </div>
@@ -385,26 +386,26 @@ export default function LoanApplicationModal() {
                         aria-valuetext={formatLocalizedMonths(durationMonths, language)}
                         className="w-full accent-blue-600 cursor-pointer"
                       />
-                      <div className="flex justify-between text-[10px] text-slate-500 font-bold">
-                        <span>{formatLocalizedMonths(minimumDurationMonths, language)}</span>
-                        <span>{formatLocalizedMonths(maximumDurationMonths, language)}</span>
+                      <div className="grid grid-cols-2 gap-2 text-[10px] font-bold text-slate-500">
+                        <span className="min-w-0 break-words text-left">{formatLocalizedMonths(minimumDurationMonths, language)}</span>
+                        <span className="min-w-0 break-words text-right">{formatLocalizedMonths(maximumDurationMonths, language)}</span>
                       </div>
                     </div>
 
                     {/* Monthly Payment Preview Banner */}
-                    <div className="bg-emerald-900 text-white p-4 rounded-2xl flex items-center justify-between shadow-sm">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 rounded-xl bg-emerald-800/80 text-emerald-300 flex items-center justify-center">
+                    <div className="flex flex-col items-start gap-3 rounded-2xl bg-emerald-900 p-4 text-white shadow-sm sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex min-w-0 items-center space-x-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-800/80 text-emerald-300">
                           <Calculator className="w-5 h-5" />
                         </div>
-                        <div>
-                          <p className="text-[10px] sm:text-xs text-emerald-200 font-bold">{t.monthlyPaymentEstimated}</p>
-                          <p className="text-base sm:text-lg font-extrabold text-emerald-300">
+                        <div className="min-w-0">
+                          <p className="break-words text-[10px] font-bold text-emerald-200 sm:text-xs">{t.monthlyPaymentEstimated}</p>
+                          <p className="break-words text-base font-extrabold text-emerald-300 sm:text-lg">
                             {formatDirectCurrency(estimatedMonthlyPayment, baseCurrency, language)} {copy.loanModal.perMonth}
                           </p>
                         </div>
                       </div>
-                      <span className="text-[10px] bg-emerald-800 px-2.5 py-1 rounded-full text-emerald-100 font-mono font-bold">
+                      <span className="max-w-full break-words rounded-full bg-emerald-800 px-2.5 py-1 font-mono text-[10px] font-bold text-emerald-100">
                         {copy.loanModal.fixedAnnualRate} {formattedAnnualRate}
                       </span>
                     </div>
@@ -412,14 +413,15 @@ export default function LoanApplicationModal() {
                 )}
 
               </AnimatePresence>
+              </div>
 
               {/* Action Buttons */}
-              <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+              <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-slate-100 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:flex-row sm:items-center sm:justify-between sm:p-6 sm:pb-[max(1.5rem,env(safe-area-inset-bottom))]">
                 {step > 1 ? (
                   <button
                     type="button"
                     onClick={handlePrevStep}
-                    className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold transition text-xs flex items-center space-x-1"
+                    className="flex min-h-11 w-full items-center justify-center space-x-1 rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-600 transition hover:bg-slate-50 sm:w-auto"
                   >
                     <ArrowLeft className="w-3.5 h-3.5" />
                     <span>{copy.common.back}</span>
@@ -428,7 +430,7 @@ export default function LoanApplicationModal() {
                   <button
                     type="button"
                     onClick={() => setIsLoanModalOpen(false)}
-                    className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 font-bold transition text-xs"
+                    className="min-h-11 w-full rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-500 transition hover:bg-slate-50 sm:w-auto"
                   >
                     {t.close}
                   </button>
@@ -439,9 +441,9 @@ export default function LoanApplicationModal() {
                     type="button"
                     onClick={handleNextStep}
                     disabled={!isLoanAvailable}
-                    className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-extrabold transition text-xs flex items-center space-x-1"
+                    className="flex min-h-11 w-full items-center justify-center space-x-1 rounded-xl bg-slate-900 px-5 py-2.5 text-xs font-extrabold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
                   >
-                    <span>{copy.common.next}</span>
+                    <span className="whitespace-normal text-center leading-tight">{copy.common.next}</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 ) : (
@@ -449,10 +451,10 @@ export default function LoanApplicationModal() {
                     type="submit"
                     disabled={isSubmitting || !isLoanAvailable}
                     id="submit-loan-application-btn"
-                    className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-extrabold transition shadow-md text-xs flex items-center space-x-2"
+                    className="flex min-h-11 w-full items-center justify-center space-x-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-extrabold text-white shadow-md transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
                   >
                     <FileText className="w-4 h-4" />
-                    <span>{isSubmitting ? copy.common.submitting : t.submitLoan}</span>
+                    <span className="whitespace-normal text-center leading-tight">{isSubmitting ? copy.common.submitting : t.submitLoan}</span>
                   </button>
                 )}
               </div>

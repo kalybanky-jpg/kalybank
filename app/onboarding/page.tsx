@@ -61,9 +61,20 @@ const STEP_TITLE_KEYS: Record<SectionKey, keyof ReturnType<typeof getCopy>> = {
   proof_of_address: 'proofOfAddress',
   selfie: 'selfie',
 };
+const STEP_HINT_KEYS: Record<SectionKey, keyof ReturnType<typeof getCopy>> = {
+  identity: 'identityHint',
+  birth: 'birthHint',
+  address: 'addressHint',
+  profile: 'profileHint',
+  document_metadata: 'documentMetadataHint',
+  id_front: 'idFrontHint',
+  id_back: 'idBackHint',
+  proof_of_address: 'proofOfAddressHint',
+  selfie: 'selfieHint',
+};
 const FILE_TYPES = new Set(['image/jpeg', 'image/png', 'application/pdf']);
 const fieldClass =
-  'mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-600/10';
+  'mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-950 outline-none placeholder:text-slate-500 focus:border-blue-600 focus:ring-4 focus:ring-blue-600/10';
 const labelClass = 'block text-sm font-semibold text-slate-800';
 
 async function prepareImage(file: File, square = false): Promise<File> {
@@ -189,6 +200,8 @@ export default function OnboardingPage() {
   const [saved, setSaved] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const stepTitleRef = useRef<HTMLHeadingElement>(null);
+  const previousStepRef = useRef<SectionKey | null>(null);
 
   const correctionMode = Boolean(kycId);
   const steps = useMemo(() => {
@@ -196,6 +209,18 @@ export default function OnboardingPage() {
     return selected.filter((step) => step !== 'id_back' || form.documentType !== 'passport');
   }, [correctionMode, requestedItems, form.documentType]);
   const step = steps[Math.min(stepIndex, Math.max(0, steps.length - 1))] ?? 'identity';
+
+  useEffect(() => {
+    if (!ready) return;
+    if (previousStepRef.current === null) {
+      previousStepRef.current = step;
+      return;
+    }
+    if (previousStepRef.current !== step) {
+      previousStepRef.current = step;
+      stepTitleRef.current?.focus();
+    }
+  }, [ready, step]);
 
   const update = <K extends keyof KycForm>(key: K, value: KycForm[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -378,6 +403,9 @@ export default function OnboardingPage() {
   if (!ready) return <main className="min-h-screen bg-slate-950" />;
 
   const title = copy[STEP_TITLE_KEYS[step]];
+  const hint = copy[STEP_HINT_KEYS[step]];
+  const stepTitleId = `kyc-step-title-${step}`;
+  const stepHintId = `kyc-step-hint-${step}`;
   return (
     <main className="min-h-[100dvh] bg-slate-950 px-4 py-8">
       <div className="mx-auto max-w-2xl">
@@ -393,36 +421,41 @@ export default function OnboardingPage() {
             <span className="ml-2 text-xs font-bold text-slate-500">{stepIndex + 1}/{steps.length}</span>
           </div>
           <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-extrabold text-slate-950">{title}</h2>
+            <h2 ref={stepTitleRef} id={stepTitleId} tabIndex={-1} className="text-2xl font-extrabold text-slate-950">{title}</h2>
             {!correctionMode && <span className="text-[11px] font-semibold text-emerald-700">{saving ? '…' : saved ? copy.draftSaved : ''}</span>}
           </div>
+          <p id={stepHintId} className="mt-2 text-sm leading-6 text-slate-600">{hint}</p>
 
-          <section className="mt-7 min-h-[290px]">
+          <section aria-labelledby={stepTitleId} aria-describedby={stepHintId} className="mt-7 min-h-[290px]">
             {step === 'identity' && <div className="grid gap-5 sm:grid-cols-2">
               {([
-                ['firstName', copy.firstName], ['lastName', copy.lastName],
-                ['placeOfBirth', copy.placeOfBirth], ['nationality', copy.nationality],
-              ] as const).map(([key, label]) => <label key={key} className={labelClass}>{label}<input required value={form[key]} onChange={(e) => update(key, e.target.value)} className={fieldClass} /></label>)}
+                ['firstName', copy.firstName, copy.firstNamePlaceholder],
+                ['lastName', copy.lastName, copy.lastNamePlaceholder],
+                ['placeOfBirth', copy.placeOfBirth, copy.placeOfBirthPlaceholder],
+                ['nationality', copy.nationality, copy.nationalityPlaceholder],
+              ] as const).map(([key, label, placeholder]) => <label key={key} className={labelClass}>{label}<input required value={form[key]} placeholder={placeholder} onChange={(e) => update(key, e.target.value)} className={fieldClass} /></label>)}
             </div>}
             {step === 'birth' && <label className={labelClass}>{copy.dateOfBirth}<input type="date" required value={form.dateOfBirth} onChange={(e) => update('dateOfBirth', e.target.value)} className={fieldClass} /></label>}
             {step === 'address' && <div className="grid gap-5 sm:grid-cols-2">
               {([
-                ['street', copy.street], ['postalCode', copy.postalCode],
-                ['city', copy.city], ['country', copy.country],
-              ] as const).map(([key, label]) => <label key={key} className={labelClass}>{label}<input required value={form[key]} onChange={(e) => update(key, e.target.value)} className={fieldClass} /></label>)}
+                ['street', copy.street, copy.streetPlaceholder],
+                ['postalCode', copy.postalCode, copy.postalCodePlaceholder],
+                ['city', copy.city, copy.cityPlaceholder],
+                ['country', copy.country, copy.countryPlaceholder],
+              ] as const).map(([key, label, placeholder]) => <label key={key} className={labelClass}>{label}<input required value={form[key]} placeholder={placeholder} onChange={(e) => update(key, e.target.value)} className={fieldClass} /></label>)}
             </div>}
             {step === 'profile' && <div className="space-y-5">
               <div className="grid gap-5 sm:grid-cols-2">
-                <label className={labelClass}>{copy.occupation}<input required value={form.occupation} onChange={(e) => update('occupation', e.target.value)} className={fieldClass} /></label>
+                <label className={labelClass}>{copy.occupation}<input required value={form.occupation} placeholder={copy.occupationPlaceholder} onChange={(e) => update('occupation', e.target.value)} className={fieldClass} /></label>
                 <label className={labelClass}>{copy.incomeRange}<select required value={form.incomeRange} onChange={(e) => update('incomeRange', e.target.value)} className={fieldClass}><option value="">{copy.incomePlaceholder}</option><option value="under_1500">{copy.incomeLow}</option><option value="1500_3000">{copy.incomeMedium}</option><option value="over_3000">{copy.incomeHigh}</option></select></label>
               </div>
               <label className="flex gap-3 rounded-xl border p-4 text-sm"><input type="checkbox" checked={form.fatca} onChange={(e) => update('fatca', e.target.checked)} />{copy.fatca}</label>
               <label className="flex gap-3 rounded-xl border p-4 text-sm"><input type="checkbox" checked={form.pep} onChange={(e) => update('pep', e.target.checked)} />{copy.pep}</label>
             </div>}
             {step === 'document_metadata' && <div className="grid gap-5 sm:grid-cols-2">
-              <label className={labelClass}>{copy.documentType}<select required value={form.documentType} onChange={(e) => update('documentType', e.target.value)} className={fieldClass}><option value="">{copy.incomePlaceholder}</option><option value="national_identity_card">{copy.nationalId}</option><option value="passport">{copy.passport}</option><option value="residence_permit">{copy.residencePermit}</option></select></label>
-              <label className={labelClass}>{copy.documentNumber}<input required value={form.documentNumber} onChange={(e) => update('documentNumber', e.target.value)} className={fieldClass} /></label>
-              <label className={labelClass}>{copy.issuingCountry}<input required value={form.issuingCountry} onChange={(e) => update('issuingCountry', e.target.value)} className={fieldClass} /></label>
+              <label className={labelClass}>{copy.documentType}<select required value={form.documentType} onChange={(e) => update('documentType', e.target.value)} className={fieldClass}><option value="">{copy.documentTypePlaceholder}</option><option value="national_identity_card">{copy.nationalId}</option><option value="passport">{copy.passport}</option><option value="residence_permit">{copy.residencePermit}</option></select></label>
+              <label className={labelClass}>{copy.documentNumber}<input required value={form.documentNumber} placeholder={copy.documentNumberPlaceholder} onChange={(e) => update('documentNumber', e.target.value)} className={fieldClass} /></label>
+              <label className={labelClass}>{copy.issuingCountry}<input required value={form.issuingCountry} placeholder={copy.issuingCountryPlaceholder} onChange={(e) => update('issuingCountry', e.target.value)} className={fieldClass} /></label>
               <label className={labelClass}>{copy.expiryDate}<input type="date" required value={form.documentExpiresOn} onChange={(e) => update('documentExpiresOn', e.target.value)} className={fieldClass} /></label>
             </div>}
             {(['id_front', 'id_back', 'proof_of_address'] as EvidenceKey[]).includes(step as EvidenceKey) && <label className="block cursor-pointer rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 p-7 text-center">

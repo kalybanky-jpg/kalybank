@@ -15,6 +15,8 @@
 | `APP_ORIGIN` | Oui en production | Fonctions/runtime | Origine canonique pour les mutations et redirections |
 | `APP_ALLOWED_ORIGINS` | Non | Fonctions/runtime | Origines HTTPS supplémentaires autorisées pour les mutations pendant une migration de domaine, séparées par des virgules |
 | `SUPABASE_SECRET_KEY` | Oui en production | Fonctions/runtime, secret | Client privilégié pour staging, marque, PDF, health check et outbox |
+| `CLIENT_PURGE_SWEEP_SECRET` | Oui pour la reprise différée | Fonctions/runtime, secret | Secret aléatoire de 32 caractères minimum envoyé uniquement par le planificateur à `POST /api/internal/client-purge-sweep` |
+| `CLIENT_PURGE_CHALLENGE_SECRET` | Oui pour la suppression client | Fonctions/runtime, secret | Secret aléatoire distinct de 32 caractères minimum servant à dériver un défi stable pour une même clé d’idempotence, sans stocker sa valeur brute |
 | `SEND_EMAIL_HOOK_SECRET` | Oui si le hook Auth est actif | Fonctions/runtime, secret | Signature Standard Webhooks du hook Supabase Auth |
 | `TRANSACTIONAL_EMAIL_PROVIDER` | Oui pour l’outbox | Fonctions/runtime | `resend` ou `brevo` |
 | `TRANSACTIONAL_EMAIL_FROM_EMAIL` | Oui pour l’outbox | Fonctions/runtime | Adresse expéditrice vérifiée |
@@ -29,6 +31,32 @@
 `SUPABASE_SERVICE_ROLE_KEY` reste acceptée côté serveur ; préférer
 `SUPABASE_SECRET_KEY`. Aucune de ces clés privilégiées ne doit porter le
 préfixe `NEXT_PUBLIC_`.
+
+Le sweep de suppression de clients est planifié toutes les quinze minutes par
+la Scheduled Function versionnée `netlify/functions/client-purge-sweep.ts`,
+qui appelle la route interne avec l’en-tête `x-client-purge-sweep-secret`. Il ne contourne pas les
+gardes métier : seules les opérations déjà consommées, avec une cible encore
+gelée ou sans profil, sont reprises sous l’identité d’un administrateur actif.
+La reprise manuelle reste disponible, mais ne remplace pas cette planification.
+Le secret ne doit jamais être inclus
+dans une URL, un log ou une variable `NEXT_PUBLIC_*`.
+
+L’inventaire Storage est diffusé sans tableau global puis persisté de façon
+idempotente dans une table privée normalisée, par pages de 1 000 objets. Sa
+lecture et chaque suppression suivent un curseur avec la même borne. Il
+n’existe pas de plafond global applicatif à 10 000 objets. Une référence historique qui ne
+respecte pas l’appartenance du client est signalée et ignorée : sa ligne métier
+est supprimée, mais l’objet étranger n’entre jamais dans le manifeste.
+Le sweep différé attend au moins 2 h 05 après la phase relationnelle, soit cinq
+minutes de marge au-delà de la durée maximale des URL signées. Après la
+suppression Auth, un dernier sweep ciblé et une seconde vérification Storage
+sont exigés avant la finalisation sans trace.
+
+Le scénario destructif `test:client-purge:integration` est verrouillé à
+GitHub Actions, `CI=true`, une instance Supabase locale sur le port `54321` et
+`MONALYZ_ALLOW_DESTRUCTIVE_LOCAL_PURGE_TEST=1`. Le job `database` le lance en
+dernier sur l’instance éphémère, après pgTAP et les contrôles de schéma. Il ne
+doit jamais être lancé contre un projet lié ou distant.
 
 Le worker résout la base des assets dans cet ordre :
 `TRANSACTIONAL_EMAIL_ASSET_BASE_URL`, `APP_ORIGIN`, puis

@@ -1,5 +1,5 @@
 begin;
-select plan(47);
+select plan(48);
 
 select ok(
   exists (
@@ -156,11 +156,30 @@ select is(
     select count(*)::integer
     from pg_proc as procedure
     join pg_namespace as namespace on namespace.oid = procedure.pronamespace
-    where namespace.nspname in ('public', 'private')
+    where namespace.nspname = 'public'
       and not has_function_privilege('service_role', procedure.oid, 'EXECUTE')
   ),
   0,
-  'service_role can execute every current application function'
+  'service_role can execute every current public application RPC'
+);
+
+select ok(
+  not exists (
+    select 1
+    from pg_proc as procedure
+    join pg_namespace as namespace on namespace.oid = procedure.pronamespace
+    where namespace.nspname = 'private'
+      and (
+        procedure.proname like '%client_purge%'
+        or procedure.proname in (
+          'audit_event_matches_client',
+          'reject_reserved_purge_email',
+          'try_guard_client_mutation'
+        )
+      )
+      and has_function_privilege('service_role', procedure.oid, 'EXECUTE')
+  ),
+  'private purge helpers remain inaccessible to service_role'
 );
 
 select ok(

@@ -20,6 +20,7 @@ import {
   stagingPathExtension,
   type EvidenceBucket,
 } from '@/lib/server/staged-upload';
+import { hasActiveProfile } from '@/lib/server/profile-access';
 import { jsonStringValues } from '@/lib/supabase/json';
 import { createClient } from '@/lib/supabase/server';
 import type { AppErrorCode } from '@/lib/types';
@@ -157,6 +158,10 @@ export async function POST(request: NextRequest) {
     return errorJson('CONFIGURATION_UNAVAILABLE', 503);
   }
 
+  if (!(await hasActiveProfile(worker, user.id))) {
+    return errorJson('PERMISSION_DENIED', 403);
+  }
+
   let destinationPath: string | null = null;
   let finalized = false;
   try {
@@ -202,6 +207,10 @@ export async function POST(request: NextRequest) {
         detected.mimeType !== 'image/jpeg')
     ) {
       return errorJson('INVALID_REQUEST', 415);
+    }
+
+    if (!(await hasActiveProfile(worker, user.id))) {
+      return errorJson('PERMISSION_DENIED', 403);
     }
 
     finalized = true;
@@ -274,6 +283,19 @@ export async function DELETE(request: NextRequest) {
   }
 
   const paths = payload.paths as string[];
+
+  let worker: ReturnType<typeof createPrivilegedClient>;
+  try {
+    worker = createPrivilegedClient(
+      'SUPABASE_SECRET_KEY est requise pour supprimer une preuve.',
+    );
+  } catch {
+    return errorJson('CONFIGURATION_UNAVAILABLE', 503);
+  }
+  if (!(await hasActiveProfile(worker, user.id))) {
+    return errorJson('PERMISSION_DENIED', 403);
+  }
+
   let referencedPaths: string[] = [];
   let hasSubmittedKycApplication = false;
   if (payload.bucket === 'kyc-evidence') {

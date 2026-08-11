@@ -97,16 +97,21 @@ la structure depuis Git.
 
 Ne jamais exporter ou committer :
 
-- `auth.users`, sessions, identités ou mots de passe ;
+- `auth.users`, sessions, identités ou mots de passe d’environnement ;
 - profils, KYC, justificatifs ou pièces d’identité ;
 - intentions, preuves ou références financières ;
 - secrets, clés privées, tokens ou mots de passe de base ;
 - dump `--data-only` d’un environnement distant.
 
-Les jeux de test éventuels doivent être synthétiques, minimaux et écrits
-manuellement dans `supabase/seed.sql`.
+Le seed versionné reste vide. L'[administrateur démo du modèle vierge](clean-admin-baseline.md)
+est créé ensuite par un bootstrap qui refuse toute URL autre que
+`http://127.0.0.1:54321` et exécute sa validation SQL avec `--local`. Ce modèle
+ne doit jamais être adapté pour accepter une cible liée ou distante.
+Son mot de passe `.test`, public et volontairement versionné pour les tests,
+est la seule exception : il ne doit jamais être réutilisé par un autre compte
+ou environnement.
 
-Les deux comptes de démonstration réutilisables font exception au seed : ils
+Les deux comptes de démonstration fonctionnels réutilisables font exception au seed : ils
 sont matérialisés explicitement dans l’environnement ciblé par la procédure
 [Comptes de démonstration](demo-accounts.md). Seuls le script, la RPC et leurs
 UUID déterministes sont versionnés ; les identités Auth et les lignes produites

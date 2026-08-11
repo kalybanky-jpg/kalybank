@@ -119,6 +119,23 @@ jobs:
       - name: Check committed database types
         run: git diff --exit-code -- lib/supabase/database.types.ts
 
+      - name: Reset database for clean admin baseline
+        run: bun x supabase db reset --local
+
+      - name: Provision and test clean admin baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          eval "$(bun x supabase status -o env)"
+          SUPABASE_URL="${API_URL}" \
+          SUPABASE_ANON_KEY="${ANON_KEY}" \
+          SUPABASE_SERVICE_ROLE_KEY="${SERVICE_ROLE_KEY}" \
+          bun run demo:clean-admin
+          SUPABASE_URL="${API_URL}" \
+          SUPABASE_ANON_KEY="${ANON_KEY}" \
+          SUPABASE_SERVICE_ROLE_KEY="${SERVICE_ROLE_KEY}" \
+          bun run demo:clean-admin
+
       - name: Stop Supabase
         if: always()
         run: bun x supabase stop --no-backup

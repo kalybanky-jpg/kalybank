@@ -60,10 +60,13 @@ set role = excluded.role, active = true;
 ```
 
 Les rôles autorisés sont `reviewer`, `operator`, `supervisor` et `admin`.
-Aucun compte staff ou jeu de transactions n’est préchargé.
+Le reset local laisse le seed vide. Pour obtenir à la demande une base sans
+client ni transaction avec un unique administrateur démo, exécutez le
+[bootstrap du modèle vierge](clean-admin-baseline.md), strictement réservé au
+local et à GitHub CI.
 
-Pour créer les deux accès synthétiques réutilisables sans les inscrire dans le
-seed ou le snapshot, suivez [Comptes de démonstration](demo-accounts.md).
+Pour créer les deux accès synthétiques réutilisables du scénario fonctionnel
+complet, suivez [Comptes de démonstration](demo-accounts.md).
 
 Les modèles d’inscription et de récupération locaux sont versionnés dans
 `supabase/templates`. Ils dirigent les liens vers `/auth/confirm`, où le

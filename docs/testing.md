@@ -16,6 +16,7 @@
 | Langues | `bun x tsx --test tests/language.test.ts` | BCP 47, priorité et repli |
 | Registre bancaire | `bun x tsx --test tests/financial.test.ts tests/banking-i18n.test.ts` | Numéros de compte, soldes et traductions UI |
 | PDF officiels | `bun x tsx --test tests/official-document-pdf.test.ts` | Rendu, empreinte et filigrane démo |
+| Base vierge | `bun x tsx --test tests/clean-admin-baseline.test.ts` | Seed vide, barrière locale et contrat CI du seul admin démo |
 | Provisionnement démo | `bun x tsx --test tests/demo-provisioning.test.ts` | Cibles, secrets, refus de reprise et idempotence |
 | Schéma | `bun x supabase db lint --local --level warning --fail-on error` | Erreurs SQL |
 | Conseillers | `bun x supabase db advisors --local --type all --level warn --fail-on error` | Sécurité et performance |
@@ -32,6 +33,11 @@ aucun lockfile npm ne doit être généré ou versionné.
 La CI régénère les types Supabase après le reset local et les compare à
 `lib/supabase/database.types.ts`. Une différence bloque la fusion afin que les
 migrations et les contrats TypeScript restent synchronisés.
+
+À la fin du job Database, la CI réinitialise une seconde fois sa pile
+éphémère, crée l'[unique administrateur démo du modèle vierge](clean-admin-baseline.md)
+via Auth Admin, vérifie sa connexion et rejoue le bootstrap pour prouver son
+idempotence. Cette étape n’utilise aucune clé distante.
 
 ## Parcours sans Docker local
 

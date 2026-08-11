@@ -70,6 +70,7 @@ docs/                 Architecture et procédures d’exploitation
 | [Modèle de données](docs/data-model.md) | Entités, états et invariants |
 | [API](docs/api.md) | Route serveur et RPC |
 | [Tests](docs/testing.md) | Portes qualité |
+| [Modèle vierge avec admin démo](docs/clean-admin-baseline.md) | Base locale/CI minimale et identifiants publics |
 | [Base Supabase](docs/database-operations.md) | Liaison, migrations et snapshot |
 | [E-mails transactionnels](docs/transactional-email.md) | Profils SMTP Resend et Brevo |
 | [Déploiement](docs/deployment.md) | Prévol, smoke tests et rollback |

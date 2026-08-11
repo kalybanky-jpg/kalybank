@@ -18,10 +18,10 @@ import { useBrand } from '@/components/brand/BrandProvider';
 import { Dialog, DialogBackdrop, DialogPanel } from '@/components/ui/Dialog';
 
 const STATUS_LABELS: Record<string, string> = {
-  submitted: 'À valider par le chef d’agence',
-  under_review: 'À valider par le chef d’agence',
-  approved_for_external_funding: 'Validé — décaissement interne attendu',
-  external_funding_recorded: 'Décaissement interne à enregistrer',
+  submitted: 'À approuver',
+  under_review: 'À approuver',
+  approved_for_external_funding: 'Approuvé — à décaisser',
+  external_funding_recorded: 'Approuvé — décaissement à enregistrer',
   external_settlement_confirmed: 'Prêt décaissé',
   rejected: 'Refusé',
   cancelled: 'Annulé',
@@ -100,16 +100,15 @@ export default function AdminLoansView() {
       <header className="rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 p-4 text-white shadow-xl sm:p-6">
         <div className="flex items-center gap-2 text-indigo-300 text-xs font-bold uppercase">
           <FileText className="w-4 h-4" />
-          <span>Validation du chef d&apos;agence</span>
+          <span>Approbation simple</span>
         </div>
         <h1 className="text-2xl sm:text-3xl font-extrabold mt-1">
           Demandes de prêt
         </h1>
         <p className="text-xs sm:text-sm text-slate-300 mt-2 max-w-3xl">
-          L&apos;étude, les contrôles et le décaissement réel sont effectués en
-          interne par le personnel de la banque. Le chef d&apos;agence valide la
-          demande, puis enregistre le décaissement dans {brand.bankName} pour créditer la
-          position courante de l&apos;utilisateur.
+          Une seule décision approuve la demande. Le décaissement reste une action
+          distincte : il crédite ensuite la position courante de l&apos;utilisateur dans{' '}
+          {brand.bankName}.
         </p>
       </header>
 
@@ -176,7 +175,7 @@ export default function AdminLoansView() {
                   onClick={() => openLoan(loan)}
                   className="mt-4 min-h-11 w-full rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-bold text-white"
                 >
-                  Examiner
+                  Ouvrir
                 </button>
               </article>
             );
@@ -239,7 +238,7 @@ export default function AdminLoansView() {
                         onClick={() => openLoan(loan)}
                         className="px-3 py-2 bg-slate-900 text-white rounded-xl font-bold text-[11px]"
                       >
-                        Examiner
+                        Ouvrir
                       </button>
                     </td>
                   </tr>
@@ -305,12 +304,11 @@ export default function AdminLoansView() {
             ) && (
               <div className="space-y-4">
                 <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900">
-                  En validant, vous confirmez en qualité de chef d&apos;agence que
-                  l&apos;étude et les contrôles requis ont déjà été réalisés hors de
-                  {brand.bankName} par le personnel compétent.
+                  Cette action approuve immédiatement la demande. Elle ne déclenche
+                  aucun décaissement : le crédit du compte reste une action séparée.
                 </div>
                 <label className="block text-xs font-bold">
-                  Note interne ou motif de refus
+                  Note interne facultative, ou motif de refus
                   <textarea
                     value={note}
                     onChange={(event) => setNote(event.target.value)}
@@ -326,7 +324,7 @@ export default function AdminLoansView() {
                     className="min-h-11 w-full rounded-xl bg-indigo-600 px-3 py-3 font-bold text-white disabled:opacity-50"
                   >
                     <ShieldCheck className="inline w-4 h-4 mr-2" />
-                    Valider le prêt
+                    Approuver le prêt
                   </button>
                   <button
                     type="button"

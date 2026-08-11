@@ -96,7 +96,6 @@ const baseTranslations: Record<'fr' | 'en' | 'de' | 'es', Record<string, string>
     stepTransferred: 'Viré sur compte courant',
 
     validationQueue: 'File de validation',
-    makerChecker: 'Validation du chef d’agence',
     priorityRequests: 'Demandes prioritaires',
     seeAllRequests: 'Voir toutes les demandes',
 
@@ -281,7 +280,6 @@ const baseTranslations: Record<'fr' | 'en' | 'de' | 'es', Record<string, string>
     stepTransferred: 'Transferred to account',
 
     validationQueue: 'Validation queue',
-    makerChecker: 'Branch manager approval',
     priorityRequests: 'Priority applications',
     seeAllRequests: 'See all applications',
 
@@ -448,7 +446,6 @@ const baseTranslations: Record<'fr' | 'en' | 'de' | 'es', Record<string, string>
     stepDisbursement: 'Auszahlung',
     stepTransferred: 'Auf Girokonto überwiesen',
     validationQueue: 'Freigabewarteschlange',
-    makerChecker: 'Freigabe durch den Filialleiter',
     priorityRequests: 'Prioritäre Anträge',
     seeAllRequests: 'Alle Anträge anzeigen',
     client: 'Kunde',
@@ -597,7 +594,6 @@ const baseTranslations: Record<'fr' | 'en' | 'de' | 'es', Record<string, string>
     stepDisbursement: 'Desembolso',
     stepTransferred: 'Transferido a cuenta corriente',
     validationQueue: 'Cola de validación',
-    makerChecker: 'Validación del director de sucursal',
     priorityRequests: 'Solicitudes prioritarias',
     seeAllRequests: 'Ver todas las solicitudes',
     client: 'Cliente',

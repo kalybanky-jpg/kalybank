@@ -8,10 +8,8 @@ import {
   CircleUserRound,
   Clock3,
   FileText,
-  Landmark,
   SendHorizontal,
   ShieldAlert,
-  ShieldCheck,
   UserRound,
   WalletCards,
 } from 'lucide-react';
@@ -46,17 +44,6 @@ function ComplianceRing({ value }: { value: number }) {
         <strong className="text-[27px] leading-none text-[#0a154f]">{safeValue}%</strong>
         <span className="mt-1 text-[9px] text-[#69729f]">Avancement</span>
       </div>
-    </div>
-  );
-}
-
-function ProgressBar({ value }: { value: number }) {
-  return (
-    <div className="h-1.5 overflow-hidden rounded-full bg-[#e9ebf3]">
-      <div
-        className="h-full rounded-full bg-gradient-to-r from-[#5334f3] to-[#3d23f0]"
-        style={{ width: `${Math.max(0, Math.min(100, value))}%` }}
-      />
     </div>
   );
 }
@@ -117,7 +104,14 @@ export default function AdminDashboard() {
   const activeTransfers = pendingTransfers.filter(
     (transfer) => !['valide', 'rejete'].includes(transfer.status),
   );
-  const activeLoans = loans.filter((loan) => !['refuse', 'decaisse'].includes(loan.status));
+  const pendingApprovalLoans = loans.filter((loan) =>
+    ['submitted', 'under_review'].includes(loan.workflowStatus ?? 'submitted'),
+  );
+  const loansToDisburse = loans.filter((loan) =>
+    ['approved_for_external_funding', 'external_funding_recorded'].includes(
+      loan.workflowStatus ?? '',
+    ),
+  );
   const pendingKyc = kycApplications.filter(
     (application) => !['approved', 'rejected'].includes(application.workflowStatus ?? ''),
   );
@@ -130,14 +124,11 @@ export default function AdminDashboard() {
     (sum, loan) => sum + (loan.approvedAmount || loan.requestedAmount),
     0,
   );
-  const progressSamples = [
-    ...activeTransfers.map((transfer) => transfer.complianceProgress),
-    ...activeLoans.map((loan) => loan.complianceProgress),
-  ];
+  const progressSamples = activeTransfers.map((transfer) => transfer.complianceProgress);
   const averageCompliance = progressSamples.length
     ? progressSamples.reduce((sum, value) => sum + value, 0) / progressSamples.length
     : 0;
-  const trackedCase = activeTransfers[0] ?? activeLoans[0];
+  const trackedCase = activeTransfers[0];
   const trackedChecks =
     trackedCase?.complianceChecks ?? {
       doubleValidation: 'en_attente' as const,
@@ -152,15 +143,15 @@ export default function AdminDashboard() {
   const stats = [
     {
       label: 'Demandes à traiter',
-      value: activeLoans.length + activeTransfers.length,
-      trend: `${Math.max(0, activeLoans.length)} vs hier`,
+      value: pendingApprovalLoans.length + activeTransfers.length,
+      trend: `${Math.max(0, pendingApprovalLoans.length)} vs hier`,
       icon: FileText,
       colors: 'bg-[#eee8ff] text-[#4b2df1]',
       target: 'loanRequests',
     },
     {
-      label: 'Validations en attente',
-      value: activeLoans.length,
+      label: 'Prêts à approuver',
+      value: pendingApprovalLoans.length,
       trend: `${Math.max(0, activeTransfers.length)} vs hier`,
       icon: UserRound,
       colors: 'bg-[#fff0e1] text-[#ff7818]',
@@ -185,30 +176,20 @@ export default function AdminDashboard() {
     },
   ];
 
-  const pipeline = [
+  const loanStages = [
     { label: 'Demande reçue', value: loans.length, color: '#4b2df1' },
     {
-      label: 'Analyse',
-      value: loans.filter((loan) => loan.workflowStatus === 'under_review').length,
+      label: 'À approuver',
+      value: pendingApprovalLoans.length,
       color: '#2464e9',
     },
     {
-      label: 'Validation',
-      value: activeLoans.filter((loan) => loan.currentStep >= 3).length,
+      label: 'Approuvé',
+      value: loansToDisburse.length,
       color: '#4b2df1',
     },
     {
-      label: 'Conformité & sécurité',
-      value: activeLoans.filter((loan) => loan.currentStep >= 4).length,
-      color: '#ff9a2f',
-    },
-    {
-      label: 'Décaissement',
-      value: fundedLoans.filter((loan) => loan.workflowStatus !== 'external_settlement_confirmed').length,
-      color: '#0aae4f',
-    },
-    {
-      label: 'Viré sur compte courant',
+      label: 'Décaissé',
       value: loans.filter((loan) => loan.workflowStatus === 'external_settlement_confirmed').length,
       color: '#0aae4f',
     },
@@ -270,19 +251,19 @@ export default function AdminDashboard() {
         <div className="space-y-4">
           <section className={`${cardClass} min-w-0 p-4 sm:p-5`}>
             <div className="flex min-w-0 flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="text-[13px] font-semibold text-[#0a154f]">Pipeline des prêts</h2>
+              <h2 className="text-[13px] font-semibold text-[#0a154f]">Suivi des demandes de prêt</h2>
               <button
                 type="button"
                 onClick={() => setActiveTab('loanRequests')}
                 className="min-h-11 w-full rounded-md border border-[#d9d5f8] px-3 py-2 text-[9px] font-medium text-[#4b2df1] sm:w-auto"
               >
-                Voir le pipeline détaillé
+                Ouvrir les demandes
               </button>
             </div>
-            <div className="mt-5 grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6 lg:gap-0">
-              {pipeline.map((step, index) => (
+            <div className="mt-5 grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-4 lg:gap-0">
+              {loanStages.map((step, index) => (
                 <div key={step.label} className="relative text-center">
-                  {index < pipeline.length - 1 && (
+                  {index < loanStages.length - 1 && (
                     <div className="absolute left-[62%] top-3 hidden w-[76%] items-center lg:flex">
                       <span className="h-px flex-1 bg-[#cfd4e3]" />
                       <ArrowRight className="-ml-1 h-3 w-3 text-[#aab2c9]" strokeWidth={1.4} />
@@ -316,8 +297,14 @@ export default function AdminDashboard() {
             </div>
             <div className="grid min-w-0 gap-3 md:hidden">
               {loans.slice(0, 5).map((loan) => {
-                const ready = loan.workflowStatus === 'approved_for_external_funding';
-                const review = loan.workflowStatus === 'under_review';
+                const workflowStatus = loan.workflowStatus ?? 'submitted';
+                const pending = ['submitted', 'under_review'].includes(workflowStatus);
+                const ready = [
+                  'approved_for_external_funding',
+                  'external_funding_recorded',
+                ].includes(workflowStatus);
+                const complete = workflowStatus === 'external_settlement_confirmed';
+                const rejected = workflowStatus === 'rejected';
                 return (
                   <article key={loan.id} className="min-w-0 rounded-xl border border-[#edf0f5] bg-[#f7f8fc] p-3 text-[10px] text-[#0a154f]">
                     <div className="flex min-w-0 flex-col gap-2 min-[360px]:flex-row min-[360px]:items-start min-[360px]:justify-between">
@@ -327,16 +314,17 @@ export default function AdminDashboard() {
                       </div>
                       <strong className="shrink-0">{money(loan.requestedAmount, loan.currency)}</strong>
                     </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <span className={`rounded px-2 py-1 ${ready ? 'bg-[#e1f7e8] text-[#158d47]' : review ? 'bg-[#e8efff] text-[#315cf4]' : 'bg-[#f1eaff] text-[#6543eb]'}`}>
-                        {ready ? 'Prêt au décaissement' : review ? 'En analyse' : 'Validation manager'}
-                      </span>
-                      <span className={`rounded px-2 py-1 ${loan.complianceProgress >= 75 ? 'bg-[#e1f7e8] text-[#158d47]' : 'bg-[#fff0e1] text-[#f07a17]'}`}>
-                        {loan.complianceProgress >= 75 ? 'Conformité validée' : 'Conformité en attente'}
-                      </span>
-                    </div>
+                    <span className={`mt-3 inline-flex rounded px-2 py-1 ${complete ? 'bg-[#e1f7e8] text-[#158d47]' : rejected ? 'bg-[#ffe9eb] text-[#ef334e]' : ready ? 'bg-[#eee9ff] text-[#6543eb]' : 'bg-[#fff0e1] text-[#f07a17]'}`}>
+                      {complete
+                        ? 'Décaissé'
+                        : rejected
+                          ? 'Refusé'
+                          : ready
+                            ? 'À décaisser'
+                            : 'À approuver'}
+                    </span>
                     <button type="button" onClick={() => setActiveTab('loanRequests')} className={`mt-3 min-h-11 w-full rounded-md border px-3 py-2 font-medium ${ready ? 'border-[#4b2df1] bg-[#4b2df1] text-white' : 'border-[#9d8cff] text-[#4b2df1]'}`}>
-                      {ready ? 'Autoriser' : 'Voir'}
+                      {ready ? 'Décaisser' : pending ? 'Décider' : 'Voir'}
                     </button>
                   </article>
                 );
@@ -349,15 +337,20 @@ export default function AdminDashboard() {
                     <th className="rounded-l-lg px-3 py-2">Client</th>
                     <th className="px-2 py-2">Référence</th>
                     <th className="px-2 py-2">Montant</th>
-                    <th className="px-2 py-2">Étape actuelle</th>
-                    <th className="px-2 py-2">Contrôle conformité</th>
+                    <th className="px-2 py-2">Statut</th>
                     <th className="rounded-r-lg px-2 py-2 text-center">Décision / Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loans.slice(0, 5).map((loan, index) => {
-                    const ready = loan.workflowStatus === 'approved_for_external_funding';
-                    const review = loan.workflowStatus === 'under_review';
+                    const workflowStatus = loan.workflowStatus ?? 'submitted';
+                    const pending = ['submitted', 'under_review'].includes(workflowStatus);
+                    const ready = [
+                      'approved_for_external_funding',
+                      'external_funding_recorded',
+                    ].includes(workflowStatus);
+                    const complete = workflowStatus === 'external_settlement_confirmed';
+                    const rejected = workflowStatus === 'rejected';
                     return (
                       <tr key={loan.id} className="border-b border-[#edf0f5] text-[8px] text-[#0a154f]">
                         <td className="px-3 py-2">
@@ -371,13 +364,14 @@ export default function AdminDashboard() {
                         <td className="px-2 py-2 font-medium">{loan.reference}</td>
                         <td className="px-2 py-2 font-semibold">{money(loan.requestedAmount, loan.currency)}</td>
                         <td className="px-2 py-2">
-                          <span className={`rounded px-2 py-1 ${ready ? 'bg-[#e1f7e8] text-[#158d47]' : review ? 'bg-[#e8efff] text-[#315cf4]' : 'bg-[#f1eaff] text-[#6543eb]'}`}>
-                            {ready ? 'Prêt au décaissement' : review ? 'En analyse' : 'Validation manager'}
-                          </span>
-                        </td>
-                        <td className="px-2 py-2">
-                          <span className={`rounded px-2 py-1 ${loan.complianceProgress >= 75 ? 'bg-[#e1f7e8] text-[#158d47]' : 'bg-[#fff0e1] text-[#f07a17]'}`}>
-                            {loan.complianceProgress >= 75 ? 'Validé' : 'En attente'}
+                          <span className={`rounded px-2 py-1 ${complete ? 'bg-[#e1f7e8] text-[#158d47]' : rejected ? 'bg-[#ffe9eb] text-[#ef334e]' : ready ? 'bg-[#eee9ff] text-[#6543eb]' : 'bg-[#fff0e1] text-[#f07a17]'}`}>
+                            {complete
+                              ? 'Décaissé'
+                              : rejected
+                                ? 'Refusé'
+                                : ready
+                                  ? 'À décaisser'
+                                  : 'À approuver'}
                           </span>
                         </td>
                         <td className="px-2 py-2 text-center">
@@ -390,7 +384,7 @@ export default function AdminDashboard() {
                                 : 'border-[#9d8cff] text-[#4b2df1]'
                             }`}
                           >
-                            {ready ? 'Autoriser' : 'Voir'}
+                            {ready ? 'Décaisser' : pending ? 'Décider' : 'Voir'}
                           </button>
                         </td>
                       </tr>
@@ -425,8 +419,13 @@ export default function AdminDashboard() {
             </div>
             <div className="grid min-w-0 gap-3 md:hidden">
               {loans.slice(0, 5).map((loan) => {
-                const complete = loan.workflowStatus === 'external_settlement_confirmed';
-                const progress = complete ? 100 : loan.complianceProgress;
+                const workflowStatus = loan.workflowStatus ?? 'submitted';
+                const complete = workflowStatus === 'external_settlement_confirmed';
+                const ready = [
+                  'approved_for_external_funding',
+                  'external_funding_recorded',
+                ].includes(workflowStatus);
+                const rejected = workflowStatus === 'rejected';
                 return (
                   <article key={loan.id} className="min-w-0 rounded-xl border border-[#edf0f5] bg-[#f7f8fc] p-3 text-[10px] text-[#0a154f]">
                     <div className="flex min-w-0 flex-col gap-2 min-[360px]:flex-row min-[360px]:items-start min-[360px]:justify-between">
@@ -436,13 +435,9 @@ export default function AdminDashboard() {
                       </div>
                       <strong className="shrink-0">{money(loan.approvedAmount || loan.requestedAmount, loan.currency)}</strong>
                     </div>
-                    <div className="mt-3 flex items-center gap-2">
-                      <div className="min-w-0 flex-1"><ProgressBar value={progress} /></div>
-                      <strong>{Math.round(progress)}%</strong>
-                    </div>
-                    <p className={`mt-2 flex items-center gap-1 ${complete ? 'text-[#0aae4f]' : progress > 0 ? 'text-[#f07a17]' : 'text-[#69729f]'}`}>
+                    <p className={`mt-3 flex items-center gap-1 ${complete ? 'text-[#0aae4f]' : rejected ? 'text-[#ef334e]' : ready ? 'text-[#f07a17]' : 'text-[#69729f]'}`}>
                       {complete ? <CheckCircle2 className="h-3 w-3" /> : <Clock3 className="h-3 w-3" />}
-                      {complete ? 'Transféré' : progress > 0 ? 'En cours' : 'En attente'}
+                      {complete ? 'Décaissé' : rejected ? 'Refusé' : ready ? 'À décaisser' : 'À approuver'}
                     </p>
                   </article>
                 );
@@ -455,14 +450,12 @@ export default function AdminDashboard() {
                     <th className="rounded-l-lg px-3 py-2">Client</th>
                     <th className="px-2 py-2">Montant approuvé</th>
                     <th className="px-2 py-2">Compte courant</th>
-                    <th className="px-2 py-2">Progression</th>
                     <th className="rounded-r-lg px-2 py-2">Statut</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loans.slice(0, 5).map((loan, index) => {
                     const complete = loan.workflowStatus === 'external_settlement_confirmed';
-                    const progress = complete ? 100 : loan.complianceProgress;
                     return (
                       <tr key={loan.id} className="border-b border-[#edf0f5] text-[8px] text-[#0a154f]">
                         <td className="px-3 py-2">
@@ -477,16 +470,10 @@ export default function AdminDashboard() {
                           {money(loan.approvedAmount || loan.requestedAmount, loan.currency)}
                         </td>
                         <td className="max-w-[160px] truncate px-2 py-2">{loan.disbursementAccount}</td>
-                        <td className="px-2 py-2">
-                          <div className="flex items-center gap-2">
-                            <div className="w-[72px]"><ProgressBar value={progress} /></div>
-                            <strong>{Math.round(progress)}%</strong>
-                          </div>
-                        </td>
-                        <td className={`px-2 py-2 ${complete ? 'text-[#0aae4f]' : progress > 0 ? 'text-[#f07a17]' : 'text-[#69729f]'}`}>
+                        <td className={`px-2 py-2 ${complete ? 'text-[#0aae4f]' : 'text-[#f07a17]'}`}>
                           <span className="flex items-center gap-1">
                             {complete ? <CheckCircle2 className="h-3 w-3" /> : <Clock3 className="h-3 w-3" />}
-                            {complete ? 'Transféré' : progress > 0 ? 'En cours' : 'En attente'}
+                            {complete ? 'Décaissé' : 'À décaisser'}
                           </span>
                         </td>
                       </tr>
@@ -502,63 +489,55 @@ export default function AdminDashboard() {
         </div>
 
         <div className="space-y-4">
-          <section className={`${cardClass} p-5`}>
-            <div className="flex items-center justify-between">
-              <h2 className="text-[13px] font-semibold text-[#0a154f]">File de validation</h2>
-              <button
-                type="button"
-                onClick={() => setActiveTab('compliance')}
-                className="min-h-11 rounded-lg px-2 py-2 text-[9px] font-medium text-[#4b2df1]"
-              >
-                Voir tout
-              </button>
-            </div>
-            <div className="mt-4 space-y-4">
+          <section className={`${cardClass} min-w-0 p-4 sm:p-5`}>
+            <h2 className="text-[13px] font-semibold text-[#0a154f]">Actions à effectuer</h2>
+            <div className="mt-4 space-y-2">
               {[
-                { label: 'Validation maker / checker', count: activeLoans.length, progress: 60, icon: Landmark, colors: 'bg-[#eee9ff] text-[#4b2df1]', status: 'En attente' },
-                { label: 'Escalade hiérarchique', count: pendingKyc.length, progress: 40, icon: UserRound, colors: 'bg-[#f1edff] text-[#4b2df1]', status: 'En attente' },
-                { label: 'Revue conformité', count: activeTransfers.length, progress: 75, icon: ShieldCheck, colors: 'bg-[#e2f8e9] text-[#09a849]', status: 'En cours' },
-                { label: 'Autorisation finale', count: fundedLoans.length, progress: 25, icon: ShieldAlert, colors: 'bg-[#eee9ff] text-[#4b2df1]', status: 'En attente' },
+                { label: 'Prêts à approuver', count: pendingApprovalLoans.length, icon: FileText, colors: 'bg-[#eee9ff] text-[#4b2df1]', target: 'loanRequests' },
+                { label: 'Prêts à décaisser', count: loansToDisburse.length, icon: WalletCards, colors: 'bg-[#e2f8e9] text-[#09a849]', target: 'loanRequests' },
+                { label: 'Virements à traiter', count: activeTransfers.length, icon: SendHorizontal, colors: 'bg-[#e8efff] text-[#315cf4]', target: 'transfers' },
+                { label: 'Dossiers KYC à revoir', count: pendingKyc.length, icon: UserRound, colors: 'bg-[#fff0e1] text-[#f07a17]', target: 'compliance' },
               ].map((item) => {
                 const Icon = item.icon;
                 return (
-                  <div key={item.label} className="grid min-w-0 grid-cols-[34px_minmax(0,1fr)_40px_64px] items-center gap-2">
+                  <button
+                    key={item.label}
+                    type="button"
+                    onClick={() => setActiveTab(item.target)}
+                    className="grid min-h-11 w-full min-w-0 grid-cols-[34px_minmax(0,1fr)_auto] items-center gap-3 rounded-lg px-2 py-2 text-left transition hover:bg-[#f7f8fc]"
+                  >
                     <span className={`flex h-8 w-8 items-center justify-center rounded-full ${item.colors}`}>
                       <Icon className="h-4 w-4" strokeWidth={1.8} />
                     </span>
                     <div className="min-w-0">
                       <strong className="block truncate text-[9px] font-semibold text-[#0a154f]">{item.label}</strong>
-                      <span className="mt-0.5 block text-[8px] text-[#69729f]">{item.count} en attente</span>
-                      <div className="mt-2"><ProgressBar value={item.progress} /></div>
+                      <span className="mt-0.5 block text-[8px] text-[#69729f]">Ouvrir la liste</span>
                     </div>
-                    <strong className="text-[9px] text-[#0a154f]">{item.progress}%</strong>
-                    <span className={`rounded-md px-2 py-1.5 text-center text-[7px] font-medium ${item.status === 'En cours' ? 'bg-[#e2f8e9] text-[#14954a]' : 'bg-[#fff0e1] text-[#f07a17]'}`}>
-                      {item.status}
-                    </span>
-                  </div>
+                    <strong className="rounded-md bg-[#f3f1ff] px-2.5 py-1.5 text-[10px] text-[#4b2df1]">{item.count}</strong>
+                  </button>
                 );
               })}
             </div>
           </section>
 
-          <section className={`${cardClass} p-5`}>
-            <div className="flex items-center justify-between">
+          <section className={`${cardClass} min-w-0 p-4 sm:p-5`}>
+            <div className="flex min-w-0 flex-col items-start gap-2 min-[360px]:flex-row min-[360px]:items-center min-[360px]:justify-between">
               <h2 className="text-[13px] font-semibold text-[#0a154f]">
-                Contrôles de conformité et sécurité
+                Contrôles des virements
               </h2>
               <button
                 type="button"
-                onClick={() => setActiveTab('compliance')}
+                onClick={() => setActiveTab('transfers')}
                 className="min-h-11 rounded-lg px-2 py-2 text-[9px] font-medium text-[#4b2df1]"
               >
-                Voir détails
+                Ouvrir les virements
               </button>
             </div>
             <div className="mt-4 flex min-w-0 flex-col items-start gap-4 min-[360px]:flex-row min-[360px]:items-center sm:gap-6">
               <ComplianceRing value={averageCompliance} />
               <p className="text-[10px] leading-5 text-[#69729f]">
-                Cette application n’affiche que la progression. À 100 %, le virement est prêt pour
-                sa finalisation sur le compte courant du client.
+                Cette progression concerne uniquement les virements. L’approbation des prêts reste
+                une décision unique, suivie d’un décaissement séparé.
               </p>
             </div>
             <div className="mt-3 grid min-w-0 grid-cols-1 gap-x-7 gap-y-2 sm:grid-cols-2">

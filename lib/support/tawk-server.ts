@@ -8,7 +8,7 @@ const SUPPORT_IDENTITY_MARKER_VERSION = 'mz1';
 const SUPPORT_IDENTITY_HMAC_CONTEXT = 'mz1:';
 const SUPPORT_IDENTITY_TAG_HEX_LENGTH = 32;
 const MAX_TAWK_VISITOR_NAME_LENGTH = 180;
-const REQUIRED_WIDGET_LOCALES = ['fr', 'en', 'de', 'es'] as const;
+const REQUIRED_WIDGET_LOCALES = ['fr', 'en', 'de', 'es', 'it', 'nl'] as const;
 
 export class TawkConfigurationError extends Error {
   constructor(message: string) {

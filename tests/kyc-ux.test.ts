@@ -60,6 +60,40 @@ test('every KYC step provides concise guidance in every supported language', () 
   }
 });
 
+test('Italian and Dutch KYC copy does not fall back to French or English', () => {
+  const criticalKeys = [
+    'title',
+    'privacy',
+    'identityHint',
+    'proofOfAddressHint',
+    'preparingFile',
+    'uploadingFile',
+    'submit',
+    'submitFailed',
+  ] as const satisfies readonly (keyof KycCopy)[];
+
+  for (const language of ['it', 'nl'] as const) {
+    for (const key of criticalKeys) {
+      assert.notEqual(kycTranslations[language][key], kycTranslations.fr[key]);
+      assert.notEqual(kycTranslations[language][key], kycTranslations.en[key]);
+    }
+  }
+});
+
+test('KYC status, correction reasons and document views include Italian and Dutch', async () => {
+  const sources = await Promise.all([
+    readFile(new URL('../components/UserKycStatusView.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../components/UserDocumentsView.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../components/AccountStatementsModal.tsx', import.meta.url), 'utf8'),
+  ]);
+
+  for (const source of sources) {
+    assert.match(source, /\bit:\s*\{/);
+    assert.match(source, /\bnl:\s*\{/);
+  }
+  assert.match(sources[0], /Record<Language, string>/);
+});
+
 test('the KYC form renders step guidance, accessible descriptions and field examples', async () => {
   const source = await readFile(
     new URL('../app/onboarding/page.tsx', import.meta.url),

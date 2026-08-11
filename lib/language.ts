@@ -1,12 +1,26 @@
 import type { Language } from './types';
 
-export const SUPPORTED_LANGUAGES = ['fr', 'en', 'de', 'es'] as const;
+export const SUPPORTED_LANGUAGES = ['fr', 'en', 'de', 'es', 'it', 'nl'] as const;
+
+export const LANGUAGE_OPTIONS: ReadonlyArray<{
+  code: Language;
+  label: string;
+}> = [
+  { code: 'fr', label: 'Français' },
+  { code: 'en', label: 'English' },
+  { code: 'de', label: 'Deutsch' },
+  { code: 'es', label: 'Español' },
+  { code: 'it', label: 'Italiano' },
+  { code: 'nl', label: 'Nederlands' },
+];
 
 export const LANGUAGE_LOCALES: Record<Language, string> = {
   fr: 'fr-FR',
   en: 'en-US',
   de: 'de-DE',
   es: 'es-ES',
+  it: 'it-IT',
+  nl: 'nl-NL',
 };
 
 export function languageLocale(language: Language | string | null | undefined) {

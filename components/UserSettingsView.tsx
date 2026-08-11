@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import type { Currency, Language } from '@/lib/types';
+import { LANGUAGE_OPTIONS } from '@/lib/language';
 import { Save, Settings, ShieldCheck } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { extraUserMessages, localizedAppError } from '@/lib/user-i18n';
@@ -158,10 +159,11 @@ export default function UserSettingsView() {
               }}
               className="mt-1.5 w-full min-w-0 rounded-xl border p-3"
             >
-              <option value="fr">Français</option>
-              <option value="en">English</option>
-              <option value="de">Deutsch</option>
-              <option value="es">Español</option>
+              {LANGUAGE_OPTIONS.map((option) => (
+                <option key={option.code} value={option.code}>
+                  {option.label}
+                </option>
+              ))}
             </select>
           </label>
           <label className="min-w-0 text-xs font-bold text-slate-700">

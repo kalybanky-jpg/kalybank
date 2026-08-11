@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="{{ if eq .Data.preferred_language "en" }}en{{ else if eq .Data.preferred_language "de" }}de{{ else if eq .Data.preferred_language "es" }}es{{ else }}fr{{ end }}">
+<html lang="{{ if eq .Data.preferred_language "en" }}en{{ else if eq .Data.preferred_language "de" }}de{{ else if eq .Data.preferred_language "es" }}es{{ else if eq .Data.preferred_language "it" }}it{{ else if eq .Data.preferred_language "nl" }}nl{{ else }}fr{{ end }}">
   <body style="margin:0;background:#f3f1ec;font-family:Arial,sans-serif;color:#172033">
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
       <tr>
@@ -8,7 +8,7 @@
             style="max-width:560px;background:#ffffff;border:1px solid #e4ded3;border-radius:20px;box-shadow:0 14px 38px rgba(23,32,51,0.08);overflow:hidden">
             <tr>
               <td style="padding:22px 32px;background:#FBFAF7;border-bottom:1px solid #ebe5db">
-                <a href="{{ .SiteURL }}" style="color:#15324b;text-decoration:none;font-size:18px;font-weight:700">Espace bancaire sécurisé</a>
+                <a href="{{ .SiteURL }}" style="color:#15324b;text-decoration:none;font-size:18px;font-weight:700">{{ if eq .Data.preferred_language "en" }}Secure banking{{ else if eq .Data.preferred_language "de" }}Sicheres Banking{{ else if eq .Data.preferred_language "es" }}Banca segura{{ else if eq .Data.preferred_language "it" }}Area bancaria sicura{{ else if eq .Data.preferred_language "nl" }}Beveiligde bankomgeving{{ else }}Espace bancaire sécurisé{{ end }}</a>
               </td>
             </tr>
             <tr>
@@ -37,6 +37,22 @@
                 <p style="margin:0 0 24px;line-height:1.6">
                   Introduzca este código de 6 dígitos en la pantalla de registro para activar su cuenta bancaria segura.
                 </p>
+                {{ else if eq .Data.preferred_language "it" }}
+                <h1 style="margin:0 0 16px;font-size:24px">Il Suo codice di conferma</h1>
+                <p style="margin:0 0 12px;line-height:1.6">
+                  {{ if .Data.display_name }}Buongiorno {{ .Data.display_name }},{{ else }}Buongiorno,{{ end }}
+                </p>
+                <p style="margin:0 0 24px;line-height:1.6">
+                  Inserisca questo codice di 6 cifre nella schermata di registrazione per attivare il Suo conto bancario sicuro.
+                </p>
+                {{ else if eq .Data.preferred_language "nl" }}
+                <h1 style="margin:0 0 16px;font-size:24px">Uw bevestigingscode</h1>
+                <p style="margin:0 0 12px;line-height:1.6">
+                  {{ if .Data.display_name }}Goedendag {{ .Data.display_name }},{{ else }}Goedendag,{{ end }}
+                </p>
+                <p style="margin:0 0 24px;line-height:1.6">
+                  Voer deze code van 6 cijfers in op het registratiescherm om uw beveiligde bankrekening te activeren.
+                </p>
                 {{ else }}
                 <h1 style="margin:0 0 16px;font-size:24px">Votre code de confirmation</h1>
                 <p style="margin:0 0 12px;line-height:1.6">
@@ -48,7 +64,7 @@
                 {{ end }}
                 <div style="margin:0 0 24px;padding:18px 20px;border:1px solid #cbd5e1;border-radius:14px;background:#f8fafc;text-align:center">
                   <p style="margin:0 0 8px;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em">
-                    {{ if eq .Data.preferred_language "en" }}Confirmation code{{ else if eq .Data.preferred_language "de" }}Bestätigungscode{{ else if eq .Data.preferred_language "es" }}Código de confirmación{{ else }}Code de confirmation{{ end }}
+                    {{ if eq .Data.preferred_language "en" }}Confirmation code{{ else if eq .Data.preferred_language "de" }}Bestätigungscode{{ else if eq .Data.preferred_language "es" }}Código de confirmación{{ else if eq .Data.preferred_language "it" }}Codice di conferma{{ else if eq .Data.preferred_language "nl" }}Bevestigingscode{{ else }}Code de confirmation{{ end }}
                   </p>
                   <p style="margin:0;color:#0f172a;font-family:Consolas,Monaco,monospace;font-size:32px;font-weight:800;letter-spacing:.28em">{{ .Token }}</p>
                 </div>
@@ -59,6 +75,10 @@
                   Dieser Code ist persönlich. Geben Sie ihn niemals weiter. Wenn Sie dieses Konto nicht erstellt haben, ignorieren Sie diese E-Mail. Benötigen Sie Hilfe?
                   {{ else if eq .Data.preferred_language "es" }}
                   Este código es personal. No lo comparta nunca. Si no ha creado esta cuenta, ignore este mensaje. ¿Necesita ayuda?
+                  {{ else if eq .Data.preferred_language "it" }}
+                  Questo codice è personale. Non lo condivida mai. Se non ha creato questo conto, ignori questa e-mail. Ha bisogno di assistenza?
+                  {{ else if eq .Data.preferred_language "nl" }}
+                  Deze code is persoonlijk. Deel deze nooit. Als u deze rekening niet hebt aangemaakt, kunt u deze e-mail negeren. Hebt u hulp nodig?
                   {{ else }}
                   Ce code est personnel. Ne le communiquez jamais. Si vous n’avez pas créé ce compte, ignorez ce message. Besoin d’aide ?
                   {{ end }}

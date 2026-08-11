@@ -132,6 +132,24 @@ function copyFor(
       reauthentication: { subject: `Confirme su identidad — ${bankName}`, heading: 'Confirmación de seguridad', message: 'Esta confirmación es necesaria para continuar con la operación sensible.', action: 'Confirmar mi identidad', code: 'Código de seguridad' },
       security: { subject: `Aviso de seguridad — ${bankName}`, heading: 'Actividad de seguridad en su cuenta', message: 'Se ha registrado un cambio de seguridad en su cuenta. Si no lo reconoce, contacte inmediatamente con soporte.', action: 'Abrir mi espacio', code: 'Código de seguridad' },
     },
+    it: {
+      signup: { subject: `Il Suo codice di conferma ${bankName}`, heading: 'Il Suo codice di conferma', message: `Il Suo conto ${bankName} è quasi pronto. Inserisca questo codice di ${EMAIL_OTP_LENGTH} cifre nella schermata di registrazione per confermare il Suo indirizzo e-mail.`, action: 'Confermare la registrazione', code: 'Codice di conferma' },
+      recovery: { subject: `Reimposti il Suo accesso ${bankName}`, heading: 'Reimpostazione dell’accesso', message: `Abbiamo ricevuto una richiesta di reimpostazione per il Suo spazio ${bankName}.`, action: 'Reimpostare il mio accesso', code: 'Codice di recupero' },
+      email_change: { subject: `Confermi la modifica dell’indirizzo — ${bankName}`, heading: 'Confermi il Suo nuovo indirizzo', message: 'Confermi questa modifica per proteggere l’accesso al Suo spazio bancario.', action: 'Confermare la modifica', code: 'Codice di conferma' },
+      invite: { subject: `Il Suo invito ${bankName}`, heading: `È stato invitato in ${bankName}`, message: 'Accetti l’invito per attivare il Suo accesso sicuro.', action: 'Accettare l’invito', code: 'Codice di invito' },
+      magiclink: { subject: `Il Suo link di accesso ${bankName}`, heading: 'Accesso sicuro', message: 'Utilizzi questo link monouso per accedere.', action: 'Accedere', code: 'Codice di accesso' },
+      reauthentication: { subject: `Confermi la Sua identità — ${bankName}`, heading: 'Conferma di sicurezza', message: 'Questa conferma è necessaria per proseguire con l’operazione sensibile.', action: 'Confermare la mia identità', code: 'Codice di sicurezza' },
+      security: { subject: `Avviso di sicurezza — ${bankName}`, heading: 'Attività di sicurezza sul Suo conto', message: 'È stata registrata una modifica di sicurezza sul Suo conto. Se non la riconosce, contatti immediatamente l’assistenza.', action: 'Aprire il mio spazio', code: 'Codice di sicurezza' },
+    },
+    nl: {
+      signup: { subject: `Uw ${bankName}-bevestigingscode`, heading: 'Uw bevestigingscode', message: `Uw ${bankName}-rekening is bijna klaar. Voer deze code van ${EMAIL_OTP_LENGTH} cijfers in op het registratiescherm om uw e-mailadres te bevestigen.`, action: 'Registratie bevestigen', code: 'Bevestigingscode' },
+      recovery: { subject: `Herstel uw toegang tot ${bankName}`, heading: 'Uw toegang herstellen', message: `Wij hebben een verzoek ontvangen om de toegang tot uw ${bankName}-omgeving te herstellen.`, action: 'Mijn toegang herstellen', code: 'Herstelcode' },
+      email_change: { subject: `Bevestig de wijziging van uw e-mailadres — ${bankName}`, heading: 'Bevestig uw nieuwe adres', message: 'Bevestig deze wijziging om de toegang tot uw bankomgeving te beschermen.', action: 'Wijziging bevestigen', code: 'Bevestigingscode' },
+      invite: { subject: `Uw uitnodiging voor ${bankName}`, heading: `U bent uitgenodigd voor ${bankName}`, message: 'Accepteer deze uitnodiging om uw beveiligde toegang te activeren.', action: 'Uitnodiging accepteren', code: 'Uitnodigingscode' },
+      magiclink: { subject: `Uw aanmeldlink voor ${bankName}`, heading: 'Beveiligd aanmelden', message: 'Gebruik deze eenmalige link om u aan te melden.', action: 'Aanmelden', code: 'Aanmeldcode' },
+      reauthentication: { subject: `Bevestig uw identiteit — ${bankName}`, heading: 'Beveiligingsbevestiging', message: 'Deze bevestiging is nodig om door te gaan met uw gevoelige handeling.', action: 'Mijn identiteit bevestigen', code: 'Beveiligingscode' },
+      security: { subject: `Beveiligingsmelding — ${bankName}`, heading: 'Beveiligingsactiviteit op uw rekening', message: 'Er is een beveiligingswijziging op uw rekening geregistreerd. Neem onmiddellijk contact op met de ondersteuning als u deze niet herkent.', action: 'Mijn omgeving openen', code: 'Beveiligingscode' },
+    },
   };
   return dictionaries[language][action] ?? dictionaries[language].security;
 }
@@ -177,6 +195,8 @@ function render(
     en: 'Hello',
     de: 'Guten Tag',
     es: 'Hola',
+    it: 'Buongiorno',
+    nl: 'Goedendag',
   };
   const message = displayName
     ? `${greetings[language]} ${displayName}, ${copy.message}`

@@ -3,7 +3,7 @@ import type { Json } from '@/lib/supabase/database.types';
 import { jsonObject } from '@/lib/supabase/json';
 
 export type TransactionalEmailProvider = 'resend' | 'brevo';
-export type TransactionalEmailLanguage = 'fr' | 'en' | 'de' | 'es';
+export type TransactionalEmailLanguage = 'fr' | 'en' | 'de' | 'es' | 'it' | 'nl';
 
 export type TransactionalEmailTemplate =
   | 'transfer_submitted'
@@ -113,6 +113,8 @@ const LANGUAGE_LOCALES: Record<TransactionalEmailLanguage, string> = {
   en: 'en-US',
   de: 'de-DE',
   es: 'es-ES',
+  it: 'it-IT',
+  nl: 'nl-NL',
 };
 
 const SUPPORT_COPY: Record<
@@ -135,13 +137,21 @@ const SUPPORT_COPY: Record<
     text: 'Soporte: support@monalyz.com',
     html: '¿Necesita ayuda? Escriba a support@monalyz.com.',
   },
+  it: {
+    text: 'Assistenza: support@monalyz.com',
+    html: 'Ha bisogno di assistenza? Scriva a support@monalyz.com.',
+  },
+  nl: {
+    text: 'Ondersteuning: support@monalyz.com',
+    html: 'Heeft u hulp nodig? Schrijf naar support@monalyz.com.',
+  },
 };
 
 export function parseTransactionalEmailLanguage(
   value: unknown,
 ): TransactionalEmailLanguage {
   if (value === null || value === undefined || value === '') return 'fr';
-  if (value === 'fr' || value === 'en' || value === 'de' || value === 'es') {
+  if (value === 'fr' || value === 'en' || value === 'de' || value === 'es' || value === 'it' || value === 'nl') {
     return value;
   }
   throw new Error(`Préférence linguistique invalide : ${String(value)}.`);
@@ -323,12 +333,16 @@ function messageForTemplate(
     en: 'the specified beneficiary',
     de: 'den angegebenen Begünstigten',
     es: 'el beneficiario indicado',
+    it: 'il beneficiario indicato',
+    nl: 'de opgegeven begunstigde',
   };
   const referenceFallback: Record<TransactionalEmailLanguage, string> = {
     fr: 'votre dossier',
     en: 'your application',
     de: 'Ihren Antrag',
     es: 'su solicitud',
+    it: 'la Sua richiesta',
+    nl: 'uw aanvraag',
   };
   const recipientName = payloadText(
     payload,
@@ -563,6 +577,46 @@ function messageForTemplate(
     }
   }
 
+  if (language === 'it') {
+    switch (template) {
+      case 'transfer_submitted': return { subject: 'La Sua richiesta di bonifico è stata ricevuta', heading: 'Richiesta di bonifico registrata', message: `Abbiamo ricevuto la Sua richiesta di trasferire ${amount} a ${recipientName}. Stiamo verificando le informazioni fornite e La informeremo non appena sarà stata presa una decisione.` };
+      case 'transfer_approved': return { subject: 'La Sua richiesta di bonifico è stata approvata', heading: 'Bonifico approvato', message: 'La Sua richiesta è stata approvata. Stiamo elaborando il bonifico.' };
+      case 'transfer_completed': return { subject: 'Il Suo bonifico è stato eseguito', heading: 'Bonifico eseguito correttamente', message: `Il Suo bonifico di ${amount} a ${recipientName} è stato eseguito correttamente.` };
+      case 'transfer_rejected': return { subject: 'La Sua richiesta di bonifico è stata rifiutata', heading: 'Bonifico rifiutato', message: 'Non è stato possibile approvare la Sua richiesta di bonifico. Nessun importo è stato addebitato sul Suo conto {bankName}.' };
+      case 'transfer_failed': return { subject: 'Non è stato possibile eseguire il Suo bonifico', heading: 'Bonifico non eseguito', message: 'Non è stato possibile eseguire il Suo bonifico. L’importo riservato è nuovamente disponibile sul Suo conto {bankName}.' };
+      case 'loan_submitted': return { subject: 'La Sua richiesta di prestito è stata ricevuta', heading: 'Richiesta di prestito registrata', message: `Abbiamo ricevuto la Sua richiesta ${reference} per ${amount}. La stiamo esaminando e La informeremo non appena sarà stata presa una decisione.` };
+      case 'loan_approved': return { subject: 'La Sua richiesta di prestito è stata approvata', heading: 'Prestito approvato', message: 'La Sua richiesta è stata approvata. Stiamo preparando l’erogazione dei fondi.' };
+      case 'loan_disbursed': return { subject: 'Il Suo prestito è stato erogato', heading: 'Prestito erogato correttamente', message: `${amount} sono stati accreditati sul Suo conto {bankName}.` };
+      case 'loan_rejected': return { subject: 'La Sua richiesta di prestito è stata rifiutata', heading: 'Prestito rifiutato', message: `Non è stato possibile approvare la Sua richiesta ${reference}. Non è stato erogato alcun importo.` };
+      case 'loan_failed': return { subject: 'Non è stato possibile erogare il Suo prestito', heading: 'Prestito non erogato', message: `Non è stato possibile erogare i fondi relativi alla Sua richiesta ${reference}. Se ha bisogno di assistenza, contatti il nostro supporto.` };
+      case 'kyc_submitted': return { subject: 'La Sua documentazione di identità è stata ricevuta', heading: 'Documentazione di identità ricevuta', message: 'La Sua documentazione è in attesa di verifica da parte di un operatore. Per il momento non è richiesta alcuna azione.' };
+      case 'kyc_information_requested': return { subject: 'È richiesta un’azione sulla Sua verifica di identità', heading: 'Sono necessarie ulteriori informazioni', message: 'Apra la Sua pratica e corregga esclusivamente gli elementi richiesti.' };
+      case 'kyc_resubmitted': return { subject: 'La Sua documentazione di identità è stata inviata nuovamente', heading: 'Correzioni ricevute', message: 'Abbiamo ricevuto le Sue correzioni e procederemo alla verifica.' };
+      case 'kyc_approved': return { subject: 'La Sua identità è stata verificata', heading: 'Identità verificata', message: 'La Sua identità è stata confermata e il Suo conto interno {bankName} è stato creato.' };
+      case 'kyc_rejected': return { subject: 'La Sua documentazione di identità è stata rifiutata', heading: 'Può apportare le correzioni', message: 'Apra la stessa pratica, consulti il motivo indicato, corregga gli elementi richiesti e la invii nuovamente.' };
+    }
+  }
+
+  if (language === 'nl') {
+    switch (template) {
+      case 'transfer_submitted': return { subject: 'Uw overboekingsverzoek is ontvangen', heading: 'Overboekingsverzoek geregistreerd', message: `Wij hebben uw verzoek ontvangen om ${amount} over te boeken naar ${recipientName}. Wij controleren de verstrekte gegevens en informeren u zodra er een beslissing is genomen.` };
+      case 'transfer_approved': return { subject: 'Uw overboekingsverzoek is goedgekeurd', heading: 'Overboeking goedgekeurd', message: 'Uw verzoek is goedgekeurd. Wij verwerken de overboeking nu.' };
+      case 'transfer_completed': return { subject: 'Uw overboeking is uitgevoerd', heading: 'Overboeking succesvol uitgevoerd', message: `Uw overboeking van ${amount} naar ${recipientName} is succesvol uitgevoerd.` };
+      case 'transfer_rejected': return { subject: 'Uw overboekingsverzoek is afgewezen', heading: 'Overboeking afgewezen', message: 'Wij konden uw overboekingsverzoek niet goedkeuren. Er is geen bedrag afgeschreven van uw {bankName}-rekening.' };
+      case 'transfer_failed': return { subject: 'Uw overboeking kon niet worden uitgevoerd', heading: 'Overboeking niet uitgevoerd', message: 'Uw overboeking kon niet worden uitgevoerd. Het gereserveerde bedrag is weer beschikbaar op uw {bankName}-rekening.' };
+      case 'loan_submitted': return { subject: 'Uw leningaanvraag is ontvangen', heading: 'Leningaanvraag geregistreerd', message: `Wij hebben uw aanvraag ${reference} voor ${amount} ontvangen. Wij beoordelen deze en informeren u zodra er een beslissing is genomen.` };
+      case 'loan_approved': return { subject: 'Uw leningaanvraag is goedgekeurd', heading: 'Lening goedgekeurd', message: 'Uw aanvraag is goedgekeurd. Wij bereiden de uitbetaling van het bedrag voor.' };
+      case 'loan_disbursed': return { subject: 'Uw lening is uitbetaald', heading: 'Lening succesvol uitbetaald', message: `${amount} is bijgeschreven op uw {bankName}-rekening.` };
+      case 'loan_rejected': return { subject: 'Uw leningaanvraag is afgewezen', heading: 'Lening afgewezen', message: `Wij konden uw aanvraag ${reference} niet goedkeuren. Er is geen bedrag uitbetaald.` };
+      case 'loan_failed': return { subject: 'Uw lening kon niet worden uitbetaald', heading: 'Lening niet uitbetaald', message: `Het bedrag voor uw aanvraag ${reference} kon niet worden uitbetaald. Neem contact op met onze ondersteuning als u hulp nodig hebt.` };
+      case 'kyc_submitted': return { subject: 'Uw identiteitsdossier is ontvangen', heading: 'Identiteitsdossier ontvangen', message: 'Uw dossier wacht op beoordeling door een medewerker. U hoeft voorlopig niets te doen.' };
+      case 'kyc_information_requested': return { subject: 'Actie vereist voor uw identiteitsdossier', heading: 'Aanvullende informatie vereist', message: 'Open uw dossier en corrigeer uitsluitend de gevraagde onderdelen.' };
+      case 'kyc_resubmitted': return { subject: 'Uw identiteitsdossier is opnieuw ingediend', heading: 'Correcties ontvangen', message: 'Wij hebben uw correcties ontvangen en zullen deze beoordelen.' };
+      case 'kyc_approved': return { subject: 'Uw identiteit is bevestigd', heading: 'Identiteit bevestigd', message: 'Uw identiteit is bevestigd en uw interne {bankName}-rekening is aangemaakt.' };
+      case 'kyc_rejected': return { subject: 'Uw identiteitsdossier is afgewezen', heading: 'U kunt correcties aanbrengen', message: 'Open hetzelfde dossier, bekijk de vermelde reden, corrigeer de gevraagde onderdelen en dien het dossier opnieuw in.' };
+    }
+  }
+
   switch (template) {
     case 'transfer_submitted':
       return {
@@ -671,6 +725,8 @@ export function renderTransactionalEmail(
     en: 'Open my file',
     de: 'Unterlagen öffnen',
     es: 'Abrir mi expediente',
+    it: 'Aprire la mia pratica',
+    nl: 'Mijn dossier openen',
   };
   const actionText = actionUrl ? `\n\n${actionLabel[language]}: ${actionUrl}` : '';
   const actionHtml = actionUrl

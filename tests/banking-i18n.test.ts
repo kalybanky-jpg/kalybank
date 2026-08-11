@@ -2,9 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { accountNumberLabel, bankingMessages } from '../lib/banking-i18n';
 import { publicMessages } from '../lib/public-i18n';
+import { SUPPORTED_LANGUAGES } from '../lib/language';
 import type { Language } from '../lib/types';
 
-const languages: Language[] = ['fr', 'en', 'de', 'es'];
+const languages: readonly Language[] = SUPPORTED_LANGUAGES;
 const transferStatuses = [
   'submitted',
   'under_review',
@@ -51,6 +52,8 @@ test('les écrans publics proposent simplement de créer un compte', () => {
     en: 'Create an account',
     de: 'Konto erstellen',
     es: 'Crear una cuenta',
+    it: 'Crea un conto',
+    nl: 'Een rekening openen',
   };
 
   for (const language of languages) {
@@ -69,6 +72,44 @@ test('les écrans publics proposent simplement de créer un compte', () => {
     assert.match(copy, /Monalyz|bancaire|bank(?:ing|dienstleistungen)?|banca/i);
     assert.equal(messages.login.register, expectedCtas[language]);
     assert.equal(messages.register.submit, expectedCtas[language]);
+  }
+});
+
+test('les façades italienne et néerlandaise sont complètes sans repli client', () => {
+  for (const language of ['it', 'nl'] as const) {
+    const criticalCopy = [
+      bankingMessages[language].dashboard.title,
+      bankingMessages[language].accounts.downloadStatement,
+      bankingMessages[language].transfers.newTransfer,
+      bankingMessages[language].loans.newLoan,
+      publicMessages[language].login.title,
+      publicMessages[language].register.checkEmailTitle,
+      publicMessages[language].resetPassword.requestTitle,
+    ];
+    const frenchCopy = [
+      bankingMessages.fr.dashboard.title,
+      bankingMessages.fr.accounts.downloadStatement,
+      bankingMessages.fr.transfers.newTransfer,
+      bankingMessages.fr.loans.newLoan,
+      publicMessages.fr.login.title,
+      publicMessages.fr.register.checkEmailTitle,
+      publicMessages.fr.resetPassword.requestTitle,
+    ];
+    const englishCopy = [
+      bankingMessages.en.dashboard.title,
+      bankingMessages.en.accounts.downloadStatement,
+      bankingMessages.en.transfers.newTransfer,
+      bankingMessages.en.loans.newLoan,
+      publicMessages.en.login.title,
+      publicMessages.en.register.checkEmailTitle,
+      publicMessages.en.resetPassword.requestTitle,
+    ];
+
+    criticalCopy.forEach((value, index) => {
+      assert.match(value, /\S/);
+      assert.notEqual(value, frenchCopy[index]);
+      assert.notEqual(value, englishCopy[index]);
+    });
   }
 });
 

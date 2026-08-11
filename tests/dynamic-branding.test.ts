@@ -22,6 +22,7 @@ import {
 import { generateBrandRelease } from '../lib/server/brand-assets';
 import { bankingMessages } from '../lib/banking-i18n';
 import { publicMessages } from '../lib/public-i18n';
+import { SUPPORTED_LANGUAGES } from '../lib/language';
 
 const customBrand = {
   ...DEFAULT_BRAND_SETTINGS,
@@ -65,8 +66,8 @@ test('BrandLogo utilise les URLs, dimensions et texte alternatif publiés', () =
   assert.match(reversed, /aria-hidden="true"/);
 });
 
-test('les quatre langues interpolent la banque sans ancienne marque visible', () => {
-  for (const language of ['fr', 'en', 'de', 'es'] as const) {
+test('les six langues interpolent la banque sans ancienne marque visible', () => {
+  for (const language of SUPPORTED_LANGUAGES) {
     const copy = JSON.stringify(
       applyBrand(
         {
@@ -249,6 +250,40 @@ test('le hook Auth produit une confirmation OTP personnalisée sans lien', () =>
       ),
     /OTP.*invalide/,
   );
+});
+
+test('le hook Auth rend les sept actions en italien et néerlandais formels', () => {
+  const expectations = {
+    it: /Sua|Suo|Lei|Buongiorno/,
+    nl: /Uw|uw|u|Goedendag/,
+  } as const;
+  const actions = ['signup', 'recovery', 'email_change', 'invite', 'magiclink', 'reauthentication', 'security'] as const;
+
+  for (const language of ['it', 'nl'] as const) {
+    for (const action of actions) {
+      const payload: SupabaseAuthEmailPayload = {
+        user: {
+          email: 'client@example.test',
+          new_email: action === 'email_change' ? 'nuovo@example.test' : undefined,
+          user_metadata: { preferred_language: language, display_name: 'Ada' },
+        },
+        email_data: {
+          email_action_type: action,
+          token: '305805',
+          token_new: '407907',
+          token_hash: 'hash-primary',
+          token_hash_new: 'hash-secondary',
+          redirect_to: 'https://app.example.test/myaccount',
+        },
+      };
+      const messages = renderSupabaseAuthEmails(payload, customBrand, 'https://app.example.test');
+      assert.ok(messages.length >= 1);
+      for (const message of messages) {
+        assert.match(message.email.html, new RegExp(`<html lang="${language}">`));
+        assert.match(`${message.email.subject} ${message.email.text}`, expectations[language]);
+      }
+    }
+  }
 });
 
 test('le hook Auth accepte uniquement une signature Standard Webhooks valide', () => {

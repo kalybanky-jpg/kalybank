@@ -63,9 +63,9 @@ catalog entry there when the application's supported-language list grows;
 unknown and region-qualified values use the existing French fallback.
 
 The visitor interface uses one dedicated tawk.to widget for each Monalyz
-language (`fr`, `en`, `de`, and `es`). Configure the language and every
+language (`fr`, `en`, `de`, `es`, `it`, and `nl`). Configure the language and every
 Online/Away/Offline and Pre-Chat content block in the tawk.to dashboard for each
-widget. The Next.js server rejects an incomplete or shared locale mapping rather
+widget, using the formal `Lei` tone in Italian and `u` in Dutch. The Next.js server rejects an incomplete or shared locale mapping rather
 than silently displaying the wrong language.
 
 ## Back-office archive

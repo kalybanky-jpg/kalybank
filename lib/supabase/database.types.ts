@@ -36,12 +36,239 @@ export type Database = {
         }
         Relationships: []
       }
+      client_purge_entity_manifest: {
+        Row: {
+          challenge_id: string
+          entity_id: string
+          entity_type: string
+        }
+        Insert: {
+          challenge_id: string
+          entity_id: string
+          entity_type: string
+        }
+        Update: {
+          challenge_id?: string
+          entity_id?: string
+          entity_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_purge_entity_manifest_challenge_id_fkey"
+            columns: ["challenge_id"]
+            isOneToOne: false
+            referencedRelation: "client_purge_operations"
+            referencedColumns: ["challenge_id"]
+          },
+        ]
+      }
+      client_purge_operations: {
+        Row: {
+          actor_id: string
+          challenge_digest: string
+          challenge_id: string
+          consumed_at: string | null
+          created_at: string
+          expires_at: string
+          idempotency_key: string
+          ignored_unsafe_storage_references: number
+          last_error_code: string | null
+          prefix_claim_token: string | null
+          prefix_claimed_at: string | null
+          reference_after_bucket: string | null
+          reference_after_object_path: string | null
+          reference_claim_token: string | null
+          reference_claimed_at: string | null
+          retry_after: string | null
+          scope_digest: string | null
+          stage: string
+          status: string
+          storage_cycle_stage: string | null
+          storage_phase: string
+          support_email_manifest: Json
+          sweep_not_before: string | null
+          target_email: string
+          target_email_digest: string
+          target_user_id: string
+          updated_at: string
+          verify_prefix_index: number
+        }
+        Insert: {
+          actor_id: string
+          challenge_digest: string
+          challenge_id?: string
+          consumed_at?: string | null
+          created_at?: string
+          expires_at: string
+          idempotency_key: string
+          ignored_unsafe_storage_references?: number
+          last_error_code?: string | null
+          prefix_claim_token?: string | null
+          prefix_claimed_at?: string | null
+          reference_after_bucket?: string | null
+          reference_after_object_path?: string | null
+          reference_claim_token?: string | null
+          reference_claimed_at?: string | null
+          retry_after?: string | null
+          scope_digest?: string | null
+          stage?: string
+          status?: string
+          storage_cycle_stage?: string | null
+          storage_phase?: string
+          support_email_manifest?: Json
+          sweep_not_before?: string | null
+          target_email: string
+          target_email_digest: string
+          target_user_id: string
+          updated_at?: string
+          verify_prefix_index?: number
+        }
+        Update: {
+          actor_id?: string
+          challenge_digest?: string
+          challenge_id?: string
+          consumed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          idempotency_key?: string
+          ignored_unsafe_storage_references?: number
+          last_error_code?: string | null
+          prefix_claim_token?: string | null
+          prefix_claimed_at?: string | null
+          reference_after_bucket?: string | null
+          reference_after_object_path?: string | null
+          reference_claim_token?: string | null
+          reference_claimed_at?: string | null
+          retry_after?: string | null
+          scope_digest?: string | null
+          stage?: string
+          status?: string
+          storage_cycle_stage?: string | null
+          storage_phase?: string
+          support_email_manifest?: Json
+          sweep_not_before?: string | null
+          target_email?: string
+          target_email_digest?: string
+          target_user_id?: string
+          updated_at?: string
+          verify_prefix_index?: number
+        }
+        Relationships: []
+      }
+      client_purge_storage_manifest: {
+        Row: {
+          bucket: string
+          challenge_id: string
+          claim_token: string | null
+          claimed_at: string | null
+          created_at: string
+          deleted_at: string | null
+          object_path: string
+          ownership_scope: string
+          processing_status: string
+          verified_at: string | null
+        }
+        Insert: {
+          bucket: string
+          challenge_id: string
+          claim_token?: string | null
+          claimed_at?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          object_path: string
+          ownership_scope: string
+          processing_status?: string
+          verified_at?: string | null
+        }
+        Update: {
+          bucket?: string
+          challenge_id?: string
+          claim_token?: string | null
+          claimed_at?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          object_path?: string
+          ownership_scope?: string
+          processing_status?: string
+          verified_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_purge_storage_manifest_challenge_id_fkey"
+            columns: ["challenge_id"]
+            isOneToOne: false
+            referencedRelation: "client_purge_operations"
+            referencedColumns: ["challenge_id"]
+          },
+        ]
+      }
+      client_purge_storage_scan_queue: {
+        Row: {
+          bucket: string
+          challenge_id: string
+          claim_token: string | null
+          claimed_at: string | null
+          created_at: string
+          cycle_stage: string
+          id: number
+          next_offset: number
+          prefix: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          bucket: string
+          challenge_id: string
+          claim_token?: string | null
+          claimed_at?: string | null
+          created_at?: string
+          cycle_stage: string
+          id?: never
+          next_offset?: number
+          prefix: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          bucket?: string
+          challenge_id?: string
+          claim_token?: string | null
+          claimed_at?: string | null
+          created_at?: string
+          cycle_stage?: string
+          id?: never
+          next_offset?: number
+          prefix?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_purge_storage_scan_queue_challenge_id_fkey"
+            columns: ["challenge_id"]
+            isOneToOne: false
+            referencedRelation: "client_purge_operations"
+            referencedColumns: ["challenge_id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
       allocate_internal_account_number: { Args: never; Returns: string }
+      audit_event_matches_client: {
+        Args: {
+          p_actor_id: string
+          p_challenge_id: string
+          p_entity_id: string
+          p_entity_type: string
+          p_metadata: Json
+          p_target_user_id: string
+        }
+        Returns: boolean
+      }
       claim_transactional_emails_internal: {
         Args: { p_limit: number; p_recipient_id: string }
         Returns: Database["public"]["Tables"]["transactional_email_outbox"]["Row"][]
@@ -52,11 +279,79 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      client_purge_lock_key: { Args: { p_owner_id: string }; Returns: number }
+      client_purge_residuals: {
+        Args: { p_challenge_id: string; p_target_user_id: string }
+        Returns: Json
+      }
+      client_purge_scope_digest: {
+        Args: {
+          p_challenge_id: string
+          p_support_emails: Json
+          p_target_user_id: string
+        }
+        Returns: string
+      }
+      client_purge_storage_lock_key: {
+        Args: { p_bucket: string; p_object_path: string }
+        Returns: number
+      }
+      client_purge_storage_references: {
+        Args: { p_target_user_id: string }
+        Returns: {
+          bucket: string
+          object_path: string
+          ownership_scope: string
+          ownership_valid: boolean
+        }[]
+      }
       ensure_active_user: { Args: never; Returns: string }
       ensure_branch_manager: { Args: never; Returns: string }
+      initialize_client_purge_storage_cycle: {
+        Args: {
+          p_challenge_id: string
+          p_cycle_stage: string
+          p_target_user_id: string
+        }
+        Returns: undefined
+      }
       is_active_staff: { Args: { required_roles?: string[] }; Returns: boolean }
+      is_client_storage_object_key: {
+        Args: { p_owner_id: string; p_path: string }
+        Returns: boolean
+      }
+      is_client_storage_path: {
+        Args: { p_owner_id: string; p_path: string }
+        Returns: boolean
+      }
       is_valid_iban: { Args: { p_iban: string }; Returns: boolean }
+      lock_client_mutation: { Args: { p_owner_id: string }; Returns: undefined }
+      new_document_paths_are_owned: {
+        Args: { p_new_paths: Json; p_old_paths?: Json; p_owner_id: string }
+        Returns: boolean
+      }
       normalize_iban: { Args: { p_iban: string }; Returns: string }
+      refresh_client_purge_entity_manifest: {
+        Args: { p_challenge_id: string; p_target_user_id: string }
+        Returns: undefined
+      }
+      require_active_purge_admin: {
+        Args: { p_actor_id: string }
+        Returns: undefined
+      }
+      seed_client_purge_storage_roots: {
+        Args: {
+          p_challenge_id: string
+          p_cycle_stage: string
+          p_target_user_id: string
+        }
+        Returns: undefined
+      }
+      try_guard_client_mutation: {
+        Args: { p_owner_id: string }
+        Returns: undefined
+      }
+      uuid_or_null: { Args: { p_value: string }; Returns: string }
       validate_kyc_submission: {
         Args: {
           p_address: Json
@@ -1832,6 +2127,133 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      admin_ack_client_purge_storage_work: {
+        Args: {
+          p_actor_id: string
+          p_challenge_id: string
+          p_claim_token: string
+          p_kind: string
+          p_result: Json
+          p_target_user_id: string
+        }
+        Returns: Json
+      }
+      admin_assert_client_purge_auth_ready: {
+        Args: {
+          p_actor_id: string
+          p_challenge_id: string
+          p_target_user_id: string
+        }
+        Returns: Json
+      }
+      admin_begin_client_purge: {
+        Args: {
+          p_actor_id: string
+          p_challenge_digest: string
+          p_challenge_id: string
+          p_idempotency_key: string
+          p_target_email_digest: string
+          p_target_user_id: string
+        }
+        Returns: Json
+      }
+      admin_claim_client_purge_storage_work: {
+        Args: {
+          p_actor_id: string
+          p_challenge_id: string
+          p_limit?: number
+          p_target_user_id: string
+        }
+        Returns: Json
+      }
+      admin_finalize_client_purge: {
+        Args: {
+          p_actor_id: string
+          p_challenge_id: string
+          p_target_user_id: string
+        }
+        Returns: boolean
+      }
+      admin_get_client_purge_preview: {
+        Args: { p_actor_id: string; p_target_user_id: string }
+        Returns: Json
+      }
+      admin_get_client_purge_status: {
+        Args: { p_actor_id: string; p_target_user_id: string }
+        Returns: Json
+      }
+      admin_list_client_purge_candidates: {
+        Args: {
+          p_actor_id: string
+          p_limit?: number
+          p_offset?: number
+          p_search?: string
+        }
+        Returns: {
+          access_status: string
+          account_count: number
+          created_at: string
+          display_name: string
+          document_count: number
+          email: string
+          kyc_status: string
+          loan_count: number
+          purge_stage: string
+          purge_status: string
+          purge_sweep_not_before: string
+          total_count: number
+          transfer_count: number
+          user_id: string
+        }[]
+      }
+      admin_list_pending_client_purges: {
+        Args: { p_limit?: number }
+        Returns: {
+          actor_id: string
+          challenge_digest: string
+          challenge_id: string
+          idempotency_key: string
+          stage: string
+          target_email_digest: string
+          target_user_id: string
+        }[]
+      }
+      admin_mark_client_purge_stage: {
+        Args: {
+          p_actor_id: string
+          p_challenge_id: string
+          p_error_code?: string
+          p_stage: string
+        }
+        Returns: undefined
+      }
+      admin_prepare_client_purge: {
+        Args: {
+          p_actor_id: string
+          p_challenge_digest: string
+          p_idempotency_key: string
+          p_target_email: string
+          p_target_email_digest: string
+          p_target_user_id: string
+        }
+        Returns: Json
+      }
+      admin_purge_client_relational_data: {
+        Args: {
+          p_actor_id: string
+          p_challenge_id: string
+          p_target_user_id: string
+        }
+        Returns: Json
+      }
+      admin_resume_client_purge: {
+        Args: {
+          p_actor_id: string
+          p_target_email_digest: string
+          p_target_user_id: string
+        }
+        Returns: Json
       }
       begin_kyc_review: {
         Args: { p_kyc_id: string }

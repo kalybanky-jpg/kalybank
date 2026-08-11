@@ -44,6 +44,7 @@ function emailJob(id: string): TransactionalEmailJob {
 
 function clientWithCompletions(
   completions: Array<Record<string, unknown>>,
+  accessStatus = 'active',
 ) {
   const profileQuery = {
     select() {
@@ -53,7 +54,10 @@ function clientWithCompletions(
       return this;
     },
     async maybeSingle() {
-      return { data: { preferred_language: 'fr' }, error: null };
+      return {
+        data: { preferred_language: 'fr', access_status: accessStatus },
+        error: null,
+      };
     },
   };
 
@@ -216,6 +220,25 @@ test('le processeur finalise chaque succès et remet chaque échec en attente', 
   const failed = completions.find((entry) => entry.p_succeeded === false);
   assert.equal(succeeded?.p_provider_message_id, 'provider-message-id');
   assert.match(String(failed?.p_error), /503/);
+});
+
+test('un e-mail réclamé avant le gel ne franchit jamais la frontière fournisseur', async () => {
+  const completions: Array<Record<string, unknown>> = [];
+  let providerCalls = 0;
+  const result = await processTransactionalEmailJobs({
+    client: clientWithCompletions(completions, 'frozen') as never,
+    jobs: [emailJob('frozen')],
+    config,
+    branding,
+    fetchImpl: (async () => {
+      providerCalls += 1;
+      return Response.json({ id: 'must-not-send' });
+    }) as typeof fetch,
+  });
+  assert.equal(providerCalls, 0);
+  assert.deepEqual(result, { sent: 0, failed: 1, completionFailed: 0 });
+  assert.equal(completions[0]?.p_succeeded, false);
+  assert.match(String(completions[0]?.p_error), /RECIPIENT_PROFILE_NOT_ACTIVE/);
 });
 
 test('chaque appel fournisseur est interrompu au délai explicite', async () => {

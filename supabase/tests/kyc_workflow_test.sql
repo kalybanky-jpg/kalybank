@@ -53,7 +53,7 @@ select public.submit_kyc_application(
   'P123456',
   'Sénégal',
   current_date + 365,
-  '{"id_front":"owner/current/id_front.jpg","selfie":"owner/current/selfie.jpg","proof_of_address":"owner/current/proof_of_address.pdf"}',
+  '{"id_front":"71000000-0000-4000-8000-000000000001/current/id_front.jpg","selfie":"71000000-0000-4000-8000-000000000001/current/selfie.jpg","proof_of_address":"71000000-0000-4000-8000-000000000001/current/proof_of_address.pdf"}',
   '73000000-0000-4000-8000-000000000001'
 );
 

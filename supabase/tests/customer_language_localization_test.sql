@@ -264,7 +264,7 @@ select lives_ok(
       'IT123456',
       'Italia',
       current_date + 365,
-      '{"id_front":"owner/current/id_front.jpg","selfie":"owner/current/selfie.jpg","proof_of_address":"owner/current/proof_of_address.pdf"}'::jsonb,
+      '{"id_front":"81000000-0000-4000-8000-000000000001/current/id_front.jpg","selfie":"81000000-0000-4000-8000-000000000001/current/selfie.jpg","proof_of_address":"81000000-0000-4000-8000-000000000001/current/proof_of_address.pdf"}'::jsonb,
       '84000000-0000-4000-8000-000000000001'
     )
   $test$,

@@ -3,6 +3,10 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getPublicSupabaseConfig } from '../supabase/config';
 import type { Database } from '../supabase/database.types';
 import { safeHttpOrigin } from '../security/navigation';
+import {
+  createBoundedPrivilegedFetch,
+  PRIVILEGED_FETCH_TIMEOUT_MS,
+} from './bounded-privileged-fetch';
 
 export function noStoreJson(body: unknown, status = 200) {
   return NextResponse.json(body, {
@@ -50,13 +54,30 @@ export function isSameOriginMutation(request: NextRequest) {
   );
 }
 
-export function createPrivilegedClient(configurationError: string) {
+type PrivilegedClientOptions = {
+  fetchTimeoutMs?: number;
+  requestTimeoutMs?: number;
+  requestSignal?: AbortSignal;
+  fetchImpl?: typeof fetch;
+};
+
+export function createPrivilegedClient(
+  configurationError: string,
+  options: PrivilegedClientOptions = {},
+) {
   const secretKey =
     process.env.SUPABASE_SECRET_KEY?.trim() ||
     process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   if (!secretKey || /replace|changeme|your[-_]/i.test(secretKey)) {
     throw new Error(configurationError);
   }
+
+  const requestTimeoutSignal = AbortSignal.timeout(
+    options.requestTimeoutMs ?? PRIVILEGED_FETCH_TIMEOUT_MS,
+  );
+  const requestSignal = options.requestSignal
+    ? AbortSignal.any([options.requestSignal, requestTimeoutSignal])
+    : requestTimeoutSignal;
 
   return createSupabaseClient<Database>(
     getPublicSupabaseConfig().url,
@@ -66,6 +87,13 @@ export function createPrivilegedClient(configurationError: string) {
         autoRefreshToken: false,
         detectSessionInUrl: false,
         persistSession: false,
+      },
+      global: {
+        fetch: createBoundedPrivilegedFetch(
+          options.fetchTimeoutMs ?? PRIVILEGED_FETCH_TIMEOUT_MS,
+          options.fetchImpl,
+          requestSignal,
+        ),
       },
     },
   );

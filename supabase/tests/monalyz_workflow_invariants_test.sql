@@ -950,7 +950,7 @@ select lives_ok(
       'EUR',
       24,
       'personal',
-      '["loans/test/income.pdf"]'::jsonb,
+      '["10000000-0000-0000-0000-000000000001/loans/test/income.pdf"]'::jsonb,
       '60000000-0000-0000-0000-000000000001'
     )
   $test$,
@@ -980,7 +980,7 @@ select lives_ok(
       'EUR',
       24,
       'personal',
-      '["loans/test/income.pdf"]'::jsonb,
+      '["10000000-0000-0000-0000-000000000001/loans/test/income.pdf"]'::jsonb,
       '60000000-0000-0000-0000-000000000001'
     )
   $test$,
@@ -1355,7 +1355,7 @@ select lives_ok(
       'EUR',
       12,
       'other',
-      '["loans/test/rejected.pdf"]'::jsonb,
+      '["10000000-0000-0000-0000-000000000001/loans/test/rejected.pdf"]'::jsonb,
       '60000000-0000-0000-0000-000000000002'
     )
   $test$,
@@ -1567,7 +1567,7 @@ values
   (
     '10000000-0000-0000-0000-000000000004',
     'invalid-language-owner@monalyz.test',
-    '{"preferred_language":"it","base_currency":"EUR"}'::jsonb
+    '{"preferred_language":"pt","base_currency":"EUR"}'::jsonb
   );
 
 -- 84
@@ -1594,7 +1594,7 @@ select is(
 select throws_ok(
   $test$
     update public.profiles
-    set preferred_language = 'it'
+    set preferred_language = 'pt'
     where user_id = '10000000-0000-0000-0000-000000000001'
   $test$,
   '23514',
@@ -3085,7 +3085,7 @@ select public.submit_kyc_application(
   'BASE123456',
   'Canada',
   current_date + 365,
-  '{"id_front":"currency/current/id_front.jpg","selfie":"currency/current/selfie.jpg","proof_of_address":"currency/current/proof_of_address.pdf"}',
+  '{"id_front":"91000000-0000-4000-8000-000000000001/current/id_front.jpg","selfie":"91000000-0000-4000-8000-000000000001/current/selfie.jpg","proof_of_address":"91000000-0000-4000-8000-000000000001/current/proof_of_address.pdf"}',
   '92000000-0000-4000-8000-000000000001'
 );
 

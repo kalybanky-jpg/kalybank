@@ -79,8 +79,17 @@ jobs:
           if-no-files-found: error
           retention-days: 3
 
-      - name: Check generated database types
-        run: bun run db:types:check
+      - name: Generate database types
+        run: bun run db:types
+
+      - name: Upload generated database types
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: database-types-${{ github.run_attempt }}
+          path: lib/supabase/database.types.ts
+          if-no-files-found: error
+          retention-days: 3
 
       - name: Test database
         run: bun run test:db
@@ -91,8 +100,24 @@ jobs:
       - name: Run database advisors
         run: bun x supabase db advisors --local --type all --level warn --fail-on error
 
+      - name: Test guarded client purge end to end
+        shell: bash
+        run: |
+          set -euo pipefail
+          eval "$(bun x supabase status -o env)"
+          CI=true \
+          MONALYZ_ALLOW_DESTRUCTIVE_LOCAL_PURGE_TEST=1 \
+          SUPABASE_URL="${API_URL}" \
+          SUPABASE_SERVICE_ROLE_KEY="${SERVICE_ROLE_KEY}" \
+          SUPABASE_ANON_KEY="${ANON_KEY}" \
+          CLIENT_PURGE_CHALLENGE_SECRET="ci-only-client-purge-challenge-secret-2026" \
+          bun run test:client-purge:integration
+
       - name: Check committed database snapshot
         run: git diff --exit-code -- supabase/schema.sql
+
+      - name: Check committed database types
+        run: git diff --exit-code -- lib/supabase/database.types.ts
 
       - name: Stop Supabase
         if: always()

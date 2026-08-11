@@ -11,6 +11,7 @@ import {
   isOwnedStagingPath,
   validateUploadIntent,
 } from '@/lib/server/staged-upload';
+import { hasActiveProfile } from '@/lib/server/profile-access';
 import { createClient } from '@/lib/supabase/server';
 import type { AppErrorCode } from '@/lib/types';
 
@@ -74,11 +75,18 @@ export async function POST(request: NextRequest) {
   }
 
   const path = createStagingPath(user.id, intent, crypto.randomUUID());
+  if (!(await hasActiveProfile(worker, user.id))) {
+    return errorJson('PERMISSION_DENIED', 403);
+  }
   const { data, error } = await worker.storage
     .from(STAGING_BUCKET)
     .createSignedUploadUrl(path, { upsert: false });
   if (error || !data?.token || data.path !== path) {
     return errorJson('UPLOAD_FAILED', 503);
+  }
+  if (!(await hasActiveProfile(worker, user.id))) {
+    await worker.storage.from(STAGING_BUCKET).remove([path]);
+    return errorJson('PERMISSION_DENIED', 403);
   }
 
   return noStoreJson({ path, token: data.token }, 201);
@@ -125,6 +133,10 @@ export async function DELETE(request: NextRequest) {
     );
   } catch {
     return errorJson('CONFIGURATION_UNAVAILABLE', 503);
+  }
+
+  if (!(await hasActiveProfile(worker, user.id))) {
+    return errorJson('PERMISSION_DENIED', 403);
   }
 
   const { error } = await worker.storage.from(STAGING_BUCKET).remove(paths);

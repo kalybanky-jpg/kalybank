@@ -252,12 +252,27 @@ export async function processTransactionalEmailJobs(
     if (!job) return;
 
     try {
+      const profile = await options.client
+        .from('profiles')
+        .select('preferred_language,access_status')
+        .eq('user_id', job.recipient_id)
+        .maybeSingle();
+      if (profile.error) {
+        throw new Error(
+          `Lecture du profil destinataire impossible : ${profile.error.message}`,
+        );
+      }
+      // A job may have been claimed just before a purge froze the owner. Never
+      // cross the external provider boundary for a missing or non-active profile.
+      const profileData = profile.data;
+      if (profileData?.access_status !== 'active') {
+        throw new Error('RECIPIENT_PROFILE_NOT_ACTIVE');
+      }
       const language = await resolveTransactionalEmailLanguage(() =>
-        options.client
-          .from('profiles')
-          .select('preferred_language')
-          .eq('user_id', job.recipient_id)
-          .maybeSingle(),
+        Promise.resolve({
+          data: { preferred_language: profileData.preferred_language },
+          error: null,
+        }),
       );
       const providerMessageId = await sendTransactionalEmailWithTimeout(
         job,

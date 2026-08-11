@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   ArrowRight,
   Check,
@@ -27,6 +27,7 @@ import AdminDocumentsView from './AdminDocumentsView';
 import AdminReportsView from './AdminReportsView';
 import AdminSettingsView from './AdminSettingsView';
 import AdminSupportMessagesView from './AdminSupportMessagesView';
+import { ADMIN_FEATURES, resolveAdminTab } from '@/lib/admin-features';
 
 const cardClass =
   'rounded-[14px] border border-[#e4e7f0] bg-white shadow-[0_8px_30px_rgba(25,34,80,0.025)]';
@@ -71,34 +72,45 @@ export default function AdminDashboard() {
     accountNumberConfiguration,
   } = useAppStore();
 
-  if (activeTab === 'loanRequests') {
+  const resolvedActiveTab = resolveAdminTab(activeTab);
+
+  useEffect(() => {
+    if (activeTab === resolvedActiveTab) return;
+
+    setActiveTab(resolvedActiveTab);
+    const url = new URL(window.location.href);
+    url.searchParams.delete('tab');
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  }, [activeTab, resolvedActiveTab, setActiveTab]);
+
+  if (resolvedActiveTab === 'loanRequests') {
     return <div className="mx-auto max-w-[1320px] px-4 pb-8 sm:px-7 lg:px-10"><AdminLoansView /></div>;
   }
-  if (activeTab === 'transfers') {
+  if (resolvedActiveTab === 'transfers') {
     return <div className="mx-auto max-w-[1320px] px-4 pb-8 sm:px-7 lg:px-10"><AdminTransfersView /></div>;
   }
-  if (activeTab === 'compliance') {
+  if (resolvedActiveTab === 'compliance') {
     return <div className="mx-auto max-w-[1320px] px-4 pb-8 sm:px-7 lg:px-10"><AdminKycManagement /></div>;
   }
-  if (activeTab === 'clients') {
+  if (resolvedActiveTab === 'clients') {
     return <div className="mx-auto max-w-[1320px] px-4 pb-8 sm:px-7 lg:px-10"><AdminClientsView /></div>;
   }
-  if (activeTab === 'accounts') {
+  if (resolvedActiveTab === 'accounts') {
     return <div className="mx-auto max-w-[1320px] px-4 pb-8 sm:px-7 lg:px-10"><AdminAccountsView /></div>;
   }
-  if (activeTab === 'balanceAdjustment') {
+  if (resolvedActiveTab === 'balanceAdjustment') {
     return <div className="mx-auto max-w-[1320px] px-4 pb-8 sm:px-7 lg:px-10"><AdminBalanceAdjustmentView /></div>;
   }
-  if (activeTab === 'documents') {
+  if (resolvedActiveTab === 'documents') {
     return <div className="mx-auto max-w-[1320px] px-4 pb-8 sm:px-7 lg:px-10"><AdminDocumentsView /></div>;
   }
-  if (activeTab === 'reports') {
+  if (resolvedActiveTab === 'reports') {
     return <div className="mx-auto max-w-[1320px] px-4 pb-8 sm:px-7 lg:px-10"><AdminReportsView /></div>;
   }
-  if (activeTab === 'support') {
+  if (resolvedActiveTab === 'support') {
     return <div className="mx-auto max-w-[1320px] px-4 pb-8 sm:px-7 lg:px-10"><AdminSupportMessagesView /></div>;
   }
-  if (activeTab === 'settings') {
+  if (resolvedActiveTab === 'settings') {
     return <div className="mx-auto max-w-[1320px] px-4 pb-8 sm:px-7 lg:px-10"><AdminSettingsView /></div>;
   }
 
@@ -582,13 +594,15 @@ export default function AdminDashboard() {
           <section className={`${cardClass} p-5`}>
             <div className="flex items-center justify-between">
               <h2 className="text-[13px] font-semibold text-[#0a154f]">Activité récente</h2>
-              <button
-                type="button"
-                onClick={() => setActiveTab('documents')}
-                className="min-h-11 rounded-lg px-2 py-2 text-[9px] font-medium text-[#4b2df1]"
-              >
-                Voir toute l’activité
-              </button>
+              {ADMIN_FEATURES.auditAndRegistry && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('documents')}
+                  className="min-h-11 rounded-lg px-2 py-2 text-[9px] font-medium text-[#4b2df1]"
+                >
+                  Voir toute l’activité
+                </button>
+              )}
             </div>
             <div className="mt-4 space-y-3">
               {activityLogs.slice(0, 5).map((event) => (
@@ -612,13 +626,15 @@ export default function AdminDashboard() {
                 <p className="py-7 text-center text-[10px] text-[#69729f]">Aucune activité récente</p>
               )}
             </div>
-            <button
-              type="button"
-              onClick={() => setActiveTab('documents')}
-              className="mt-4 min-h-11 w-full rounded-lg px-3 py-2 text-center text-[9px] font-medium text-[#4b2df1]"
-            >
-              Afficher plus d’activités ↓
-            </button>
+            {ADMIN_FEATURES.auditAndRegistry && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('documents')}
+                className="mt-4 min-h-11 w-full rounded-lg px-3 py-2 text-center text-[9px] font-medium text-[#4b2df1]"
+              >
+                Afficher plus d’activités ↓
+              </button>
+            )}
           </section>
         </div>
       </div>

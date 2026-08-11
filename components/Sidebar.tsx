@@ -28,6 +28,7 @@ import { useBranded } from '@/components/brand/BrandProvider';
 import SupportButton from '@/components/support/SupportButton';
 import { useSupport } from '@/components/support/SupportProvider';
 import { DialogBackdrop, DialogPanel, Drawer } from '@/components/ui/Dialog';
+import { ADMIN_FEATURES } from '@/lib/admin-features';
 
 interface SidebarProps {
   isOpenOnMobile?: boolean;
@@ -75,7 +76,11 @@ export default function Sidebar({ isOpenOnMobile, onCloseMobile }: SidebarProps)
     { id: 'settings', label: t.settings, icon: Settings },
   ];
 
-  const navItems = role === 'admin' ? adminNavItems : userNavItems;
+  const navItems = role === 'admin'
+    ? adminNavItems.filter(
+        (item) => item.id !== 'documents' || ADMIN_FEATURES.auditAndRegistry,
+      )
+    : userNavItems;
 
   const handleNavClick = (id: string) => {
     setActiveTab(id);

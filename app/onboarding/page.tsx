@@ -627,7 +627,7 @@ export default function OnboardingPage() {
         });
         if (submitError) throw submitError;
       }
-      window.location.replace('/myaccount?tab=kyc');
+      window.location.replace(`/myaccount?flash=${correctionMode ? 'kyc_resubmitted' : 'kyc_submitted'}`);
     } catch {
       setError(localizedAppError(language, 'SAVE_FAILED'));
       setSubmitting(false);

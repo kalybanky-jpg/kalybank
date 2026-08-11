@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ArrowDown,
   ArrowRight,
@@ -19,6 +19,7 @@ import {
   SendHorizontal,
   ShieldCheck,
   WalletCards,
+  X,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import {
@@ -32,8 +33,13 @@ import {
   extraUserMessages,
   ledgerEntryLabel,
   loanMotiveLabel,
+  notificationCopy,
   userMessages,
 } from '@/lib/user-i18n';
+import {
+  consumeKycSubmissionFlash,
+  type KycSubmissionFlash,
+} from '@/lib/kyc-submission-flash';
 import UserTransfersView from './UserTransfersView';
 import UserLoansView from './UserLoansView';
 import UserDocumentsView from './UserDocumentsView';
@@ -44,6 +50,110 @@ import { useBranded } from '@/components/brand/BrandProvider';
 
 const cardClass =
   'min-w-0 rounded-[14px] border border-[#e4e7f0] bg-white shadow-[0_8px_30px_rgba(25,34,80,0.025)]';
+
+const KYC_FLASH_DURATION_MS = 10_000;
+
+function KycSubmissionNotice({
+  closeLabel,
+  ctaLabel,
+  message,
+  onDismiss,
+  title,
+}: {
+  closeLabel: string;
+  ctaLabel: string;
+  message: string;
+  onDismiss: () => void;
+  title: string;
+}) {
+  const remainingRef = useRef(KYC_FLASH_DURATION_MS);
+  const startedAtRef = useRef<number | null>(null);
+  const timeoutRef = useRef<number | null>(null);
+  const pauseReasonsRef = useRef(new Set<'hover' | 'focus'>());
+
+  const pauseTimer = useCallback(() => {
+    if (startedAtRef.current !== null) {
+      remainingRef.current = Math.max(0, remainingRef.current - (Date.now() - startedAtRef.current));
+      startedAtRef.current = null;
+    }
+    if (timeoutRef.current !== null) {
+      window.clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+  }, []);
+
+  const startTimer = useCallback(() => {
+    if (timeoutRef.current !== null || pauseReasonsRef.current.size > 0) return;
+    if (remainingRef.current <= 0) {
+      onDismiss();
+      return;
+    }
+    startedAtRef.current = Date.now();
+    timeoutRef.current = window.setTimeout(() => {
+      timeoutRef.current = null;
+      startedAtRef.current = null;
+      remainingRef.current = 0;
+      onDismiss();
+    }, remainingRef.current);
+  }, [onDismiss]);
+
+  useEffect(() => {
+    startTimer();
+    return () => {
+      if (timeoutRef.current !== null) window.clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+      startedAtRef.current = null;
+    };
+  }, [startTimer]);
+
+  const pauseFor = (reason: 'hover' | 'focus') => {
+    pauseReasonsRef.current.add(reason);
+    pauseTimer();
+  };
+  const resumeAfter = (reason: 'hover' | 'focus') => {
+    pauseReasonsRef.current.delete(reason);
+    startTimer();
+  };
+
+  return (
+    <aside
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+      onMouseEnter={() => pauseFor('hover')}
+      onMouseLeave={() => resumeAfter('hover')}
+      onFocusCapture={() => pauseFor('focus')}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) resumeAfter('focus');
+      }}
+      className="mb-4 flex min-w-0 flex-col gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950 shadow-sm sm:mb-5 sm:flex-row sm:items-center"
+    >
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white">
+        <Check aria-hidden="true" className="h-5 w-5" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <h2 className="text-sm font-bold">{title}</h2>
+        <p className="mt-1 text-sm leading-5 text-emerald-900">{message}</p>
+      </div>
+      <div className="flex min-w-0 items-center gap-2 sm:shrink-0">
+        <a
+          href="/myaccount?tab=kyc"
+          className="flex min-h-11 flex-1 items-center justify-center rounded-xl bg-emerald-700 px-4 py-2 text-center text-sm font-bold text-white sm:flex-none"
+        >
+          {ctaLabel}
+        </a>
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label={closeLabel}
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-emerald-800 hover:bg-emerald-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
+        >
+          <X aria-hidden="true" className="h-5 w-5" />
+        </button>
+      </div>
+    </aside>
+  );
+}
 
 function ComplianceRing({ value, label, language }: { value: number; label: string; language: 'fr' | 'en' | 'de' | 'es' }) {
   const safeValue = Math.max(0, Math.min(100, Math.round(value)));
@@ -84,6 +194,19 @@ export default function UserDashboard() {
   const t = messages.app;
   const banking = messages.banking;
   const extra = useBranded(extraUserMessages[language]);
+  const [kycSubmissionFlash, setKycSubmissionFlash] = useState<KycSubmissionFlash | null>(null);
+
+  const dismissKycSubmissionFlash = useCallback(() => setKycSubmissionFlash(null), []);
+
+  useEffect(() => {
+    const consumed = consumeKycSubmissionFlash(window.location.href);
+    if (!consumed) return;
+    const timeout = window.setTimeout(() => {
+      setKycSubmissionFlash(consumed.flash);
+      window.history.replaceState(window.history.state, '', consumed.nextPath);
+    }, 0);
+    return () => window.clearTimeout(timeout);
+  }, []);
 
   if (activeTab === 'transfers') return <UserTransfersView />;
   if (activeTab === 'accounts') return <UserAccountsView />;
@@ -133,9 +256,21 @@ export default function UserDashboard() {
       currency,
       language,
     );
+  const kycFlashCopy = kycSubmissionFlash
+    ? notificationCopy(language, kycSubmissionFlash)
+    : null;
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-[1320px] px-3 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:px-7 sm:pb-10 lg:px-10 lg:pb-8">
+      {kycFlashCopy && (
+        <KycSubmissionNotice
+          closeLabel={extra.common.close}
+          ctaLabel={extra.notifications.openItem}
+          message={kycFlashCopy.message}
+          onDismiss={dismissKycSubmissionFlash}
+          title={kycFlashCopy.title}
+        />
+      )}
       <div className="grid min-w-0 items-start gap-4 sm:gap-5 xl:grid-cols-[minmax(0,1.28fr)_minmax(0,1fr)]">
         <div className="min-w-0 space-y-4 sm:space-y-5">
           <section className="relative min-w-0 overflow-hidden rounded-[14px] bg-gradient-to-br from-[#061348] via-[#071653] to-[#0b1459] px-4 py-5 text-white shadow-[0_16px_42px_rgba(5,18,71,0.16)] sm:px-6 sm:py-6">

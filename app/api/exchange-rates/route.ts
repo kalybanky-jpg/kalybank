@@ -1,18 +1,13 @@
 import { NextResponse } from 'next/server';
 import {
   createFallbackCurrencyRates,
-  FRANKFURTER_QUOTE_CURRENCIES,
+  FRANKFURTER_RATES_URL,
   parseFrankfurterV2Rates,
 } from '@/lib/currency';
 
 export const revalidate = 3600;
 
 const REVALIDATE_SECONDS = revalidate;
-
-export const FRANKFURTER_RATES_URL =
-  `https://api.frankfurter.dev/v2/rates?base=EUR&quotes=${
-    FRANKFURTER_QUOTE_CURRENCIES.join(',')
-  }`;
 
 const liveResponseHeaders = (provider: string, date: string) => ({
   'Cache-Control':

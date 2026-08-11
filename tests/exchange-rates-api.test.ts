@@ -3,12 +3,10 @@ import test from 'node:test';
 import {
   FRANKFURTER_PROVIDER,
   FRANKFURTER_QUOTE_CURRENCIES,
+  FRANKFURTER_RATES_URL,
   STATIC_FALLBACK_PROVIDER,
 } from '../lib/currency';
-import {
-  FRANKFURTER_RATES_URL,
-  GET,
-} from '../app/api/exchange-rates/route';
+import { GET } from '../app/api/exchange-rates/route';
 
 const upstreamRates = () =>
   FRANKFURTER_QUOTE_CURRENCIES.map((quote, index) => ({

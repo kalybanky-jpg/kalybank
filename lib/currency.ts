@@ -56,6 +56,11 @@ export const FRANKFURTER_QUOTE_CURRENCIES = EXCHANGE_RATE_CURRENCIES.filter(
     currency !== 'EUR',
 );
 
+export const FRANKFURTER_RATES_URL =
+  `https://api.frankfurter.dev/v2/rates?base=EUR&quotes=${
+    FRANKFURTER_QUOTE_CURRENCIES.join(',')
+  }`;
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

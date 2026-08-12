@@ -1,8 +1,8 @@
 -- Monalyz DATABASE SCHEMA SNAPSHOT
 -- GENERATED FILE: run `npx bun run db:snapshot`; do not edit manually.
 -- remote-project-ref: qljqldhvbakornnpalua
--- migration-manifest-sha256: 010a762c7dc22398d5e7618b4607f443e6a1753c88155dbc1aae1eedc5a7863e
--- migrations: 20260728060744_kaly_secure_external_financial_workflows.sql, 20260728061308_add_missing_foreign_key_indexes.sql, 20260728065832_rename_brand_to_monalyz.sql, 20260728092751_simplify_branch_manager_financial_workflows.sql, 20260728094442_add_outbox_claimed_by_index.sql, 20260728150934_add_profile_preferred_language.sql, 20260728151335_grant_profile_preferences_update.sql, 20260728173319_provision_demo_accounts.sql, 20260728183213_fix_demo_provisioner_uuid_literals.sql, 20260729115445_add_official_accounts_and_ledger.sql, 20260729115451_wire_ledger_to_financial_workflows.sql, 20260729115458_add_official_documents_and_demo_fixtures.sql, 20260730123059_automatic_account_numbers.sql, 20260730162101_kyc_workflow_and_internal_account.sql, 20260730170000_sequential_transfer_checks.sql, 20260731120000_user_localization_contract.sql, 20260801091705_configure_loan_products.sql, 20260801095428_dynamic_brand_settings.sql, 20260801163432_secure_brand_snapshot_function.sql, 20260803074608_scope_transactional_email_claims.sql, 20260803112108_harden_function_privileges_and_upload_staging.sql, 20260808112503_persist_signup_preferred_currency.sql, 20260808115958_add_tawk_support_backend.sql, 20260809080215_allow_demo_admin_email_changes.sql, 20260811060932_add_italian_dutch_customer_localization.sql, 20260811070824_guarded_client_data_purge.sql
+-- migration-manifest-sha256: 14ceb025343fa258671dde8587807a87c9ea00be63e11a141b21dd72a2cb3b92
+-- migrations: 20260728060744_kaly_secure_external_financial_workflows.sql, 20260728061308_add_missing_foreign_key_indexes.sql, 20260728065832_rename_brand_to_monalyz.sql, 20260728092751_simplify_branch_manager_financial_workflows.sql, 20260728094442_add_outbox_claimed_by_index.sql, 20260728150934_add_profile_preferred_language.sql, 20260728151335_grant_profile_preferences_update.sql, 20260728173319_provision_demo_accounts.sql, 20260728183213_fix_demo_provisioner_uuid_literals.sql, 20260729115445_add_official_accounts_and_ledger.sql, 20260729115451_wire_ledger_to_financial_workflows.sql, 20260729115458_add_official_documents_and_demo_fixtures.sql, 20260730123059_automatic_account_numbers.sql, 20260730162101_kyc_workflow_and_internal_account.sql, 20260730170000_sequential_transfer_checks.sql, 20260731120000_user_localization_contract.sql, 20260801091705_configure_loan_products.sql, 20260801095428_dynamic_brand_settings.sql, 20260801163432_secure_brand_snapshot_function.sql, 20260803074608_scope_transactional_email_claims.sql, 20260803112108_harden_function_privileges_and_upload_staging.sql, 20260808112503_persist_signup_preferred_currency.sql, 20260808115958_add_tawk_support_backend.sql, 20260809080215_allow_demo_admin_email_changes.sql, 20260811060932_add_italian_dutch_customer_localization.sql, 20260811070824_guarded_client_data_purge.sql, 20260812144154_optional_transfer_validation_notes_and_progress_emails.sql
 -- schema-only: true
 -- production-data-included: false
 -- schemas: public, private
@@ -218,7 +218,7 @@ CREATE TABLE IF NOT EXISTS "public"."transactional_email_outbox" (
     CONSTRAINT "transactional_email_outbox_provider_message_id_check" CHECK ((("provider_message_id" IS NULL) OR ("char_length"("provider_message_id") <= 500))),
     CONSTRAINT "transactional_email_outbox_recipient_email_check" CHECK ((("char_length"("recipient_email") >= 3) AND ("char_length"("recipient_email") <= 254))),
     CONSTRAINT "transactional_email_outbox_status_check" CHECK (("status" = ANY (ARRAY['pending'::"text", 'sending'::"text", 'sent'::"text", 'failed'::"text"]))),
-    CONSTRAINT "transactional_email_outbox_template_key_check" CHECK (("template_key" = ANY (ARRAY['transfer_submitted'::"text", 'transfer_approved'::"text", 'transfer_completed'::"text", 'transfer_rejected'::"text", 'transfer_failed'::"text", 'loan_submitted'::"text", 'loan_approved'::"text", 'loan_disbursed'::"text", 'loan_rejected'::"text", 'loan_failed'::"text", 'kyc_submitted'::"text", 'kyc_information_requested'::"text", 'kyc_resubmitted'::"text", 'kyc_approved'::"text", 'kyc_rejected'::"text"])))
+    CONSTRAINT "transactional_email_outbox_template_key_check" CHECK (("template_key" = ANY (ARRAY['transfer_submitted'::"text", 'transfer_check_validated'::"text", 'transfer_approved'::"text", 'transfer_completed'::"text", 'transfer_rejected'::"text", 'transfer_failed'::"text", 'loan_submitted'::"text", 'loan_approved'::"text", 'loan_disbursed'::"text", 'loan_rejected'::"text", 'loan_failed'::"text", 'kyc_submitted'::"text", 'kyc_information_requested'::"text", 'kyc_resubmitted'::"text", 'kyc_approved'::"text", 'kyc_rejected'::"text"])))
 );
 
 
@@ -986,6 +986,65 @@ $$;
 
 
 ALTER FUNCTION "private"."enqueue_kyc_message"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "private"."enqueue_transfer_check_validation_email"() RETURNS "trigger"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+declare
+  transfer_row public.transfer_intents;
+  recipient_email text;
+begin
+  select transfer.*
+  into transfer_row
+  from public.transfer_intents as transfer
+  where transfer.id = new.transfer_id;
+
+  if not found then
+    return new;
+  end if;
+
+  select profile.email
+  into recipient_email
+  from public.profiles as profile
+  where profile.user_id = transfer_row.owner_id;
+
+  if recipient_email is null then
+    return new;
+  end if;
+
+  insert into public.transactional_email_outbox (
+    event_key,
+    recipient_id,
+    recipient_email,
+    template_key,
+    entity_type,
+    entity_id,
+    payload
+  ) values (
+    'transfer_review_checks:' || new.id::text || ':completed',
+    transfer_row.owner_id,
+    recipient_email,
+    'transfer_check_validated',
+    'transfer',
+    transfer_row.id,
+    jsonb_build_object(
+      'checkKind', new.check_kind,
+      'amountMinor', transfer_row.amount_minor,
+      'currency', transfer_row.currency,
+      'recipientName', transfer_row.recipient_name,
+      'actionPath', '/myaccount'
+    )
+  )
+  on conflict (event_key) do nothing;
+
+  return new;
+end;
+$$;
+
+
+ALTER FUNCTION "private"."enqueue_transfer_check_validation_email"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "private"."ensure_active_user"() RETURNS "uuid"
@@ -5386,7 +5445,7 @@ $$;
 ALTER FUNCTION "public"."branch_manager_disburse_loan"("p_loan_id" "uuid", "p_destination_position_id" "uuid", "p_note" "text") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."branch_manager_finalize_transfer"("p_transfer_id" "uuid", "p_note" "text") RETURNS "public"."transfer_intents"
+CREATE OR REPLACE FUNCTION "public"."branch_manager_finalize_transfer"("p_transfer_id" "uuid", "p_note" "text" DEFAULT NULL::"text") RETURNS "public"."transfer_intents"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
@@ -5396,14 +5455,14 @@ declare
   position_row public.financial_positions;
   old_status text;
   normalized_note text := nullif(trim(coalesce(p_note, '')), '');
+  ledger_description text := coalesce(
+    normalized_note,
+    'Virement confirmé après validation finale.'
+  );
   generated_reference text;
   next_sequence bigint;
   ledger_entry_id uuid;
 begin
-  if normalized_note is null then
-    raise exception 'CONFIRMATION_NOTE_REQUIRED' using errcode = '22023';
-  end if;
-
   select * into transfer_row
   from public.transfer_intents
   where id = p_transfer_id
@@ -5459,7 +5518,7 @@ begin
     'transfer:' || transfer_row.id::text, 'transfer_debit', -transfer_row.amount_minor,
     transfer_row.currency, position_row.amount_minor,
     position_row.amount_minor - transfer_row.amount_minor, now(),
-    generated_reference, transfer_row.id, caller_id, normalized_note,
+    generated_reference, transfer_row.id, caller_id, ledger_description,
     jsonb_build_object(
       'recipient_name', transfer_row.recipient_name,
       'target_amount_minor', transfer_row.target_amount_minor,
@@ -5485,18 +5544,25 @@ begin
   ) values (
     p_transfer_id, caller_id, 'branch_manager_confirmed_effective_transfer',
     old_status, transfer_row.status, normalized_note,
-    jsonb_build_object('ledger_entry_id', ledger_entry_id,
-      'internal_execution_reference', generated_reference)
+    jsonb_build_object(
+      'ledger_entry_id', ledger_entry_id,
+      'internal_execution_reference', generated_reference
+    )
   );
 
   insert into public.audit_events (
     actor_id, action, entity_type, entity_id, metadata
   ) values (
     caller_id, 'branch_manager_finalize_transfer', 'transfer_intent', p_transfer_id,
-    jsonb_build_object('from_status', old_status, 'to_status', transfer_row.status,
+    jsonb_build_object(
+      'from_status', old_status,
+      'to_status', transfer_row.status,
       'ledger_entry_id', ledger_entry_id,
       'internal_execution_reference', generated_reference,
-      'amount_minor', transfer_row.amount_minor, 'currency', transfer_row.currency)
+      'amount_minor', transfer_row.amount_minor,
+      'currency', transfer_row.currency,
+      'note', normalized_note
+    )
   );
 
   insert into public.notifications (recipient_id, title, message, notification_type)
@@ -6124,7 +6190,7 @@ $$;
 ALTER FUNCTION "public"."branch_manager_reject_transfer"("p_transfer_id" "uuid", "p_reason" "text") OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."branch_manager_review_transfer_check"("p_transfer_id" "uuid", "p_check_kind" "text", "p_note" "text") RETURNS "public"."transfer_intents"
+CREATE OR REPLACE FUNCTION "public"."branch_manager_review_transfer_check"("p_transfer_id" "uuid", "p_check_kind" "text", "p_note" "text" DEFAULT NULL::"text") RETURNS "public"."transfer_intents"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
     AS $$
@@ -6136,9 +6202,6 @@ declare
   expected_kind text;
   old_status text;
 begin
-  if normalized_note is null then
-    raise exception 'REVIEW_NOTE_REQUIRED' using errcode = '22023';
-  end if;
   if p_check_kind not in ('dual_review', 'escalation', 'compliance', 'final_authorization') then
     raise exception 'INVALID_REVIEW_CHECK' using errcode = '22023';
   end if;
@@ -10877,6 +10940,10 @@ CREATE OR REPLACE TRIGGER "transactional_email_outbox_set_updated_at" BEFORE UPD
 
 
 
+CREATE OR REPLACE TRIGGER "transfer_check_enqueue_validation_email" AFTER UPDATE OF "status" ON "public"."transfer_review_checks" FOR EACH ROW WHEN ((("old"."status" IS DISTINCT FROM "new"."status") AND ("new"."status" = 'completed'::"text") AND ("new"."check_kind" <> 'final_authorization'::"text"))) EXECUTE FUNCTION "private"."enqueue_transfer_check_validation_email"();
+
+
+
 CREATE OR REPLACE TRIGGER "transfer_checks_guard_client_purge_mutation" BEFORE INSERT OR DELETE OR UPDATE ON "public"."transfer_review_checks" FOR EACH ROW EXECUTE FUNCTION "private"."guard_indirect_client_mutation"('transfer', 'transfer_id');
 
 
@@ -11453,6 +11520,10 @@ GRANT ALL ON FUNCTION "private"."enqueue_financial_workflow_email"() TO "service
 
 REVOKE ALL ON FUNCTION "private"."enqueue_kyc_message"() FROM PUBLIC;
 GRANT ALL ON FUNCTION "private"."enqueue_kyc_message"() TO "service_role";
+
+
+
+REVOKE ALL ON FUNCTION "private"."enqueue_transfer_check_validation_email"() FROM PUBLIC;
 
 
 

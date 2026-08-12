@@ -1478,13 +1478,13 @@ select is(
 -- 75
 select is(
   (select count(*) from public.transactional_email_outbox),
-  9::bigint,
-  'the two transfer and two loan scenarios enqueue nine relevant emails'
+  12::bigint,
+  'the two transfer and two loan scenarios enqueue twelve relevant emails'
 );
 -- 76
 select is(
   (select count(distinct event_key) from public.transactional_email_outbox),
-  9::bigint,
+  12::bigint,
   'every transactional email event key is unique'
 );
 -- 77
@@ -1499,6 +1499,9 @@ select is(
     'loan_rejected',
     'loan_submitted',
     'loan_submitted',
+    'transfer_check_validated',
+    'transfer_check_validated',
+    'transfer_check_validated',
     'transfer_completed',
     'transfer_rejected',
     'transfer_submitted',

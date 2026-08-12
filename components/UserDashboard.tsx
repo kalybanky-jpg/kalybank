@@ -309,9 +309,6 @@ export default function UserDashboard() {
                   <span className="text-white/72">{t.thisMonth}</span>
                 </p>
               </div>
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/15 sm:h-11 sm:w-11">
-                <CircleDollarSign className="h-5 w-5 text-white/90" strokeWidth={1.7} />
-              </span>
             </div>
 
             <svg

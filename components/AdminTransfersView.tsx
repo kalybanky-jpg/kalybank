@@ -288,7 +288,7 @@ export default function AdminTransfersView() {
                         </div>
                         <button
                           type="button"
-                          disabled={isSubmitting || !enabled || !note.trim()}
+                          disabled={isSubmitting || !enabled}
                           onClick={() => void run(() => reviewTransferCheck(selected.id, check.kind, note.trim()))}
                           className={`min-h-11 w-full rounded-xl px-3 py-2 text-[11px] font-bold text-white disabled:opacity-40 sm:w-auto ${check.kind === 'final_authorization' ? 'bg-emerald-600' : 'bg-blue-600'}`}
                         >
@@ -299,7 +299,7 @@ export default function AdminTransfersView() {
                   })}
                 </div>
                 <label className="block text-xs font-bold">
-                  Note du contrôle ou motif de refus
+                  Note du contrôle (facultative) ou motif de refus (obligatoire)
                   <textarea
                     value={note}
                     onChange={(event) => setNote(event.target.value)}

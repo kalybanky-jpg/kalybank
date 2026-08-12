@@ -1,5 +1,5 @@
 begin;
-select plan(207);
+select plan(208);
 
 -- Schema and database API contract.
 -- 1
@@ -555,10 +555,10 @@ select set_config(
 -- 22
 select lives_ok(
   $test$
-    select public.branch_manager_review_transfer_check((select id from public.transfer_intents where idempotency_key = '50000000-0000-0000-0000-000000000001'), 'dual_review', 'Double validation terminée');
-    select public.branch_manager_review_transfer_check((select id from public.transfer_intents where idempotency_key = '50000000-0000-0000-0000-000000000001'), 'escalation', 'Escalade terminée');
-    select public.branch_manager_review_transfer_check((select id from public.transfer_intents where idempotency_key = '50000000-0000-0000-0000-000000000001'), 'compliance', 'Conformité terminée');
-    select public.branch_manager_review_transfer_check((select id from public.transfer_intents where idempotency_key = '50000000-0000-0000-0000-000000000001'), 'final_authorization', 'Autorisation finale confirmée')
+    select public.branch_manager_review_transfer_check((select id from public.transfer_intents where idempotency_key = '50000000-0000-0000-0000-000000000001'), 'dual_review');
+    select public.branch_manager_review_transfer_check((select id from public.transfer_intents where idempotency_key = '50000000-0000-0000-0000-000000000001'), 'escalation', '');
+    select public.branch_manager_review_transfer_check((select id from public.transfer_intents where idempotency_key = '50000000-0000-0000-0000-000000000001'), 'compliance', null);
+    select public.branch_manager_review_transfer_check((select id from public.transfer_intents where idempotency_key = '50000000-0000-0000-0000-000000000001'), 'final_authorization')
   $test$,
   'the branch manager approves the transfer atomically'
 );
@@ -650,6 +650,21 @@ select is(
   ),
   1::bigint,
   'transfer finalization enqueues one completion email'
+);
+
+select is(
+  (
+    select count(*)
+    from public.transactional_email_outbox
+    where template_key = 'transfer_check_validated'
+      and entity_id = (
+        select id
+        from public.transfer_intents
+        where idempotency_key = '50000000-0000-0000-0000-000000000001'
+      )
+  ),
+  3::bigint,
+  'each intermediate transfer validation enqueues one progress email'
 );
 
 set local role authenticated;

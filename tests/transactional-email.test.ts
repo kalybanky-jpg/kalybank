@@ -162,6 +162,10 @@ const expectedCopy: Record<
     subject: /demande de virement.*reçue/i,
     body: /vérifions maintenant les informations fournies/i,
   },
+  transfer_check_validated: {
+    subject: /contrôle de virement.*validé/i,
+    body: /contrôle « contrôle conformité ».*validé.*contrôle de votre virement continue.*support@monalyz\.com/i,
+  },
   transfer_approved: {
     subject: /demande de virement.*validée/i,
     body: /procédons maintenant au virement/i,
@@ -231,6 +235,7 @@ for (const [template, expected] of Object.entries(expectedCopy) as Array<
         currency: 'EUR',
         recipientName: 'Marie Dupont',
         reference: 'MONALYZ-LOAN-123',
+        checkKind: 'compliance',
       },
       branding,
     );
@@ -269,6 +274,7 @@ for (const language of languages) {
           currency: 'EUR',
           recipientName: 'Marie Dupont',
           reference: 'MONALYZ-LOAN-123',
+          checkKind: 'compliance',
         },
         branding,
         language,
@@ -295,6 +301,7 @@ for (const language of languages) {
           currency: 'EUR',
           recipientName: 'Marie Dupont',
           reference: 'MONALYZ-LOAN-123',
+          checkKind: 'compliance',
         },
         branding,
         language,

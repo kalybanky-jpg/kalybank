@@ -39,6 +39,22 @@
   }
 }
 
+/* The compact dashboard uses pixel-sized labels; keep the mobile variants
+ * one step larger without changing the denser desktop layout. */
+@media (max-width: 639px) {
+  .text-\[8px\] {
+    font-size: 9px;
+  }
+
+  .text-\[9px\] {
+    font-size: 10px;
+  }
+
+  .text-\[10px\] {
+    font-size: 11px;
+  }
+}
+
 .monalyz-sidebar {
   background:
     radial-gradient(circle at 78% 33%, rgba(32, 68, 143, 0.24), transparent 36%),

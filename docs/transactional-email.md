@@ -53,6 +53,7 @@ en-tête HTTP chez Resend, en-tête personnalisé du message chez Brevo.
 | Virement | Prêt | KYC |
 | --- | --- | --- |
 | Demande soumise | Demande soumise | Dossier reçu |
+| Chaque contrôle intermédiaire validé | — | — |
 | Validé par le chef d’agence | Validé par le chef d’agence | Complément demandé |
 | Effectué et finalisé | Décaissé et position courante créditée | Dossier resoumis |
 | Refusé | Refusé | Approuvé et compte interne créé |
@@ -64,9 +65,10 @@ interne de traitement n’apparaît pas dans les messages.
 
 ## Langue du destinataire
 
-Les quinze modèles existent en français, anglais, allemand et espagnol. Les
+Les seize modèles existent en français, anglais, allemand, espagnol, italien et
+néerlandais. Les
 sujets, corps, pieds de page, nombres et devises sont localisés avec
-`fr-FR`, `en-US`, `de-DE` ou `es-ES`.
+`fr-FR`, `en-US`, `de-DE`, `es-ES`, `it-IT` ou `nl-NL`.
 
 La langue n’est pas figée lors de la création du job. Après avoir réclamé un
 job, le worker relit `profiles.preferred_language` à partir de

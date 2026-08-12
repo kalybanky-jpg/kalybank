@@ -150,10 +150,10 @@ interface AppState {
   reviewTransferCheck: (
     transferId: string,
     checkKind: 'dual_review' | 'escalation' | 'compliance' | 'final_authorization',
-    note: string,
+    note?: string,
   ) => Promise<void>;
-  finalizeTransfer: (transferId: string, note: string) => Promise<void>;
-  rejectTransfer: (transferId: string, reason?: string) => Promise<void>;
+  finalizeTransfer: (transferId: string, note?: string) => Promise<void>;
+  rejectTransfer: (transferId: string, reason: string) => Promise<void>;
   approveLoan: (loanId: string, note?: string) => Promise<void>;
   disburseLoan: (
     loanId: string,
@@ -1153,34 +1153,30 @@ export function AppProvider({
     checkKind,
     note,
   ) => {
-    if (!note.trim()) throw new Error('La note du contrôle est obligatoire.');
     await executeAndRefresh(() =>
       createClient().rpc('branch_manager_review_transfer_check', {
         p_transfer_id: transferId,
         p_check_kind: checkKind,
-        p_note: note.trim(),
+        p_note: note?.trim() || undefined,
       }),
     );
   };
 
   const finalizeTransfer: AppState['finalizeTransfer'] = async (transferId, note) => {
-    if (!note.trim()) throw new Error('La note de confirmation est obligatoire.');
     await executeAndRefresh(() =>
       createClient().rpc('branch_manager_finalize_transfer', {
         p_transfer_id: transferId,
-        p_note: note.trim(),
+        p_note: note?.trim() || undefined,
       }),
     );
   };
 
-  const rejectTransfer: AppState['rejectTransfer'] = async (
-    transferId,
-    reason = 'Instruction refusée par le chef d’agence.',
-  ) => {
+  const rejectTransfer: AppState['rejectTransfer'] = async (transferId, reason) => {
+    if (!reason.trim()) throw new Error('Le motif de refus est obligatoire.');
     await executeAndRefresh(() =>
       createClient().rpc('branch_manager_reject_transfer', {
         p_transfer_id: transferId,
-        p_reason: reason,
+        p_reason: reason.trim(),
       }),
     );
   };

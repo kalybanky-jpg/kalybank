@@ -2490,7 +2490,7 @@ export type Database = {
         }
       }
       branch_manager_finalize_transfer: {
-        Args: { p_note: string; p_transfer_id: string }
+        Args: { p_note?: string; p_transfer_id: string }
         Returns: {
           amount_minor: number
           beneficiary_details: Json
@@ -2642,7 +2642,7 @@ export type Database = {
         }
       }
       branch_manager_review_transfer_check: {
-        Args: { p_check_kind: string; p_note: string; p_transfer_id: string }
+        Args: { p_check_kind: string; p_note?: string; p_transfer_id: string }
         Returns: {
           amount_minor: number
           beneficiary_details: Json

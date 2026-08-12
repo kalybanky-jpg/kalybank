@@ -7,6 +7,7 @@ export type TransactionalEmailLanguage = 'fr' | 'en' | 'de' | 'es' | 'it' | 'nl'
 
 export type TransactionalEmailTemplate =
   | 'transfer_submitted'
+  | 'transfer_check_validated'
   | 'transfer_approved'
   | 'transfer_completed'
   | 'transfer_rejected'
@@ -33,6 +34,7 @@ export interface TransactionalEmailJob {
 
 const TRANSACTIONAL_EMAIL_TEMPLATES = new Set<TransactionalEmailTemplate>([
   'transfer_submitted',
+  'transfer_check_validated',
   'transfer_approved',
   'transfer_completed',
   'transfer_rejected',
@@ -322,6 +324,48 @@ function formatMinorAmount(
   }
 }
 
+const TRANSFER_CHECK_TITLES: Record<
+  TransactionalEmailLanguage,
+  Record<string, string>
+> = {
+  fr: {
+    dual_review: 'Double validation interne',
+    escalation: 'Escalade hiérarchique',
+    compliance: 'Contrôle conformité',
+    final_authorization: 'Autorisation finale',
+  },
+  en: {
+    dual_review: 'Dual review',
+    escalation: 'Management escalation',
+    compliance: 'Compliance check',
+    final_authorization: 'Final authorization',
+  },
+  de: {
+    dual_review: 'Doppelte Prüfung',
+    escalation: 'Hierarchische Eskalation',
+    compliance: 'Compliance-Prüfung',
+    final_authorization: 'Endgültige Genehmigung',
+  },
+  es: {
+    dual_review: 'Doble validación interna',
+    escalation: 'Escalado jerárquico',
+    compliance: 'Control de conformidad',
+    final_authorization: 'Autorización final',
+  },
+  it: {
+    dual_review: 'Doppia convalida interna',
+    escalation: 'Escalation gerarchica',
+    compliance: 'Controllo di conformità',
+    final_authorization: 'Autorizzazione finale',
+  },
+  nl: {
+    dual_review: 'Dubbele interne validatie',
+    escalation: 'Hiërarchische escalatie',
+    compliance: 'Compliancecontrole',
+    final_authorization: 'Definitieve autorisatie',
+  },
+};
+
 function messageForTemplate(
   template: TransactionalEmailTemplate,
   payload: Record<string, unknown>,
@@ -354,6 +398,9 @@ function messageForTemplate(
     'reference',
     referenceFallback[language],
   );
+  const checkTitle =
+    TRANSFER_CHECK_TITLES[language][payloadText(payload, 'checkKind', '')] ??
+    TRANSFER_CHECK_TITLES[language].compliance;
 
   if (language === 'en') {
     switch (template) {
@@ -362,6 +409,12 @@ function messageForTemplate(
           subject: 'Your transfer request has been received',
           heading: 'Transfer request recorded',
           message: `We have received your request to transfer ${amount} to ${recipientName}. We are now reviewing the information provided and will let you know when a decision has been made.`,
+        };
+      case 'transfer_check_validated':
+        return {
+          subject: `Your transfer check has been approved: ${checkTitle}`,
+          heading: `${checkTitle} approved`,
+          message: `The “${checkTitle}” check has been approved. Review of your transfer is continuing. For more information, contact support at support@monalyz.com.`,
         };
       case 'transfer_approved':
         return {
@@ -437,6 +490,12 @@ function messageForTemplate(
           heading: 'Überweisungsauftrag erfasst',
           message: `Wir haben Ihren Auftrag über ${amount} an ${recipientName} erhalten. Wir prüfen jetzt Ihre Angaben und informieren Sie, sobald eine Entscheidung getroffen wurde.`,
         };
+      case 'transfer_check_validated':
+        return {
+          subject: `Ihre Überweisungsprüfung wurde bestätigt: ${checkTitle}`,
+          heading: `${checkTitle} bestätigt`,
+          message: `Die Prüfung „${checkTitle}“ wurde bestätigt. Die Prüfung Ihrer Überweisung wird fortgesetzt. Weitere Informationen erhalten Sie beim Support unter support@monalyz.com.`,
+        };
       case 'transfer_approved':
         return {
           subject: 'Ihr Überweisungsauftrag wurde genehmigt',
@@ -511,6 +570,12 @@ function messageForTemplate(
           heading: 'Solicitud de transferencia registrada',
           message: `Hemos recibido su solicitud de ${amount} para ${recipientName}. Ahora revisaremos la información y le avisaremos cuando se haya tomado una decisión.`,
         };
+      case 'transfer_check_validated':
+        return {
+          subject: `Su control de transferencia ha sido validado: ${checkTitle}`,
+          heading: `${checkTitle} validado`,
+          message: `El control «${checkTitle}» ha sido validado. La revisión de su transferencia continúa. Para más información, contacte con soporte en support@monalyz.com.`,
+        };
       case 'transfer_approved':
         return {
           subject: 'Su solicitud de transferencia ha sido aprobada',
@@ -580,6 +645,7 @@ function messageForTemplate(
   if (language === 'it') {
     switch (template) {
       case 'transfer_submitted': return { subject: 'La Sua richiesta di bonifico è stata ricevuta', heading: 'Richiesta di bonifico registrata', message: `Abbiamo ricevuto la Sua richiesta di trasferire ${amount} a ${recipientName}. Stiamo verificando le informazioni fornite e La informeremo non appena sarà stata presa una decisione.` };
+      case 'transfer_check_validated': return { subject: `Controllo del bonifico convalidato: ${checkTitle}`, heading: `${checkTitle} convalidato`, message: `Il controllo «${checkTitle}» è stato convalidato. La verifica del Suo bonifico continua. Per maggiori informazioni, contatti l’assistenza all’indirizzo support@monalyz.com.` };
       case 'transfer_approved': return { subject: 'La Sua richiesta di bonifico è stata approvata', heading: 'Bonifico approvato', message: 'La Sua richiesta è stata approvata. Stiamo elaborando il bonifico.' };
       case 'transfer_completed': return { subject: 'Il Suo bonifico è stato eseguito', heading: 'Bonifico eseguito correttamente', message: `Il Suo bonifico di ${amount} a ${recipientName} è stato eseguito correttamente.` };
       case 'transfer_rejected': return { subject: 'La Sua richiesta di bonifico è stata rifiutata', heading: 'Bonifico rifiutato', message: 'Non è stato possibile approvare la Sua richiesta di bonifico. Nessun importo è stato addebitato sul Suo conto {bankName}.' };
@@ -600,6 +666,7 @@ function messageForTemplate(
   if (language === 'nl') {
     switch (template) {
       case 'transfer_submitted': return { subject: 'Uw overboekingsverzoek is ontvangen', heading: 'Overboekingsverzoek geregistreerd', message: `Wij hebben uw verzoek ontvangen om ${amount} over te boeken naar ${recipientName}. Wij controleren de verstrekte gegevens en informeren u zodra er een beslissing is genomen.` };
+      case 'transfer_check_validated': return { subject: `Overboekingscontrole goedgekeurd: ${checkTitle}`, heading: `${checkTitle} goedgekeurd`, message: `De controle ‘${checkTitle}’ is goedgekeurd. De beoordeling van uw overboeking gaat verder. Neem voor meer informatie contact op met support via support@monalyz.com.` };
       case 'transfer_approved': return { subject: 'Uw overboekingsverzoek is goedgekeurd', heading: 'Overboeking goedgekeurd', message: 'Uw verzoek is goedgekeurd. Wij verwerken de overboeking nu.' };
       case 'transfer_completed': return { subject: 'Uw overboeking is uitgevoerd', heading: 'Overboeking succesvol uitgevoerd', message: `Uw overboeking van ${amount} naar ${recipientName} is succesvol uitgevoerd.` };
       case 'transfer_rejected': return { subject: 'Uw overboekingsverzoek is afgewezen', heading: 'Overboeking afgewezen', message: 'Wij konden uw overboekingsverzoek niet goedkeuren. Er is geen bedrag afgeschreven van uw {bankName}-rekening.' };
@@ -623,6 +690,12 @@ function messageForTemplate(
         subject: 'Votre demande de virement a été reçue',
         heading: 'Demande de virement enregistrée',
         message: `Nous avons reçu votre demande de ${amount} vers ${recipientName}. Nous vérifions maintenant les informations fournies et vous informerons dès qu’une décision aura été prise.`,
+      };
+    case 'transfer_check_validated':
+      return {
+        subject: `Votre contrôle de virement a été validé : ${checkTitle}`,
+        heading: `${checkTitle} validé`,
+        message: `Le contrôle « ${checkTitle} » a été validé. Le contrôle de votre virement continue. Pour plus d’informations, contactez le support à support@monalyz.com.`,
       };
     case 'transfer_approved':
       return {

@@ -7,7 +7,6 @@ import {
   ArrowUpRight,
   CalendarDays,
   Check,
-  ChevronRight,
   CircleDollarSign,
   Clock3,
   Download,
@@ -237,8 +236,16 @@ export default function UserDashboard() {
     rates,
   );
   const activeLoan = loans.find((loan) => !['refuse', 'decaisse'].includes(loan.status)) ?? loans[0];
+  const activeTransfers = pendingTransfers.filter(
+    (transfer) => ![
+      'external_settlement_confirmed',
+      'rejected',
+      'cancelled',
+      'external_failed',
+    ].includes(transfer.workflowStatus ?? 'submitted'),
+  );
   const trackedTransfer =
-    pendingTransfers.find((transfer) => !['valide', 'rejete'].includes(transfer.status)) ??
+    activeTransfers[0] ??
     pendingTransfers[0];
   const complianceProgress =
     trackedTransfer?.complianceProgress ?? activeLoan?.complianceProgress ?? 0;
@@ -380,8 +387,18 @@ export default function UserDashboard() {
                       {activeLoan ? loanMotiveLabel(language, activeLoan.motiveCode) : t.personalLoan}
                     </h2>
                     {activeLoan && (
-                      <span className="rounded bg-[#e2f8e9] px-2 py-1 text-[9px] font-medium text-[#14954a]">
-                        {t.inProgress}
+                      <span className={`rounded px-2 py-1 text-[9px] font-medium ${
+                        activeLoan.status === 'decaisse'
+                          ? 'bg-[#e2f8e9] text-[#14954a]'
+                          : activeLoan.status === 'refuse'
+                            ? 'bg-[#ffe7e7] text-[#c52d2d]'
+                            : 'bg-[#eee9ff] text-[#4b2df1]'
+                      }`}>
+                        {activeLoan.status === 'decaisse'
+                          ? t.completed
+                          : activeLoan.status === 'refuse'
+                            ? banking.loans.statuses.rejected
+                            : t.inProgress}
                       </span>
                     )}
                   </div>
@@ -408,8 +425,11 @@ export default function UserDashboard() {
                   ].map(([label, step]) => {
                     const stepNumber = Number(step);
                     const normalizedStep = Math.min(4, Math.max(1, activeLoan.currentStep));
-                    const complete = stepNumber < normalizedStep;
-                    const current = stepNumber === normalizedStep;
+                    const isDisbursed = activeLoan.status === 'decaisse';
+                    const complete = isDisbursed
+                      ? stepNumber <= normalizedStep
+                      : stepNumber < normalizedStep;
+                    const current = !isDisbursed && stepNumber === normalizedStep;
                     return (
                       <div key={String(label)} className="relative z-10 min-w-0 rounded-xl bg-[#f8f9fc] px-2 py-3 text-center sm:rounded-none sm:bg-transparent sm:px-1 sm:py-0">
                         <span
@@ -581,109 +601,6 @@ export default function UserDashboard() {
           </section>
 
           <section className={`${cardClass} p-4 sm:p-5`}>
-            <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="text-[13px] font-semibold text-[#0a154f]">{t.recentTransactions}</h2>
-              <button
-                type="button"
-                onClick={() => setIsStatementsModalOpen(true)}
-                className="min-h-10 rounded-lg py-2 text-left text-[10px] font-medium text-[#4b2df1] sm:px-2 sm:text-right"
-              >
-                {banking.accounts.downloadStatement}
-              </button>
-            </div>
-            <div className="mt-3 space-y-1.5">
-              {transactions.slice(0, 6).map((transaction) => {
-                const positive = transaction.type === 'credit';
-                const Icon =
-                  transaction.category === 'salary'
-                    ? ArrowDown
-                    : transaction.category === 'transfer'
-                      ? ArrowUpRight
-                      : WalletCards;
-                return (
-                  <div key={transaction.id} className="flex min-w-0 items-center gap-2.5 py-2 sm:gap-3 sm:py-1">
-                    <span
-                      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
-                        positive ? 'bg-[#e4f8ea] text-[#09a849]' : 'bg-[#f2f3f7] text-[#0a154f]'
-                      }`}
-                    >
-                      <Icon className="h-4 w-4" strokeWidth={1.8} />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <strong className="block truncate text-[10px] font-semibold text-[#0a154f]">
-                        {ledgerEntryLabel(language, transaction.entryKind, transaction.metadata)}
-                      </strong>
-                      <span className="block truncate text-[8px] text-[#69729f]">{formatLocalizedDate(transaction.date, language)}</span>
-                    </span>
-                    <strong
-                      className={`shrink-0 text-right text-[9px] tabular-nums sm:text-[10px] ${
-                        positive ? 'text-[#0aae4f]' : 'text-[#0a154f]'
-                      }`}
-                    >
-                      {positive ? '+' : '-'} {money(Math.abs(transaction.amount), transaction.currency ?? currency)}
-                    </strong>
-                    <ChevronRight className="h-3.5 w-3.5 text-[#263773]" />
-                  </div>
-                );
-              })}
-              {!transactions.length && (
-                <p className="py-8 text-center text-[10px] text-[#69729f]">
-                  {banking.dashboard.noTransactions}
-                </p>
-              )}
-            </div>
-          </section>
-
-          <section className={`${cardClass} border-[#6c4bff] p-4 sm:p-5`}>
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-[13px] font-semibold text-[#0a154f]">{t.pendingTransfers}</h2>
-              <button
-                type="button"
-                onClick={() => setActiveTab('transfers')}
-                className="min-h-10 shrink-0 rounded-lg px-2 text-[10px] font-medium text-[#4b2df1]"
-              >
-                {t.seeEverything}
-              </button>
-            </div>
-            <div className="mt-2 divide-y divide-[#eef0f5]">
-              {pendingTransfers.slice(0, 2).map((transfer) => (
-                <button
-                  type="button"
-                  key={transfer.id}
-                  onClick={() => setActiveTab('transfers')}
-                  className="flex w-full min-w-0 items-center gap-3 py-3 text-left"
-                >
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fff0e4] text-[#ff7416]">
-                    <FileText className="h-4 w-4" strokeWidth={1.8} />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <strong className="block truncate text-[10px] font-semibold text-[#0a154f]">
-                      {transfer.recipientName}
-                    </strong>
-                    <span className="block truncate text-[8px] text-[#69729f]">
-                      {transfer.recipientAccount}
-                    </span>
-                  </span>
-                  <span className="shrink-0 text-right">
-                    <strong className="block text-[9px] text-[#0a154f] tabular-nums sm:text-[10px]">
-                      {money(transfer.amount, transfer.currency)}
-                    </strong>
-                    <span className="mt-1 flex items-center justify-end gap-1 text-[8px] font-medium text-[#f27a1a]">
-                      <Clock3 className="h-3 w-3" />
-                      {t.pendingStatus}
-                    </span>
-                  </span>
-                </button>
-              ))}
-              {!pendingTransfers.length && (
-                <p className="py-6 text-center text-[10px] text-[#69729f]">
-                  {banking.dashboard.noTransfers}
-                </p>
-              )}
-            </div>
-          </section>
-
-          <section className={`${cardClass} p-4 sm:p-5`}>
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-[13px] font-semibold text-[#0a154f]">
                 {t.securityCompliance}
@@ -739,6 +656,109 @@ export default function UserDashboard() {
               </div>
             </div>
           </section>
+
+          <section className={`${cardClass} p-4 sm:p-5`}>
+            <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="text-[13px] font-semibold text-[#0a154f]">{t.recentTransactions}</h2>
+              <button
+                type="button"
+                onClick={() => setIsStatementsModalOpen(true)}
+                className="min-h-10 rounded-lg py-2 text-left text-[10px] font-medium text-[#4b2df1] sm:px-2 sm:text-right"
+              >
+                {banking.accounts.downloadStatement}
+              </button>
+            </div>
+            <div className="mt-3 space-y-1.5">
+              {transactions.slice(0, 6).map((transaction) => {
+                const positive = transaction.type === 'credit';
+                const Icon =
+                  transaction.category === 'salary'
+                    ? ArrowDown
+                    : transaction.category === 'transfer'
+                      ? ArrowUpRight
+                      : WalletCards;
+                return (
+                  <div key={transaction.id} className="flex min-w-0 items-center gap-2.5 py-2 sm:gap-3 sm:py-1">
+                    <span
+                      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
+                        positive ? 'bg-[#e4f8ea] text-[#09a849]' : 'bg-[#f2f3f7] text-[#0a154f]'
+                      }`}
+                    >
+                      <Icon className="h-4 w-4" strokeWidth={1.8} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <strong className="block truncate text-[10px] font-semibold text-[#0a154f]">
+                        {ledgerEntryLabel(language, transaction.entryKind, transaction.metadata)}
+                      </strong>
+                      <span className="block truncate text-[8px] text-[#69729f]">{formatLocalizedDate(transaction.date, language)}</span>
+                    </span>
+                    <strong
+                      className={`shrink-0 text-right text-[9px] tabular-nums sm:text-[10px] ${
+                        positive ? 'text-[#0aae4f]' : 'text-[#0a154f]'
+                      }`}
+                    >
+                      {positive ? '+' : '-'} {money(Math.abs(transaction.amount), transaction.currency ?? currency)}
+                    </strong>
+                  </div>
+                );
+              })}
+              {!transactions.length && (
+                <p className="py-8 text-center text-[10px] text-[#69729f]">
+                  {banking.dashboard.noTransactions}
+                </p>
+              )}
+            </div>
+          </section>
+
+          <section className={`${cardClass} border-[#6c4bff] p-4 sm:p-5`}>
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-[13px] font-semibold text-[#0a154f]">{t.pendingTransfers}</h2>
+              <button
+                type="button"
+                onClick={() => setActiveTab('transfers')}
+                className="min-h-10 shrink-0 rounded-lg px-2 text-[10px] font-medium text-[#4b2df1]"
+              >
+                {t.seeEverything}
+              </button>
+            </div>
+            <div className="mt-2 divide-y divide-[#eef0f5]">
+              {activeTransfers.slice(0, 2).map((transfer) => (
+                <button
+                  type="button"
+                  key={transfer.id}
+                  onClick={() => setActiveTab('transfers')}
+                  className="flex w-full min-w-0 items-center gap-3 py-3 text-left"
+                >
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fff0e4] text-[#ff7416]">
+                    <FileText className="h-4 w-4" strokeWidth={1.8} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <strong className="block truncate text-[10px] font-semibold text-[#0a154f]">
+                      {transfer.recipientName}
+                    </strong>
+                    <span className="block truncate text-[8px] text-[#69729f]">
+                      {transfer.recipientAccount}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-right">
+                    <strong className="block text-[9px] text-[#0a154f] tabular-nums sm:text-[10px]">
+                      {money(transfer.amount, transfer.currency)}
+                    </strong>
+                    <span className="mt-1 flex items-center justify-end gap-1 text-[8px] font-medium text-[#f27a1a]">
+                      <Clock3 className="h-3 w-3" />
+                      {banking.transfers.statuses[transfer.workflowStatus ?? 'submitted']}
+                    </span>
+                  </span>
+                </button>
+              ))}
+              {!activeTransfers.length && (
+                <p className="py-6 text-center text-[10px] text-[#69729f]">
+                  {banking.dashboard.noTransfers}
+                </p>
+              )}
+            </div>
+          </section>
+
         </div>
       </div>
     </div>

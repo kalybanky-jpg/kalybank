@@ -270,7 +270,7 @@ publié.
 | --- | --- |
 | `current_app_role` | Retourner le rôle courant |
 | `submit_transfer_intent` | Créer et réserver une intention |
-| `branch_manager_review_transfer_check` | Valider un contrôle séquentiel ; le quatrième débite et clôture atomiquement |
+| `branch_manager_review_transfer_check` | Valider un contrôle séquentiel avec une note facultative ; chaque étape notifie le client et la quatrième débite puis clôture atomiquement |
 | `branch_manager_reject_transfer` | Refuser et libérer la réservation |
 | `submit_loan_application` | Créer une demande de prêt |
 | `branch_manager_approve_loan` | Confirmer les contrôles hors application et valider |
@@ -373,7 +373,7 @@ Les RPC financières existantes conservent leurs signatures exactes :
 ```sql
 branch_manager_finalize_transfer(
   p_transfer_id uuid,
-  p_note text
+  p_note text default null
 ) returns transfer_intents
 
 branch_manager_disburse_loan(

@@ -68,5 +68,5 @@ export default async function clientPurgeSweep(_request: Request) {
 }
 
 export const config: Config = {
-  schedule: '*/15 * * * *',
+  schedule: '* * * * *',
 };

@@ -23,6 +23,41 @@ export const runtime = 'nodejs';
 
 type RouteContext = { params: Promise<{ userId: string }> };
 
+const INTERACTIVE_PURGE_BATCH_LIMIT = 25;
+const INTERACTIVE_PURGE_BUDGET_MS = 12_000;
+
+async function continueWithinInteractiveBudget(
+  initial: Awaited<ReturnType<typeof executePurge>>,
+  input: {
+    admin: Parameters<typeof executePurge>[0]['admin'];
+    targetUserId: string;
+    challengeId: string;
+  },
+) {
+  let outcome = initial;
+  const deadline = Date.now() + INTERACTIVE_PURGE_BUDGET_MS;
+  let batches = 1;
+  while (
+    !outcome.deleted &&
+    outcome.status !== 'waiting_sweep' &&
+    outcome.workKind !== 'wait' &&
+    batches < INTERACTIVE_PURGE_BATCH_LIMIT &&
+    Date.now() < deadline
+  ) {
+    outcome = await executePurge({
+      ...input,
+      startState: {
+        status: 'running',
+        stage: outcome.stage,
+        sweepNotBefore: null,
+      },
+      leaseAlreadyAcquired: true,
+    });
+    batches += 1;
+  }
+  return outcome;
+}
+
 function purgeErrorResponse(error: unknown) {
   if (
     error instanceof ClientPurgeValidationError ||
@@ -151,12 +186,17 @@ export async function POST(request: NextRequest, context: RouteContext) {
         input.exactEmail,
       );
       if (!state.challengeId) throw new Error('PURGE_OPERATION_NOT_FOUND');
-      const result = await executePurge({
+      const firstResult = await executePurge({
         admin: access.admin,
         targetUserId,
         challengeId: state.challengeId!,
         startState: state,
         leaseAlreadyAcquired: state.status !== 'waiting_sweep',
+      });
+      const result = await continueWithinInteractiveBudget(firstResult, {
+        admin: access.admin,
+        targetUserId,
+        challengeId: state.challengeId,
       });
       return noStoreJson(result, result.deleted ? 200 : 202);
     }
@@ -179,13 +219,18 @@ export async function POST(request: NextRequest, context: RouteContext) {
         400,
       );
     }
-    const result = await executePurge({
+    const firstResult = await executePurge({
       admin: access.admin,
       targetUserId,
       challengeId: input.challengeId,
       challengeDigest: digest(input.challengeToken),
       emailDigest: digest(input.exactEmail),
       idempotencyKey: input.idempotencyKey,
+    });
+    const result = await continueWithinInteractiveBudget(firstResult, {
+      admin: access.admin,
+      targetUserId,
+      challengeId: input.challengeId,
     });
     return noStoreJson(result, result.deleted ? 200 : 202);
   } catch (error) {

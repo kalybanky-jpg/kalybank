@@ -318,7 +318,7 @@ test('le contrat SQL est privé, verrouillé, ordonné et efface son propre éta
   );
 });
 
-test('l’interface Clients est mobile-first et exige les deux confirmations', async () => {
+test('l’interface Clients est mobile-first avec une confirmation rapide et réauthentifiée', async () => {
   const ui = await readFile(
     new URL('../components/AdminClientsView.tsx', import.meta.url),
     'utf8',
@@ -327,9 +327,9 @@ test('l’interface Clients est mobile-first et exige les deux confirmations', a
   assert.match(ui, /hidden overflow-x-auto md:block/);
   assert.match(ui, /<Dialog/);
   assert.match(ui, /<DialogPanel/);
-  assert.match(ui, /initialFocusRef=\{emailInput\}/);
+  assert.match(ui, /initialFocusRef=\{passwordInput\}/);
   assert.match(ui, /autoComplete="current-password"/);
-  assert.match(ui, /exactEmail !== preview\.targetEmail/);
+  assert.match(ui, /exactEmail: preview\.targetEmail/);
   assert.match(ui, /method: 'POST'/);
   assert.match(ui, /\/api\/admin\/clients\/\$\{selected\.id\}\/purge/);
   assert.match(ui, /Reprendre la suppression/);
@@ -338,7 +338,8 @@ test('l’interface Clients est mobile-first et exige les deux confirmations', a
   assert.match(ui, /unsafeStorageReferences/);
   assert.match(ui, />Notifications</);
   assert.match(ui, /min-\[380px\]:flex-row/);
-  assert.match(ui, /Continuer l’inventaire/);
+  assert.match(ui, /Inventaire Storage automatique en cours/);
+  assert.doesNotMatch(ui, /Recopiez exactement l’e-mail du client/);
   assert.match(ui, /Le curseur est conservé/);
   assert.match(ui, /Auth supprimée — finalisation à reprendre/);
   assert.match(ui, /Admins conservés/);
@@ -357,7 +358,7 @@ test('le sweep différé est livré comme Scheduled Function versionnée sans se
     new URL('../app/api/internal/client-purge-sweep/route.ts', import.meta.url),
     'utf8',
   );
-  assert.match(worker, /schedule: '\*\/15 \* \* \* \*'/);
+  assert.match(worker, /schedule: '\* \* \* \* \*'/);
   assert.match(worker, /\/api\/internal\/client-purge-sweep/);
   assert.match(worker, /x-client-purge-sweep-secret/);
   assert.match(

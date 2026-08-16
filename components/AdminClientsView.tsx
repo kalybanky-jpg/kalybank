@@ -96,13 +96,12 @@ export default function AdminClientsView() {
   const [preview, setPreview] = useState<Preview | null>(null);
   const [purgeState, setPurgeState] = useState<PurgeState | null>(null);
   const [idempotencyKey, setIdempotencyKey] = useState('');
-  const [exactEmail, setExactEmail] = useState('');
   const [password, setPassword] = useState('');
   const [purgeError, setPurgeError] = useState('');
   const [purging, setPurging] = useState(false);
   const [notice, setNotice] = useState('');
   const [externalChecklist, setExternalChecklist] = useState<ObservedClientPurge[]>([]);
-  const emailInput = useRef<HTMLInputElement>(null);
+  const passwordInput = useRef<HTMLInputElement>(null);
   const previewRequest = useRef(0);
   const completionMonitor = useRef<ClientPurgeCompletionMonitor | null>(null);
 
@@ -203,7 +202,6 @@ export default function AdminClientsView() {
     setSelected(null);
     setPreview(null);
     setPurgeState(null);
-    setExactEmail('');
     setPassword('');
     setPurgeError('');
   }
@@ -214,7 +212,6 @@ export default function AdminClientsView() {
     setPreview(null);
     setPurgeState(null);
     setPurgeError('');
-    setExactEmail('');
     setPassword('');
     try {
       if (client.purgeStatus && client.purgeStatus !== 'preview') {
@@ -225,7 +222,7 @@ export default function AdminClientsView() {
         setPurgeState(state);
         observeWaitingSweep(client, state);
         if (state.canResume) {
-          requestAnimationFrame(() => emailInput.current?.focus());
+          requestAnimationFrame(() => passwordInput.current?.focus());
         }
         return;
       }
@@ -244,7 +241,7 @@ export default function AdminClientsView() {
       setIdempotencyKey(nextPreview.idempotencyKey);
       setPreview(nextPreview);
       if (!nextPreview.pending) {
-        requestAnimationFrame(() => emailInput.current?.focus());
+        requestAnimationFrame(() => passwordInput.current?.focus());
       }
     } catch (previewError) {
       setPurgeError(
@@ -253,7 +250,7 @@ export default function AdminClientsView() {
     }
   }
 
-  async function continuePreview() {
+  const continuePreview = useCallback(async () => {
     if (!selected || !preview?.pending) return;
     setPurgeError('');
     try {
@@ -270,18 +267,24 @@ export default function AdminClientsView() {
       setIdempotencyKey(nextPreview.idempotencyKey);
       setPreview(nextPreview);
       if (!nextPreview.pending) {
-        requestAnimationFrame(() => emailInput.current?.focus());
+        requestAnimationFrame(() => passwordInput.current?.focus());
       }
     } catch (previewError) {
       setPurgeError(
         previewError instanceof Error ? previewError.message : 'Aperçu impossible.',
       );
     }
-  }
+  }, [preview?.pending, selected]);
+
+  useEffect(() => {
+    if (!preview?.pending || !selected) return;
+    const timer = window.setTimeout(() => void continuePreview(), 150);
+    return () => window.clearTimeout(timer);
+  }, [continuePreview, preview?.pending, selected]);
 
   async function purge(event: FormEvent) {
     event.preventDefault();
-    if (!selected || !preview || exactEmail !== preview.targetEmail) return;
+    if (!selected || !preview) return;
     setPurging(true);
     setPurgeError('');
     try {
@@ -292,7 +295,7 @@ export default function AdminClientsView() {
           challengeId: preview.challengeId,
           challengeToken: preview.challengeToken,
           idempotencyKey,
-          exactEmail,
+          exactEmail: preview.targetEmail,
           currentPassword: password,
         }),
       });
@@ -322,7 +325,7 @@ export default function AdminClientsView() {
 
   async function resumePurge(event: FormEvent) {
     event.preventDefault();
-    if (!selected || !purgeState?.canResume || exactEmail !== selected.email) return;
+    if (!selected || !purgeState?.canResume) return;
     setPurging(true);
     setPurgeError('');
     try {
@@ -331,7 +334,7 @@ export default function AdminClientsView() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           resume: true,
-          exactEmail,
+          exactEmail: selected.email,
           currentPassword: password,
         }),
       });
@@ -509,7 +512,7 @@ export default function AdminClientsView() {
         open={Boolean(selected)}
         onClose={closeDialog}
         ariaLabelledBy="purge-title"
-        initialFocusRef={emailInput}
+        initialFocusRef={passwordInput}
         closeOnBackdrop={!purging}
       >
         {selected && (
@@ -528,11 +531,8 @@ export default function AdminClientsView() {
               <div className="mt-5 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950">
                 <p role="status" className="flex items-center gap-2 font-semibold">
                   <LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin" />
-                  Inventaire Storage enregistré par lots. Le curseur est conservé si vous fermez ou rechargez cette page.
+                  Inventaire Storage automatique en cours. Le curseur est conservé si vous fermez ou rechargez cette page.
                 </p>
-                <button type="button" onClick={() => void continuePreview()} className="mt-3 min-h-11 w-full rounded-xl bg-blue-800 px-4 font-bold text-white">
-                  Continuer l’inventaire
-                </button>
               </div>
             )}
             {preview && !preview.pending && (
@@ -559,10 +559,10 @@ export default function AdminClientsView() {
                     {preview.impact.unsafeStorageReferences} référence Storage n’appartient pas à ce client. Elle sera ignorée et le fichier étranger sera préservé pendant la suppression des données du client.
                   </p>
                 )}
-                <label className="block text-sm font-semibold">Recopiez exactement l’e-mail du client<input ref={emailInput} value={exactEmail} onChange={(event) => setExactEmail(event.target.value)} autoComplete="off" spellCheck={false} aria-invalid={exactEmail.length > 0 && exactEmail !== preview.targetEmail} required className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 font-normal" /></label>
-                <label className="block text-sm font-semibold">Votre mot de passe actuel<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" minLength={8} required className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 font-normal" /></label>
+                <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-900">Vous allez supprimer définitivement le compte <strong className="break-all">{preview.targetEmail}</strong>.</p>
+                <label className="block text-sm font-semibold">Confirmez avec votre mot de passe<input ref={passwordInput} type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" minLength={8} required className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 font-normal" /></label>
                 <p className="text-xs text-slate-500">Le défi expire à {new Date(preview.expiresAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}. Après lancement, l’état privé est conservé uniquement jusqu’au balayage final ou en cas d’échec.</p>
-                <button type="submit" disabled={purging || exactEmail !== preview.targetEmail || password.length < 8} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-red-700 px-4 text-sm font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-40">{purging ? <><LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin" /> Suppression sécurisée…</> : <><Trash2 aria-hidden="true" className="h-4 w-4" /> Lancer la suppression sécurisée</>}</button>
+                <button type="submit" disabled={purging || password.length < 8} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-red-700 px-4 text-sm font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-40">{purging ? <><LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin" /> Suppression sécurisée…</> : <><Trash2 aria-hidden="true" className="h-4 w-4" /> Supprimer ce compte</>}</button>
               </form>
             )}
 
@@ -586,9 +586,8 @@ export default function AdminClientsView() {
                 </div>
                 {purgeState.canResume && (
                   <form onSubmit={resumePurge} className="space-y-4">
-                    <label className="block text-sm font-semibold">Recopiez exactement l’e-mail du client<input ref={emailInput} value={exactEmail} onChange={(event) => setExactEmail(event.target.value)} autoComplete="off" spellCheck={false} aria-invalid={exactEmail.length > 0 && exactEmail !== selected.email} required className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 font-normal" /></label>
-                    <label className="block text-sm font-semibold">Votre mot de passe actuel<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" minLength={8} required className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 font-normal" /></label>
-                    <button type="submit" disabled={purging || exactEmail !== selected.email || password.length < 8} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-red-700 px-4 text-sm font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-40">{purging ? <><LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin" /> Reprise sécurisée…</> : 'Reprendre la suppression'}</button>
+                    <label className="block text-sm font-semibold">Confirmez avec votre mot de passe<input ref={passwordInput} type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" minLength={8} required className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 font-normal" /></label>
+                    <button type="submit" disabled={purging || password.length < 8} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-red-700 px-4 text-sm font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-40">{purging ? <><LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin" /> Reprise sécurisée…</> : 'Reprendre la suppression'}</button>
                   </form>
                 )}
               </div>

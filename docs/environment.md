@@ -32,7 +32,7 @@
 `SUPABASE_SECRET_KEY`. Aucune de ces clés privilégiées ne doit porter le
 préfixe `NEXT_PUBLIC_`.
 
-Le sweep de suppression de clients est planifié toutes les quinze minutes par
+Le sweep de suppression de clients est planifié toutes les minutes par
 la Scheduled Function versionnée `netlify/functions/client-purge-sweep.ts`,
 qui appelle la route interne avec l’en-tête `x-client-purge-sweep-secret`. Il ne contourne pas les
 gardes métier : seules les opérations déjà consommées, avec une cible encore

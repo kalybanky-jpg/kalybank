@@ -12,6 +12,7 @@ import { isPublicSupabaseConfigured } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
 import { safeHttpOrigin } from '@/lib/security/navigation';
 import { getRequestBrandSettings } from '@/lib/server/branding';
+import LegalFooter from '@/components/legal/LegalFooter';
 
 const metadataOrigin =
   safeHttpOrigin(process.env.APP_ORIGIN ?? process.env.NEXT_PUBLIC_APP_ORIGIN) ??
@@ -119,6 +120,7 @@ export default async function RootLayout({children}: {children: React.ReactNode}
           initialBrand={initialBrand}
         >
           {children}
+          <LegalFooter bankName={initialBrand.bankName} />
         </Providers>
       </body>
     </html>

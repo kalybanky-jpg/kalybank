@@ -8,6 +8,7 @@ import {
   Check,
   FileCheck2,
   FileText,
+  Images,
   LoaderCircle,
   LockKeyhole,
   RotateCcw,
@@ -142,7 +143,7 @@ async function prepareImage(file: File, square = false): Promise<File> {
   return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' });
 }
 
-function CameraCapture({
+function SelfieCapture({
   copy,
   disabled,
   onPreparingChange,
@@ -155,6 +156,7 @@ function CameraCapture({
   onCapture: (file: File) => Promise<void>;
   previewUrl?: string;
 }) {
+  const galleryInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [open, setOpen] = useState(false);
@@ -256,17 +258,46 @@ function CameraCapture({
     }
   };
 
+  const chooseFromGallery = () => {
+    if (disabled || capturing) return;
+    setError('');
+    galleryInputRef.current?.click();
+  };
+
+  const selectFromGallery = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = '';
+    if (!file || disabled) return;
+    stop();
+    setError('');
+    await onCapture(file);
+  };
+
   return (
     <div className="space-y-4">
-      <p className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900">{copy.cameraOnly}</p>
+      <p className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900">{copy.selfieSourceHint}</p>
       {/* Blob previews are local and cannot be handled by next/image. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       {previewUrl && !open && <img src={previewUrl} alt={copy.selfiePreview} className="mx-auto max-h-72 rounded-2xl object-contain" />}
       {open && <video ref={videoRef} playsInline muted className="mx-auto aspect-square max-h-80 rounded-2xl bg-black object-cover" />}
       {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
-      <button disabled={disabled || capturing} type="button" onClick={open ? capture : start} className="mx-auto flex min-h-11 items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">
-        <Camera className="h-4 w-4" /> {capturing ? copy.preparingFile : open ? copy.takePhoto : previewUrl ? copy.retake : copy.openCamera}
-      </button>
+      <input
+        ref={galleryInputRef}
+        id="selfie-gallery-input"
+        type="file"
+        accept="image/jpeg,image/png"
+        className="sr-only"
+        tabIndex={-1}
+        onChange={selectFromGallery}
+      />
+      <div className="flex flex-col items-stretch justify-center gap-3 sm:flex-row">
+        <button disabled={disabled || capturing} type="button" onClick={open ? capture : start} className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">
+          <Camera aria-hidden="true" className="h-4 w-4" /> {capturing ? copy.preparingFile : open ? copy.takePhoto : previewUrl ? copy.retake : copy.openCamera}
+        </button>
+        <button disabled={disabled || capturing} type="button" onClick={chooseFromGallery} className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-blue-200 bg-white px-5 py-3 text-sm font-bold text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50">
+          <Images aria-hidden="true" className="h-4 w-4" /> {copy.chooseFromGallery}
+        </button>
+      </div>
     </div>
   );
 }
@@ -516,6 +547,13 @@ export default function OnboardingPage() {
       if (!isCurrentRequest()) return;
       const file = await prepareImage(original, key === 'selfie');
       if (!isCurrentRequest()) return;
+      if (key === 'selfie' && file !== original) {
+        const previewUrl = URL.createObjectURL(file);
+        const previousPreviewUrl = previewUrlsRef.current[key];
+        previewUrlsRef.current[key] = previewUrl;
+        setPreviews((current) => ({ ...current, [key]: previewUrl }));
+        if (previousPreviewUrl) URL.revokeObjectURL(previousPreviewUrl);
+      }
       if (file.size > 10 * 1024 * 1024) {
         setUploadStates((current) => ({
           ...current,
@@ -749,7 +787,7 @@ export default function OnboardingPage() {
             })()}
             {step === 'selfie' && (
               <div aria-busy={uploadStates.selfie?.phase === 'preparing' || uploadStates.selfie?.phase === 'uploading'}>
-                <CameraCapture
+                <SelfieCapture
                   copy={copy}
                   disabled={uploadPending || submitting}
                   onPreparingChange={(preparing) => {

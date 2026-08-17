@@ -39,6 +39,8 @@ const uploadFeedbackKeys = [
   'uploadingFile',
   'uploadSuccess',
   'retryUpload',
+  'selfieSourceHint',
+  'chooseFromGallery',
 ] as const satisfies readonly (keyof KycCopy)[];
 
 test('every KYC step provides concise guidance in every supported language', () => {
@@ -164,4 +166,23 @@ test('KYC previews distinguish PDFs and release cameras and Blob URLs safely', a
   assert.ok(captureStart >= 0 && cameraStop > captureStart && cameraStop < captureEncoding);
   assert.match(source, /if \(!cameraMountedRef\.current \|\| startRequestIdRef\.current !== requestId\)/);
   assert.match(source, /stream\.getTracks\(\)\.forEach\(\(track\) => track\.stop\(\)\)/);
+});
+
+test('the selfie step offers separate camera and gallery choices through the same upload flow', async () => {
+  const source = await readFile(
+    new URL('../app/onboarding/page.tsx', import.meta.url),
+    'utf8',
+  );
+
+  const galleryInput = source.match(/<input\s+[\s\S]*?id="selfie-gallery-input"[\s\S]*?\/>/)?.[0];
+  assert.ok(galleryInput);
+  assert.match(galleryInput, /type="file"/);
+  assert.match(galleryInput, /accept="image\/jpeg,image\/png"/);
+  assert.doesNotMatch(galleryInput, /\bcapture=/);
+  assert.match(source, /galleryInputRef\.current\?\.click\(\)/);
+  assert.match(source, /const file = event\.currentTarget\.files\?\.\[0\]/);
+  assert.match(source, /event\.currentTarget\.value = ''/);
+  assert.match(source, /await onCapture\(file\)/);
+  assert.match(source, /copy\.openCamera/);
+  assert.match(source, /copy\.chooseFromGallery/);
 });

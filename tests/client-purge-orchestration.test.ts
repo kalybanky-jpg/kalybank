@@ -250,6 +250,79 @@ test('une invocation utilisateur traite une seule unité puis répond processing
   assert.equal(calls.includes('admin_purge_client_relational_data'), false);
 });
 
+test('la purge relationnelle passe par Auth sans annoncer waiting_sweep', async () => {
+  const sweepNotBefore = '2026-08-17T14:05:00.000Z';
+  const calls: string[] = [];
+  const worker = {
+    rpc: async (name: string) => {
+      calls.push(name);
+      if (name === 'admin_purge_client_relational_data') {
+        return {
+          data: {
+            status: 'running',
+            stage: 'auth',
+            sweepNotBefore,
+            ignoredUnsafeStorageReferences: 2,
+          },
+          error: null,
+        };
+      }
+      return { data: null, error: { code: 'UNEXPECTED_RPC', message: name } };
+    },
+  };
+
+  const outcome = await executePurge({
+    admin: adminWithWorker(worker),
+    targetUserId: targetId,
+    challengeId,
+    startState: { status: 'running', stage: 'database', sweepNotBefore: null },
+    leaseAlreadyAcquired: true,
+  });
+
+  assert.deepEqual(calls, ['admin_purge_client_relational_data']);
+  assert.equal(outcome.status, 'processing');
+  assert.equal(outcome.stage, 'auth');
+  assert.equal(outcome.sweepNotBefore, sweepNotBefore);
+  assert.equal(outcome.ignoredUnsafeStorageReferences, 2);
+  assert.equal(outcome.authDeleted, false);
+});
+
+test('un replay waiting_sweep sans indicateur relit Auth et confirme sa suppression', async () => {
+  const sweepNotBefore = '2026-08-17T14:05:00.000Z';
+  let lookupCalls = 0;
+  const worker = {
+    auth: {
+      admin: {
+        getUserById: async () => {
+          lookupCalls += 1;
+          return {
+            data: { user: null },
+            error: { code: 'user_not_found', status: 404 },
+          };
+        },
+      },
+    },
+  };
+
+  const outcome = await executePurge({
+    admin: adminWithWorker(worker),
+    targetUserId: targetId,
+    challengeId,
+    startState: {
+      status: 'waiting_sweep',
+      stage: 'waiting_sweep',
+      sweepNotBefore,
+    },
+    leaseAlreadyAcquired: false,
+  });
+
+  assert.equal(lookupCalls, 1);
+  assert.equal(outcome.status, 'waiting_sweep');
+  assert.equal(outcome.stage, 'waiting_sweep');
+  assert.equal(outcome.sweepNotBefore, sweepNotBefore);
+  assert.equal(outcome.authDeleted, true);
+});
+
 test('un conflit PostgreSQL conserve son symbole métier dans l’état de reprise', async () => {
   let persistedError = '';
   const worker = {
@@ -284,9 +357,10 @@ test('un conflit PostgreSQL conserve son symbole métier dans l’état de repri
   assert.equal(persistedError, 'PURGE_EVIDENCE_PATH_OWNERSHIP_CONFLICT');
 });
 
-test('la promotion staff est revalidée par JS puis RPC avant Auth delete', async () => {
+test('Auth est supprimée avant le passage durable à waiting_sweep', async () => {
   const calls: string[] = [];
   let authExists = true;
+  const sweepNotBefore = '2026-08-17T14:05:00.000Z';
   const worker = {
     from: () => ({
       select: () => ({
@@ -295,13 +369,22 @@ test('la promotion staff est revalidée par JS puis RPC avant Auth delete', asyn
         }),
       }),
     }),
-    rpc: async (name: string) => {
+    rpc: async (name: string, args: Record<string, unknown>) => {
       calls.push(name);
       if (name === 'admin_assert_client_purge_auth_ready') {
         return {
-          data: { allowed: true, targetEmail: 'target@example.test' },
+          data: {
+            allowed: true,
+            targetEmail: 'target@example.test',
+            sweepNotBefore,
+          },
           error: null,
         };
+      }
+      if (name === 'admin_mark_client_purge_stage') {
+        assert.equal(args.p_stage, 'waiting_sweep');
+        assert.equal(authExists, false);
+        return { data: null, error: null };
       }
       return { data: null, error: null };
     },
@@ -327,13 +410,148 @@ test('la promotion staff est revalidée par JS puis RPC avant Auth delete', asyn
     admin: adminWithWorker(worker),
     targetUserId: targetId,
     challengeId,
-    startState: { status: 'running', stage: 'auth', sweepNotBefore: null },
+    startState: { status: 'running', stage: 'auth', sweepNotBefore },
     leaseAlreadyAcquired: true,
   });
   assert.equal(outcome.authDeleted, true);
+  assert.equal(outcome.status, 'waiting_sweep');
+  assert.equal(outcome.stage, 'waiting_sweep');
+  assert.equal(outcome.sweepNotBefore, sweepNotBefore);
   assert.ok(
     calls.indexOf('admin_assert_client_purge_auth_ready') <
       calls.indexOf('auth.deleteUser'),
+  );
+  assert.ok(
+    calls.indexOf('auth.deleteUser') <
+      calls.indexOf('admin_mark_client_purge_stage'),
+  );
+});
+
+test('une reprise avec Auth déjà absente ne relance pas deleteUser', async () => {
+  const calls: string[] = [];
+  let deleteCalls = 1;
+  const sweepNotBefore = '2026-08-17T14:05:00.000Z';
+  const worker = {
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          maybeSingle: async () => ({ data: null, error: null }),
+        }),
+      }),
+    }),
+    rpc: async (name: string, args: Record<string, unknown>) => {
+      calls.push(name);
+      if (name === 'admin_assert_client_purge_auth_ready') {
+        return {
+          data: {
+            allowed: true,
+            targetEmail: 'target@example.test',
+            authExists: false,
+            sweepNotBefore,
+          },
+          error: null,
+        };
+      }
+      if (name === 'admin_mark_client_purge_stage') {
+        assert.equal(args.p_stage, 'waiting_sweep');
+      }
+      return { data: null, error: null };
+    },
+    auth: {
+      admin: {
+        getUserById: async () => ({
+          data: { user: null },
+          error: { code: 'user_not_found', status: 404 },
+        }),
+        deleteUser: async () => {
+          deleteCalls += 1;
+          calls.push('auth.deleteUser');
+          return { data: null, error: null };
+        },
+      },
+    },
+  };
+
+  const outcome = await executePurge({
+    admin: adminWithWorker(worker),
+    targetUserId: targetId,
+    challengeId,
+    startState: { status: 'running', stage: 'auth', sweepNotBefore },
+    leaseAlreadyAcquired: true,
+  });
+
+  assert.equal(deleteCalls, 1);
+  assert.equal(calls.includes('auth.deleteUser'), false);
+  assert.equal(outcome.status, 'waiting_sweep');
+  assert.equal(outcome.stage, 'waiting_sweep');
+  assert.equal(outcome.authDeleted, true);
+  assert.equal(outcome.sweepNotBefore, sweepNotBefore);
+});
+
+test('un échec deleteUser reste reprenable au stage auth', async () => {
+  const persistedStages: Array<{ stage: unknown; errorCode: unknown }> = [];
+  const worker = {
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          maybeSingle: async () => ({ data: null, error: null }),
+        }),
+      }),
+    }),
+    rpc: async (name: string, args: Record<string, unknown>) => {
+      if (name === 'admin_assert_client_purge_auth_ready') {
+        return {
+          data: {
+            allowed: true,
+            targetEmail: 'target@example.test',
+            sweepNotBefore: '2026-08-17T14:05:00.000Z',
+          },
+          error: null,
+        };
+      }
+      if (name === 'admin_mark_client_purge_stage') {
+        persistedStages.push({
+          stage: args.p_stage,
+          errorCode: args.p_error_code,
+        });
+        return { data: null, error: null };
+      }
+      return { data: null, error: null };
+    },
+    auth: {
+      admin: {
+        getUserById: async () => ({
+          data: { user: { id: targetId, email: 'target@example.test' } },
+          error: null,
+        }),
+        deleteUser: async () => ({
+          data: null,
+          error: { code: 'storage_objects_not_empty', status: 422 },
+        }),
+      },
+    },
+  };
+
+  await assert.rejects(
+    executePurge({
+      admin: adminWithWorker(worker),
+      targetUserId: targetId,
+      challengeId,
+      startState: {
+        status: 'running',
+        stage: 'auth',
+        sweepNotBefore: '2026-08-17T14:05:00.000Z',
+      },
+      leaseAlreadyAcquired: true,
+    }),
+    /storage_objects_not_empty/,
+  );
+  assert.deepEqual(persistedStages, [
+    { stage: 'auth', errorCode: 'storage_objects_not_empty' },
+  ]);
+  assert.equal(
+    persistedStages.some(({ stage }) => stage === 'waiting_sweep'),
+    false,
   );
 });
 
@@ -348,7 +566,11 @@ test('un e-mail Auth modifié après le gel bloque la suppression avant son effe
     rpc: async (name: string) => ({
       data:
         name === 'admin_assert_client_purge_auth_ready'
-          ? { allowed: true, targetEmail: 'before@example.test' }
+          ? {
+              allowed: true,
+              targetEmail: 'before@example.test',
+              sweepNotBefore: '2026-08-17T14:05:00.000Z',
+            }
           : null,
       error: null,
     }),

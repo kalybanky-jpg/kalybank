@@ -97,25 +97,6 @@ export function parseClientPurgeTarget(value: string) {
   return uuid(value, 'Le client');
 }
 
-function confirmation(body: Record<string, unknown>) {
-  const exactEmail = typeof body.exactEmail === 'string' ? body.exactEmail : '';
-  const currentPassword =
-    typeof body.currentPassword === 'string' ? body.currentPassword : '';
-  if (
-    exactEmail !== exactEmail.trim() ||
-    exactEmail.length < 3 ||
-    exactEmail.length > 254
-  ) {
-    throw new ClientPurgeValidationError(
-      'Saisissez exactement l’adresse e-mail du client.',
-    );
-  }
-  if (currentPassword.length < 8 || currentPassword.length > 1_024) {
-    throw new ClientPurgeValidationError('Le mot de passe actuel est requis.');
-  }
-  return { exactEmail, currentPassword };
-}
-
 export function parseClientPurgePreview(value: unknown) {
   const body = record(value);
   onlyKeys(body, ['idempotencyKey']);
@@ -126,35 +107,123 @@ export function parseClientPurgePreview(value: unknown) {
 
 export function parseClientPurgeExecution(value: unknown) {
   const body = record(value);
-  onlyKeys(body, [
-    'challengeId',
-    'idempotencyKey',
-    'challengeToken',
-    'exactEmail',
-    'currentPassword',
-  ]);
+  onlyKeys(body, ['challengeId', 'idempotencyKey', 'challengeToken']);
   const challengeToken =
     typeof body.challengeToken === 'string' ? body.challengeToken : '';
   if (!/^[A-Za-z0-9_-]{40,100}$/.test(challengeToken)) {
     throw new ClientPurgeValidationError('Le défi de sécurité est invalide.');
   }
-  const credentials = confirmation(body);
-
   return {
     challengeId: uuid(body.challengeId, 'Le défi de sécurité'),
     idempotencyKey: uuid(body.idempotencyKey, 'La clé de sécurité'),
     challengeToken,
-    ...credentials,
   };
 }
 
 export function parseClientPurgeResume(value: unknown) {
   const body = record(value);
-  onlyKeys(body, ['resume', 'exactEmail', 'currentPassword']);
+  onlyKeys(body, ['resume']);
   if (body.resume !== true) {
     throw new ClientPurgeValidationError('La reprise demandée est invalide.');
   }
-  return { resume: true as const, ...confirmation(body) };
+  return { resume: true as const };
+}
+
+type AutomaticPurgePreview = {
+  challengeId: string;
+  pending?: boolean;
+};
+
+type AutomaticPurgeOutcome = {
+  deleted?: boolean;
+  authDeleted?: boolean;
+  status: string;
+  canResume?: boolean;
+  workKind?: string;
+};
+
+export function createClientPurgeChallengeGuard() {
+  const challengesInFlight = new Set<string>();
+
+  return async function runOnceForChallenge<Result>(
+    challengeId: string,
+    action: () => Promise<Result>,
+  ) {
+    if (challengesInFlight.has(challengeId)) {
+      throw new Error('Ce défi de suppression est déjà en cours.');
+    }
+    challengesInFlight.add(challengeId);
+    try {
+      return await action();
+    } finally {
+      challengesInFlight.delete(challengeId);
+    }
+  };
+}
+
+export async function continueClientPurgeAutomatically<
+  Outcome extends AutomaticPurgeOutcome,
+>(
+  initial: Outcome,
+  callbacks: {
+    resume: () => Promise<Outcome>;
+    wait: () => Promise<void>;
+    onOutcome?: (outcome: Outcome) => void;
+  },
+) {
+  let outcome = initial;
+  callbacks.onOutcome?.(outcome);
+
+  while (
+    !outcome.deleted &&
+    !outcome.authDeleted &&
+    outcome.status !== 'waiting_sweep'
+  ) {
+    if (outcome.workKind === 'wait') return outcome;
+    if (outcome.status !== 'processing' && !outcome.canResume) {
+      throw new Error('La suppression ne peut pas être reprise immédiatement.');
+    }
+    await callbacks.wait();
+    outcome = await callbacks.resume();
+    callbacks.onOutcome?.(outcome);
+  }
+
+  return outcome;
+}
+
+export async function runClientPurgeAutomaticFlow<
+  Preview extends AutomaticPurgePreview,
+  Outcome extends AutomaticPurgeOutcome,
+>(callbacks: {
+  startPreview: () => Promise<Preview>;
+  continuePreview: () => Promise<Preview>;
+  commit: (preview: Preview) => Promise<Outcome>;
+  resume: () => Promise<Outcome>;
+  wait: (phase: 'preview' | 'resume') => Promise<void>;
+  runChallenge: <Result>(
+    challengeId: string,
+    action: () => Promise<Result>,
+  ) => Promise<Result>;
+  onPreview?: (preview: Preview) => void;
+  onOutcome?: (outcome: Outcome) => void;
+}) {
+  let preview = await callbacks.startPreview();
+  callbacks.onPreview?.(preview);
+
+  while (preview.pending) {
+    await callbacks.wait('preview');
+    preview = await callbacks.continuePreview();
+    callbacks.onPreview?.(preview);
+  }
+
+  return callbacks.runChallenge(preview.challengeId, async () => {
+    const initial = await callbacks.commit(preview);
+    return continueClientPurgeAutomatically(initial, {
+      resume: callbacks.resume,
+      wait: () => callbacks.wait('resume'),
+      onOutcome: callbacks.onOutcome,
+    });
+  });
 }
 
 export function storageChunks(paths: Iterable<string>, size = 1_000) {

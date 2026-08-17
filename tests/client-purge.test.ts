@@ -4,12 +4,14 @@ import test from 'node:test';
 import {
   ClientPurgeValidationError,
   ClientPurgeOwnershipError,
+  createClientPurgeChallengeGuard,
   isClientOwnedStoragePath,
   manifestChunks,
   parseClientPurgeExecution,
   parseClientPurgePreview,
   parseClientPurgeResume,
   parseClientPurgeTarget,
+  runClientPurgeAutomaticFlow,
   storageChunks,
   validateClientPurgeStorageReference,
 } from '../lib/client-purge';
@@ -31,15 +33,11 @@ test('les charges preview et suppression sont strictement validées', () => {
       challengeId,
       idempotencyKey,
       challengeToken,
-      exactEmail: 'client@example.test',
-      currentPassword: 'password-secret',
     }),
     {
       challengeId,
       idempotencyKey,
       challengeToken,
-      exactEmail: 'client@example.test',
-      currentPassword: 'password-secret',
     },
   );
   assert.throws(
@@ -48,23 +46,11 @@ test('les charges preview et suppression sont strictement validées', () => {
         challengeId,
         idempotencyKey,
         challengeToken,
-        exactEmail: ' client@example.test',
-        currentPassword: 'password-secret',
+        exactEmail: 'client@example.test',
       }),
     ClientPurgeValidationError,
   );
-  assert.deepEqual(
-    parseClientPurgeResume({
-      resume: true,
-      exactEmail: 'client@example.test',
-      currentPassword: 'password-secret',
-    }),
-    {
-      resume: true,
-      exactEmail: 'client@example.test',
-      currentPassword: 'password-secret',
-    },
-  );
+  assert.deepEqual(parseClientPurgeResume({ resume: true }), { resume: true });
   assert.throws(
     () => parseClientPurgePreview({ idempotencyKey, unexpected: true }),
     ClientPurgeValidationError,
@@ -73,12 +59,71 @@ test('les charges preview et suppression sont strictement validées', () => {
     () =>
       parseClientPurgeResume({
         resume: true,
-        exactEmail: 'client@example.test',
         currentPassword: 'password-secret',
-        challengeToken,
       }),
     ClientPurgeValidationError,
   );
+});
+
+test('un seul lancement enchaîne preview, commit et reprises jusqu’à Auth supprimé', async () => {
+  const phases: string[] = [];
+  const previews = [
+    { challengeId, pending: true },
+    { challengeId, pending: false },
+  ];
+  const outcomes = [
+    { status: 'processing', authDeleted: false },
+    { status: 'processing', authDeleted: false },
+    { status: 'waiting_sweep', authDeleted: true },
+  ];
+  let previewIndex = 0;
+  let commitCalls = 0;
+  let resumeCalls = 0;
+
+  const result = await runClientPurgeAutomaticFlow({
+    startPreview: async () => previews[0],
+    continuePreview: async () => previews[++previewIndex],
+    commit: async (readyPreview) => {
+      commitCalls += 1;
+      assert.equal(readyPreview.challengeId, challengeId);
+      return outcomes[0];
+    },
+    resume: async () => outcomes[++resumeCalls],
+    wait: async (phase) => {
+      phases.push(phase);
+    },
+    runChallenge: createClientPurgeChallengeGuard(),
+  });
+
+  assert.equal(previewIndex, 1);
+  assert.equal(commitCalls, 1);
+  assert.equal(resumeCalls, 2);
+  assert.deepEqual(phases, ['preview', 'resume', 'resume']);
+  assert.equal(result.status, 'waiting_sweep');
+  assert.equal(result.authDeleted, true);
+});
+
+test('la garde interdit deux commits concurrents pour le même challenge', async () => {
+  const runChallenge = createClientPurgeChallengeGuard();
+  let release!: () => void;
+  const blocked = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let commitCalls = 0;
+  const first = runChallenge(challengeId, async () => {
+    commitCalls += 1;
+    await blocked;
+  });
+
+  await assert.rejects(
+    runChallenge(challengeId, async () => {
+      commitCalls += 1;
+    }),
+    /déjà en cours/,
+  );
+  assert.equal(commitCalls, 1);
+  release();
+  await first;
 });
 
 test('les suppressions Storage sont dédupliquées et plafonnées à 1000 objets', () => {
@@ -149,7 +194,7 @@ test('les secrets et e-mails sont condensés de façon déterministe', () => {
   else process.env.CLIENT_PURGE_SWEEP_SECRET = previous;
 });
 
-test('les routes imposent admin actif, origine, mot de passe et e-mail exact', async () => {
+test('les routes imposent admin actif, origine, cible autoritative et challenge', async () => {
   const [access, preview, previewContinue, purge, listing] = await Promise.all([
     readFile(new URL('../lib/server/client-purge.ts', import.meta.url), 'utf8'),
     readFile(new URL('../app/api/admin/clients/[userId]/purge/preview/route.ts', import.meta.url), 'utf8'),
@@ -161,9 +206,7 @@ test('les routes imposent admin actif, origine, mot de passe et e-mail exact', a
   assert.match(access, /targetUserId === admin\.user\.id/);
   assert.match(access, /STAFF_PURGE_FORBIDDEN/);
   assert.match(access, /CLIENT_PURGE_AUTH_FETCH_TIMEOUT_MS = 15_000/);
-  assert.match(access, /CLIENT_PURGE_AUTH_REQUEST_TIMEOUT_MS = 18_000/);
   assert.match(access, /createBoundedPrivilegedFetch\(/);
-  assert.match(access, /authRequestSignal/);
   assert.match(access, /effectiveRequestSignal/);
   assert.match(access, /createClient\(\{[\s\S]*fetch:/);
   assert.match(preview, /isSameOriginMutation\(request\)/);
@@ -173,13 +216,13 @@ test('les routes imposent admin actif, origine, mot de passe et e-mail exact', a
   assert.match(previewContinue, /recoverPurgePreview/);
   assert.match(previewContinue, /Record<string, unknown>\)\.continue !== true/);
   assert.match(purge, /isSameOriginMutation\(request\)/);
-  assert.match(purge, /input\.exactEmail !== target\.email/);
+  assert.match(purge, /const target = await authoritativeClient\(/);
+  assert.match(purge, /emailDigest: digest\(target\.email!\)/);
+  assert.match(access, /lookup\.data\.user\?\.email !== currentState\.targetEmail/);
+  assert.match(access, /p_target_email_digest: digest\(currentState\.targetEmail\)/);
   assert.match(purge, /createClientPurgeRequestSignal\(request\.signal\)/);
-  assert.match(
-    purge,
-    /verifyAdminPassword\([\s\S]*?access\.admin,[\s\S]*?input\.currentPassword,[\s\S]*?requestSignal/,
-  );
   assert.match(purge, /parseClientPurgeResume/);
+  assert.doesNotMatch(purge, /verifyAdminPassword|currentPassword|input\.exactEmail/);
   assert.match(purge, /export async function GET/);
   assert.match(purge, /export async function POST/);
   assert.match(listing, /admin_list_client_purge_candidates/);
@@ -188,7 +231,7 @@ test('les routes imposent admin actif, origine, mot de passe et e-mail exact', a
   assert.doesNotMatch(purge, /console\.(?:log|warn|error)/);
 });
 
-test('l’orchestration traite une unité durable bornée puis Storage, RPC, Auth et vérification', async () => {
+test('l’orchestration supprime Auth avant waiting_sweep puis balaie et vérifie', async () => {
   const [source, shared] = await Promise.all([
     readFile(new URL('../lib/server/client-purge.ts', import.meta.url), 'utf8'),
     readFile(new URL('../lib/client-purge.ts', import.meta.url), 'utf8'),
@@ -196,12 +239,37 @@ test('l’orchestration traite une unité durable bornée puis Storage, RPC, Aut
   const storage = source.indexOf("'admin_claim_client_purge_storage_work'");
   const relational = source.indexOf("'admin_purge_client_relational_data'");
   const authDelete = source.indexOf('auth.admin.deleteUser');
+  const waitingSweep = source.indexOf(
+    "markStage(admin, challengeId, 'waiting_sweep')",
+  );
   const authVerify = source.lastIndexOf('auth.admin.getUserById');
   const finalize = source.indexOf("'admin_finalize_client_purge'");
+  const databaseStage = source.slice(
+    source.indexOf("if (stage === 'database')"),
+    source.indexOf("if (stage === 'storage_sweep')"),
+  );
+  const storageSweepStage = source.slice(
+    source.indexOf("if (stage === 'storage_sweep')"),
+    source.indexOf("if (stage === 'auth')"),
+  );
+  const authStage = source.slice(
+    source.indexOf("if (stage === 'auth')"),
+    source.indexOf("if (stage === 'verify')"),
+  );
   assert.ok(storage > 0 && storage < relational);
   assert.ok(relational < authDelete);
+  assert.ok(authDelete < waitingSweep);
   assert.ok(authDelete < authVerify);
   assert.ok(authVerify < finalize);
+  assert.match(databaseStage, /status: 'processing' as const/);
+  assert.match(databaseStage, /stage: 'auth' as const/);
+  assert.doesNotMatch(databaseStage, /status: 'waiting_sweep' as const/);
+  assert.match(storageSweepStage, /markStage\(admin, challengeId, 'verify'\)/);
+  assert.doesNotMatch(storageSweepStage, /markStage\(admin, challengeId, 'auth'\)/);
+  assert.match(authStage, /auth\.admin\.deleteUser/);
+  assert.match(authStage, /markStage\(admin, challengeId, 'waiting_sweep'\)/);
+  assert.match(authStage, /status: 'waiting_sweep' as const/);
+  assert.match(authStage, /authDeleted: true/);
   assert.match(source, /p_limit: 1_000/);
   assert.match(source, /storageChunks\(paths\)/);
   assert.match(source, /if \(stage === 'storage'\)/);
@@ -224,13 +292,22 @@ test('l’orchestration traite une unité durable bornée puis Storage, RPC, Aut
 });
 
 test('le contrat SQL est privé, verrouillé, ordonné et efface son propre état', async () => {
-  const migration = await readFile(
-    new URL(
-      '../supabase/migrations/20260811070824_guarded_client_data_purge.sql',
-      import.meta.url,
+  const [migration, immediateIdentityRelease] = await Promise.all([
+    readFile(
+      new URL(
+        '../supabase/migrations/20260811070824_guarded_client_data_purge.sql',
+        import.meta.url,
+      ),
+      'utf8',
     ),
-    'utf8',
-  );
+    readFile(
+      new URL(
+        '../supabase/migrations/20260817213814_release_test_client_identity_immediately.sql',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+  ]);
   assert.match(migration, /create table private\.client_purge_operations/);
   assert.match(migration, /security definer[\s\S]*set search_path = ''/i);
   assert.match(migration, /to service_role/);
@@ -296,6 +373,55 @@ test('le contrat SQL est privé, verrouillé, ordonné et efface son propre éta
       migration.indexOf('admin_finalize_client_purge'),
   );
   assert.doesNotMatch(migration, /delete from storage\.(?:objects|buckets)/i);
+  const relationalPurge = immediateIdentityRelease.slice(
+    immediateIdentityRelease.indexOf(
+      'create or replace function public.admin_purge_client_relational_data',
+    ),
+    immediateIdentityRelease.indexOf(
+      '-- Normalize any purge that crossed the relational boundary',
+    ),
+  );
+  assert.match(relationalPurge, /stage = 'auth'/i);
+  assert.match(relationalPurge, /status = 'running'/i);
+  assert.doesNotMatch(relationalPurge, /waiting_sweep/i);
+  assert.match(immediateIdentityRelease, /PURGE_TARGET_ID_RESERVED/);
+  const beginPurge = immediateIdentityRelease.slice(
+    immediateIdentityRelease.indexOf(
+      'CREATE OR REPLACE FUNCTION "public"."admin_begin_client_purge"',
+    ),
+    immediateIdentityRelease.indexOf(
+      'CREATE OR REPLACE FUNCTION "public"."admin_finalize_client_purge"',
+    ),
+  );
+  assert.match(
+    beginPurge,
+    /operation\.idempotency_key is distinct from p_idempotency_key/,
+  );
+  assert.match(
+    beginPurge,
+    /The challenge is one-use, but the exact idempotent operation can resume/,
+  );
+  assert.match(beginPurge, /PURGE_OPERATION_IN_PROGRESS/);
+  assert.match(
+    immediateIdentityRelease,
+    /exists \(\s*select 1\s*from auth\.users target_user\s*where target_user\.id = operation\.target_user_id\s*\)/,
+  );
+  assert.match(
+    immediateIdentityRelease,
+    /Historical ownership of an e-mail by another UUID is permanent ambiguity/i,
+  );
+  assert.match(
+    immediateIdentityRelease,
+    /create or replace function "private"\."guard_support_transcript_mutation"/i,
+  );
+  assert.match(
+    immediateIdentityRelease,
+    /create or replace function "private"\."audit_event_matches_client"/i,
+  );
+  assert.match(
+    immediateIdentityRelease,
+    /normalized_email = support_email\.value\s+and active_identity\.user_id <> p_target_user_id/i,
+  );
   const purgeFinalization = migration.slice(
     migration.indexOf('create or replace function public.admin_purge_client_relational_data'),
     migration.indexOf('create or replace function public.admin_list_pending_client_purges'),
@@ -318,7 +444,7 @@ test('le contrat SQL est privé, verrouillé, ordonné et efface son propre éta
   );
 });
 
-test('l’interface Clients est mobile-first avec une confirmation rapide et réauthentifiée', async () => {
+test('l’interface Clients lance en un clic sans saisie et reprend automatiquement', async () => {
   const ui = await readFile(
     new URL('../components/AdminClientsView.tsx', import.meta.url),
     'utf8',
@@ -327,13 +453,46 @@ test('l’interface Clients est mobile-first avec une confirmation rapide et ré
   assert.match(ui, /hidden overflow-x-auto md:block/);
   assert.match(ui, /<Dialog/);
   assert.match(ui, /<DialogPanel/);
-  assert.match(ui, /initialFocusRef=\{passwordInput\}/);
-  assert.match(ui, /autoComplete="current-password"/);
-  assert.match(ui, /exactEmail: preview\.targetEmail/);
+  assert.equal(
+    (ui.match(/onClick=\{\(\) => void openPurge\(client\)\}/g) ?? []).length,
+    2,
+  );
+  assert.doesNotMatch(ui, /type="password"|current-password|passwordInput/);
+  assert.doesNotMatch(ui, /currentPassword|exactEmail|onSubmit=\{purge\}/);
   assert.match(ui, /method: 'POST'/);
-  assert.match(ui, /\/api\/admin\/clients\/\$\{selected\.id\}\/purge/);
-  assert.match(ui, /Reprendre la suppression/);
-  assert.match(ui, /au moins deux heures et cinq minutes plus tard/);
+  assert.match(ui, /runClientPurgeAutomaticFlow<Preview, PurgeState>/);
+  assert.match(ui, /continueClientPurgeAutomatically/);
+  assert.match(ui, /createClientPurgeChallengeGuard/);
+  assert.match(ui, /body: JSON\.stringify\(\{ resume: true \}\)/);
+  assert.match(ui, /purgeStatusForRun\(run, client\)/);
+  assert.match(ui, /recoverUncertainCommit\(run, client\)/);
+  assert.match(ui, /uncertainChallenges\.current\.has\(readyPreview\.challengeId\)/);
+  assert.match(ui, /if \(activePurgeRun\.current\) return/);
+  assert.match(ui, /run\.commitInFlight/);
+  assert.match(ui, /run\.executionStarted \|\| run\.commitDispatched/);
+  assert.match(ui, /closeOnBackdrop=\{!purging\}/);
+  assert.match(ui, /Dès ce clic/);
+  const ordinaryRequest = ui.slice(
+    ui.indexOf('async function requestForRun'),
+    ui.indexOf('async function commitForRun'),
+  );
+  const commitRequest = ui.slice(
+    ui.indexOf('async function commitForRun'),
+    ui.indexOf('async function purgeStatusForRun'),
+  );
+  assert.match(ordinaryRequest, /signal: run\.controller\.signal/);
+  assert.doesNotMatch(ordinaryRequest, /keepalive: true/);
+  assert.match(commitRequest, /keepalive: true/);
+  assert.doesNotMatch(commitRequest, /signal: run\.controller\.signal/);
+  assert.equal((commitRequest.match(/assertActiveRun\(run\)/g) ?? []).length, 2);
+  assert.match(ui, /return commitForRun<PurgeState>/);
+  assert.match(ui, /Le compte est supprimé immédiatement/);
+  assert.match(ui, /la même adresse e-mail peut être réutilisée sans attendre/);
+  assert.match(
+    ui,
+    /Le nettoyage Storage résiduel continue automatiquement en arrière-plan/,
+  );
+  assert.doesNotMatch(ui, /avant la suppression Auth/);
   assert.match(ui, /safe-area-inset-bottom/);
   assert.match(ui, /unsafeStorageReferences/);
   assert.match(ui, />Notifications</);
@@ -341,7 +500,7 @@ test('l’interface Clients est mobile-first avec une confirmation rapide et ré
   assert.match(ui, /Inventaire Storage automatique en cours/);
   assert.doesNotMatch(ui, /Recopiez exactement l’e-mail du client/);
   assert.match(ui, /Le curseur est conservé/);
-  assert.match(ui, /Auth supprimée — finalisation à reprendre/);
+  assert.match(ui, /Compte supprimé — nettoyage automatique en cours/);
   assert.match(ui, /Admins conservés/);
   assert.match(ui, /CLIENT_PURGE_EXTERNAL_CHECKLIST/);
   assert.match(ui, /createClientPurgeCompletionMonitor/);
@@ -412,11 +571,14 @@ test('la CI exécute le scénario destructif uniquement sur Supabase éphémère
   assert.match(integration, /uploadToSignedUrl/);
   assert.match(integration, /lateSignedUploadSwept: true/);
   assert.match(integration, /auth\.admin\.deleteUser/);
-  assert.match(integration, /Auth may succeed before the durable auth-to-verify transition/);
+  assert.match(integration, /Auth may succeed before the durable auth-to-waiting transition/);
   assert.match(integration, /PURGE_MUTATION_DEADLOCK_TIMEOUT/);
   assert.match(integration, /mutationRaceResult\.status/);
   assert.match(integration, /crossTenantPreserved: true/);
   assert.match(integration, /authOrphanCovered: true/);
+  assert.match(integration, /authDeletedBeforeWaitingSweep: true/);
+  assert.match(integration, /emailReusedBeforeSweep: true/);
+  assert.match(integration, /replacementPreserved: true/);
   assert.match(packageJson, /"test:client-purge:integration"/);
 });
 

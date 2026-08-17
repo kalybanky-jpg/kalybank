@@ -3,7 +3,12 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, LoaderCircle, Search, Trash2, Users, X } from 'lucide-react';
 import { Dialog, DialogBackdrop, DialogPanel } from '@/components/ui/Dialog';
-import { CLIENT_PURGE_EXTERNAL_CHECKLIST } from '@/lib/client-purge';
+import {
+  CLIENT_PURGE_EXTERNAL_CHECKLIST,
+  continueClientPurgeAutomatically,
+  createClientPurgeChallengeGuard,
+  runClientPurgeAutomaticFlow,
+} from '@/lib/client-purge';
 import {
   createClientPurgeCompletionMonitor,
   type ObservedClientPurge,
@@ -34,6 +39,7 @@ type PurgeState = {
   storagePhase?: string;
   targetEmail?: string;
   authDeleted?: boolean;
+  workKind?: string;
 };
 
 type ClientPurgeCompletionMonitor = ReturnType<
@@ -79,10 +85,42 @@ type Page = {
   totalPages: number;
 };
 
+type ActivePurgeRun = {
+  id: number;
+  targetUserId: string;
+  controller: AbortController;
+  challengeId: string | null;
+  commitDispatched: boolean;
+  commitInFlight: boolean;
+  executionStarted: boolean;
+};
+
 async function responseJson<T>(response: Response) {
   const body = (await response.json()) as T & { error?: string };
   if (!response.ok) throw new Error(body.error ?? 'Une erreur est survenue.');
   return body;
+}
+
+function isAbortError(error: unknown) {
+  return error instanceof DOMException && error.name === 'AbortError';
+}
+
+function pause(ms: number, signal: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal.aborted) {
+      reject(new DOMException('Opération annulée.', 'AbortError'));
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      signal.removeEventListener('abort', abort);
+      resolve();
+    }, ms);
+    const abort = () => {
+      window.clearTimeout(timer);
+      reject(new DOMException('Opération annulée.', 'AbortError'));
+    };
+    signal.addEventListener('abort', abort, { once: true });
+  });
 }
 
 export default function AdminClientsView() {
@@ -95,14 +133,15 @@ export default function AdminClientsView() {
   const [selected, setSelected] = useState<Client | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [purgeState, setPurgeState] = useState<PurgeState | null>(null);
-  const [idempotencyKey, setIdempotencyKey] = useState('');
-  const [password, setPassword] = useState('');
   const [purgeError, setPurgeError] = useState('');
   const [purging, setPurging] = useState(false);
+  const [commitInFlight, setCommitInFlight] = useState(false);
   const [notice, setNotice] = useState('');
   const [externalChecklist, setExternalChecklist] = useState<ObservedClientPurge[]>([]);
-  const passwordInput = useRef<HTMLInputElement>(null);
-  const previewRequest = useRef(0);
+  const purgeRunSequence = useRef(0);
+  const activePurgeRun = useRef<ActivePurgeRun | null>(null);
+  const challengeGuard = useRef(createClientPurgeChallengeGuard());
+  const uncertainChallenges = useRef(new Set<string>());
   const completionMonitor = useRef<ClientPurgeCompletionMonitor | null>(null);
 
   const loadClients = useCallback(async (signal?: AbortSignal) => {
@@ -154,7 +193,7 @@ export default function AdminClientsView() {
           ),
           target,
         ]);
-        setNotice(`Les données de ${target.email} ont été supprimées.`);
+        setNotice(`Le nettoyage résiduel de ${target.email} est terminé.`);
         void loadClientsRef.current();
       },
       focusTarget: window,
@@ -196,171 +235,340 @@ export default function AdminClientsView() {
     setActiveQuery(query.trim());
   }
 
-  function closeDialog(force = false) {
-    if (purging && !force) return;
-    previewRequest.current += 1;
+  function closeDialog() {
+    const run = activePurgeRun.current;
+    if (run?.commitInFlight) {
+      setPurgeError(
+        'Le lancement sécurisé est en cours. Patientez quelques secondes avant de fermer ce suivi.',
+      );
+      return;
+    }
+    if (run) {
+      run.controller.abort();
+      activePurgeRun.current = null;
+      setPurging(false);
+      if (run.executionStarted || run.commitDispatched) {
+        setNotice(
+          run.executionStarted
+            ? 'Le suivi interactif est fermé. La suppression déjà lancée sera reprise automatiquement en arrière-plan.'
+            : 'Le suivi est fermé pendant la vérification du lancement. Si la demande a été enregistrée, le worker automatique la terminera.',
+        );
+      }
+    }
     setSelected(null);
     setPreview(null);
     setPurgeState(null);
-    setPassword('');
     setPurgeError('');
+    setCommitInFlight(false);
+  }
+
+  function assertActiveRun(run: ActivePurgeRun) {
+    if (activePurgeRun.current !== run || run.controller.signal.aborted) {
+      throw new DOMException('Opération annulée.', 'AbortError');
+    }
+  }
+
+  async function requestForRun<T>(
+    run: ActivePurgeRun,
+    url: string,
+    init: RequestInit = {},
+  ) {
+    assertActiveRun(run);
+    const response = await fetch(url, {
+      cache: 'no-store',
+      ...init,
+      signal: run.controller.signal,
+    });
+    const body = await responseJson<T>(response);
+    assertActiveRun(run);
+    return body;
+  }
+
+  async function commitForRun<T>(
+    run: ActivePurgeRun,
+    url: string,
+    init: Omit<RequestInit, 'keepalive' | 'signal'>,
+  ) {
+    assertActiveRun(run);
+    const response = await fetch(url, {
+      cache: 'no-store',
+      ...init,
+      keepalive: true,
+    });
+    const body = await responseJson<T>(response);
+    assertActiveRun(run);
+    return body;
+  }
+
+  async function purgeStatusForRun(run: ActivePurgeRun, client: Client) {
+    assertActiveRun(run);
+    const response = await fetch(`/api/admin/clients/${client.id}/purge`, {
+      cache: 'no-store',
+      signal: run.controller.signal,
+    });
+    if (response.status === 404) {
+      assertActiveRun(run);
+      return null;
+    }
+    const state = await responseJson<PurgeState>(response);
+    assertActiveRun(run);
+    return state;
+  }
+
+  function announceOutcome(client: Client, outcome: PurgeState) {
+    observeWaitingSweep(client, outcome);
+    const ignoredNotice = outcome.ignoredUnsafeStorageReferences
+      ? ` ${outcome.ignoredUnsafeStorageReferences} référence Storage étrangère a été ignorée et son fichier préservé.`
+      : '';
+    const outcomeNotice = outcome.deleted
+      ? 'Le compte est supprimé et son nettoyage résiduel est terminé.'
+      : outcome.authDeleted
+        ? `Le compte est supprimé immédiatement et la même adresse e-mail peut être réutilisée sans attendre. Le nettoyage Storage résiduel continue automatiquement en arrière-plan${outcome.sweepNotBefore ? ` après ${new Date(outcome.sweepNotBefore).toLocaleString('fr-FR')}` : ''}.`
+        : 'La suppression sécurisée progresse par lots. Le worker automatique prendra le relais si ce suivi est fermé.';
+    setNotice(outcomeNotice + ignoredNotice);
+    if (outcome.deleted) showExternalChecklist(client);
+  }
+
+  async function continueUntilAuthDeleted(
+    run: ActivePurgeRun,
+    client: Client,
+    initial: PurgeState,
+  ) {
+    const outcome = await continueClientPurgeAutomatically(initial, {
+      wait: () => pause(200, run.controller.signal),
+      resume: () => requestForRun<PurgeState>(
+        run,
+        `/api/admin/clients/${client.id}/purge`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ resume: true }),
+        },
+      ),
+      onOutcome: setPurgeState,
+    });
+    if (outcome.workKind === 'wait') {
+      setNotice(
+        'Un lot est déjà en cours. Le worker automatique poursuivra la suppression en arrière-plan.',
+      );
+      return outcome;
+    }
+    announceOutcome(client, outcome);
+    await loadClients(run.controller.signal);
+    return outcome;
+  }
+
+  async function recoverUncertainCommit(
+    run: ActivePurgeRun,
+    client: Client,
+  ) {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      if (attempt > 0) await pause(400, run.controller.signal);
+      const state = await purgeStatusForRun(run, client);
+      if (!state || state.status === 'preview') continue;
+
+      if (run.challengeId) uncertainChallenges.current.delete(run.challengeId);
+      run.executionStarted = true;
+      setPurgeState(state);
+      if (
+        state.deleted ||
+        state.authDeleted ||
+        state.status === 'waiting_sweep'
+      ) {
+        announceOutcome(client, state);
+        await loadClients(run.controller.signal);
+        return true;
+      }
+      if (!state.canResume) {
+        setNotice(
+          'Le lancement est bien enregistré. Le worker automatique poursuivra si le traitement serveur en cours ne se termine pas dans cet onglet.',
+        );
+        await loadClients(run.controller.signal);
+        return true;
+      }
+
+      const resumed = await requestForRun<PurgeState>(
+        run,
+        `/api/admin/clients/${client.id}/purge`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ resume: true }),
+        },
+      );
+      await continueUntilAuthDeleted(run, client, resumed);
+      return true;
+    }
+    return false;
   }
 
   async function openPurge(client: Client) {
-    const requestId = ++previewRequest.current;
+    if (activePurgeRun.current) return;
+    const run: ActivePurgeRun = {
+      id: ++purgeRunSequence.current,
+      targetUserId: client.id,
+      controller: new AbortController(),
+      challengeId: null,
+      commitDispatched: false,
+      commitInFlight: false,
+      executionStarted: false,
+    };
+    activePurgeRun.current = run;
     setSelected(client);
     setPreview(null);
     setPurgeState(null);
     setPurgeError('');
-    setPassword('');
+    setNotice('');
+    setPurging(true);
+
     try {
-      if (client.purgeStatus && client.purgeStatus !== 'preview') {
-        const response = await fetch(`/api/admin/clients/${client.id}/purge`, {
-          cache: 'no-store',
-        });
-        const state = await responseJson<PurgeState>(response);
+      const currentState = await purgeStatusForRun(run, client);
+      if (currentState && currentState.status !== 'preview') {
+        const state = currentState;
         setPurgeState(state);
-        observeWaitingSweep(client, state);
-        if (state.canResume) {
-          requestAnimationFrame(() => passwordInput.current?.focus());
+        if (
+          state.deleted ||
+          state.authDeleted ||
+          state.status === 'waiting_sweep'
+        ) {
+          announceOutcome(client, state);
+          return;
         }
+        if (!state.canResume) {
+          setNotice(
+            'Cette suppression est déjà traitée. Le worker automatique la poursuivra en arrière-plan.',
+          );
+          return;
+        }
+        run.executionStarted = true;
+        const resumed = await requestForRun<PurgeState>(
+          run,
+          `/api/admin/clients/${client.id}/purge`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ resume: true }),
+          },
+        );
+        await continueUntilAuthDeleted(run, client, resumed);
         return;
       }
-      const recovering = client.purgeStatus === 'preview';
-      const key = crypto.randomUUID();
-      const response = await fetch(`/api/admin/clients/${client.id}/purge/preview${recovering ? '/continue' : ''}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(recovering
-          ? { continue: true }
-          : { idempotencyKey: key }),
-        cache: 'no-store',
-      });
-      const nextPreview = await responseJson<Preview>(response);
-      if (previewRequest.current !== requestId) return;
-      setIdempotencyKey(nextPreview.idempotencyKey);
-      setPreview(nextPreview);
-      if (!nextPreview.pending) {
-        requestAnimationFrame(() => passwordInput.current?.focus());
-      }
-    } catch (previewError) {
-      setPurgeError(
-        previewError instanceof Error ? previewError.message : 'Aperçu impossible.',
-      );
-    }
-  }
 
-  const continuePreview = useCallback(async () => {
-    if (!selected || !preview?.pending) return;
-    setPurgeError('');
-    try {
-      const response = await fetch(
-        `/api/admin/clients/${selected.id}/purge/preview/continue`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ continue: true }),
-          cache: 'no-store',
+      const recovering = currentState?.status === 'preview';
+      const outcome = await runClientPurgeAutomaticFlow<Preview, PurgeState>({
+        startPreview: () => requestForRun<Preview>(
+          run,
+          `/api/admin/clients/${client.id}/purge/preview${recovering ? '/continue' : ''}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(
+              recovering ? { continue: true } : { idempotencyKey: crypto.randomUUID() },
+            ),
+          },
+        ),
+        continuePreview: () => requestForRun<Preview>(
+          run,
+          `/api/admin/clients/${client.id}/purge/preview/continue`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ continue: true }),
+          },
+        ),
+        commit: (readyPreview) => {
+          if (uncertainChallenges.current.has(readyPreview.challengeId)) {
+            throw new Error(
+              'Le lancement précédent reste incertain. L’état serveur a été relu et ce challenge ne sera pas renvoyé ; rechargez la page avant une nouvelle tentative.',
+            );
+          }
+          run.challengeId = readyPreview.challengeId;
+          run.commitDispatched = true;
+          run.commitInFlight = true;
+          setCommitInFlight(true);
+          return commitForRun<PurgeState>(run, `/api/admin/clients/${client.id}/purge`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              challengeId: readyPreview.challengeId,
+              challengeToken: readyPreview.challengeToken,
+              idempotencyKey: readyPreview.idempotencyKey,
+            }),
+          }).then((committed) => {
+            run.executionStarted = true;
+            setPurgeError('');
+            return committed;
+          }).finally(() => {
+            run.commitInFlight = false;
+            if (activePurgeRun.current === run) setCommitInFlight(false);
+          });
         },
-      );
-      const nextPreview = await responseJson<Preview>(response);
-      setIdempotencyKey(nextPreview.idempotencyKey);
-      setPreview(nextPreview);
-      if (!nextPreview.pending) {
-        requestAnimationFrame(() => passwordInput.current?.focus());
+        resume: () => requestForRun<PurgeState>(
+          run,
+          `/api/admin/clients/${client.id}/purge`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ resume: true }),
+          },
+        ),
+        wait: (phase) => pause(
+          phase === 'preview' ? 150 : 200,
+          run.controller.signal,
+        ),
+        runChallenge: challengeGuard.current,
+        onPreview: setPreview,
+        onOutcome: setPurgeState,
+      });
+      if (outcome.workKind === 'wait') {
+        setNotice(
+          'Un lot est déjà en cours. Le worker automatique poursuivra la suppression en arrière-plan.',
+        );
+        return;
       }
-    } catch (previewError) {
-      setPurgeError(
-        previewError instanceof Error ? previewError.message : 'Aperçu impossible.',
-      );
-    }
-  }, [preview?.pending, selected]);
-
-  useEffect(() => {
-    if (!preview?.pending || !selected) return;
-    const timer = window.setTimeout(() => void continuePreview(), 150);
-    return () => window.clearTimeout(timer);
-  }, [continuePreview, preview?.pending, selected]);
-
-  async function purge(event: FormEvent) {
-    event.preventDefault();
-    if (!selected || !preview) return;
-    setPurging(true);
-    setPurgeError('');
-    try {
-      const response = await fetch(`/api/admin/clients/${selected.id}/purge`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          challengeId: preview.challengeId,
-          challengeToken: preview.challengeToken,
-          idempotencyKey,
-          exactEmail: preview.targetEmail,
-          currentPassword: password,
-        }),
-      });
-      const outcome = await responseJson<PurgeState>(response);
-      observeWaitingSweep(selected, outcome);
-      const ignoredNotice = outcome.ignoredUnsafeStorageReferences
-        ? ` ${outcome.ignoredUnsafeStorageReferences} référence Storage étrangère a été ignorée et son fichier préservé.`
-        : '';
-      const outcomeNotice = outcome.deleted
-        ? 'Les données du client ont été supprimées.'
-        : outcome.status === 'waiting_sweep' && outcome.sweepNotBefore
-          ? `Le compte est gelé. Le balayage final aura lieu après ${new Date(outcome.sweepNotBefore).toLocaleString('fr-FR')}.`
-          : 'Le compte est gelé et la suppression progresse par lots en arrière-plan.';
-      setNotice(outcomeNotice + ignoredNotice);
-      if (outcome.deleted) showExternalChecklist(selected);
-      closeDialog(true);
-      await loadClients();
-    } catch (deleteError) {
-      setPurgeError(
-        deleteError instanceof Error ? deleteError.message : 'Suppression interrompue.',
-      );
+      announceOutcome(client, outcome);
+      await loadClients(run.controller.signal);
+    } catch (caughtError) {
+      let runError = caughtError;
+      if (
+        !isAbortError(runError) &&
+        activePurgeRun.current === run &&
+        run.commitDispatched &&
+        !run.executionStarted
+      ) {
+        if (run.challengeId) uncertainChallenges.current.add(run.challengeId);
+        try {
+          if (await recoverUncertainCommit(run, client)) return;
+        } catch (recoveryError) {
+          runError = recoveryError;
+        }
+      }
+      if (!isAbortError(runError) && activePurgeRun.current === run) {
+        setPurgeError(
+          runError instanceof Error ? runError.message : 'Suppression interrompue.',
+        );
+        if (run.executionStarted || run.commitDispatched) {
+          setNotice(
+            run.executionStarted
+              ? 'La reprise interactive a été interrompue. Le worker automatique reste chargé de terminer la suppression.'
+              : 'La réponse du lancement est incertaine. Si la demande a été enregistrée, le worker automatique la terminera ; son état sera relu à la prochaine ouverture.',
+          );
+          void loadClients();
+        }
+      }
     } finally {
-      setPassword('');
-      setPurging(false);
+      if (activePurgeRun.current === run) {
+        activePurgeRun.current = null;
+        setPurging(false);
+        setCommitInFlight(false);
+      }
     }
   }
 
-  async function resumePurge(event: FormEvent) {
-    event.preventDefault();
-    if (!selected || !purgeState?.canResume) return;
-    setPurging(true);
-    setPurgeError('');
-    try {
-      const response = await fetch(`/api/admin/clients/${selected.id}/purge`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          resume: true,
-          exactEmail: selected.email,
-          currentPassword: password,
-        }),
-      });
-      const outcome = await responseJson<PurgeState>(response);
-      observeWaitingSweep(selected, outcome);
-      const ignoredNotice = outcome.ignoredUnsafeStorageReferences
-        ? ` ${outcome.ignoredUnsafeStorageReferences} référence Storage étrangère a été ignorée et son fichier préservé.`
-        : '';
-      const outcomeNotice = outcome.deleted
-        ? 'Les données du client ont été supprimées.'
-        : outcome.status === 'waiting_sweep' && outcome.sweepNotBefore
-          ? `Le compte reste gelé. Le balayage final est programmé après ${new Date(outcome.sweepNotBefore).toLocaleString('fr-FR')}.`
-          : 'La reprise a traité un lot et continuera automatiquement en arrière-plan.';
-      setNotice(outcomeNotice + ignoredNotice);
-      if (outcome.deleted) showExternalChecklist(selected);
-      closeDialog(true);
-      await loadClients();
-    } catch (resumeError) {
-      setPurgeError(
-        resumeError instanceof Error ? resumeError.message : 'Reprise interrompue.',
-      );
-    } finally {
-      setPassword('');
-      setPurging(false);
-    }
-  }
+  useEffect(() => () => {
+    activePurgeRun.current?.controller.abort();
+    activePurgeRun.current = null;
+  }, []);
 
   return (
     <div className="min-w-0 space-y-5">
@@ -462,7 +670,7 @@ export default function AdminClientsView() {
                   {client.purgeStatus && (
                     <p className="mt-2 rounded-lg bg-amber-50 px-2 py-1 text-xs font-bold text-amber-800">
                       {client.authDeleted
-                        ? 'Auth supprimée — finalisation à reprendre'
+                        ? 'Compte supprimé — nettoyage automatique en cours'
                         : `Suppression : ${client.purgeStatus.replaceAll('_', ' ')}`}
                     </p>
                   )}
@@ -472,8 +680,8 @@ export default function AdminClientsView() {
                     <div><dt className="text-slate-500">Prêts</dt><dd className="font-semibold">{client.counts.loans}</dd></div>
                     <div><dt className="text-slate-500">Virements</dt><dd className="font-semibold">{client.counts.transfers}</dd></div>
                   </dl>
-                  <button type="button" onClick={() => void openPurge(client)} className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-red-300 text-sm font-bold text-red-700">
-                    <Trash2 aria-hidden="true" className="h-4 w-4" /> {client.purgeStatus ? 'Voir ou reprendre' : 'Supprimer les données'}
+                  <button type="button" disabled={purging} onClick={() => void openPurge(client)} className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-red-300 text-sm font-bold text-red-700 disabled:cursor-not-allowed disabled:opacity-40">
+                    <Trash2 aria-hidden="true" className="h-4 w-4" /> {purging && selected?.id === client.id ? 'Suppression en cours…' : client.purgeStatus ? 'Voir ou reprendre' : 'Supprimer les données'}
                   </button>
                 </article>
               ))}
@@ -485,11 +693,11 @@ export default function AdminClientsView() {
                 <tbody className="divide-y">
                   {result.clients.map((client) => (
                     <tr key={client.id}>
-                      <td className="px-2 py-4"><p className="font-bold text-slate-900">{client.displayName || 'Sans nom'}</p><p className="break-all text-[10px] text-slate-500">{client.email}</p>{client.purgeStatus && <p className="mt-1 text-[10px] font-bold text-amber-700">{client.authDeleted ? 'Auth supprimée — finalisation à reprendre' : `Suppression : ${client.purgeStatus.replaceAll('_', ' ')}`}</p>}</td>
+                      <td className="px-2 py-4"><p className="font-bold text-slate-900">{client.displayName || 'Sans nom'}</p><p className="break-all text-[10px] text-slate-500">{client.email}</p>{client.purgeStatus && <p className="mt-1 text-[10px] font-bold text-amber-700">{client.authDeleted ? 'Compte supprimé — nettoyage automatique en cours' : `Suppression : ${client.purgeStatus.replaceAll('_', ' ')}`}</p>}</td>
                       <td className="px-2 py-4 font-semibold">{client.kycStatus?.replaceAll('_', ' ') || 'Non soumis'}</td>
                       <td className="px-2 py-4">{client.counts.accounts}</td>
                       <td className="px-2 py-4">{client.counts.loans} prêt(s), {client.counts.transfers} virement(s)</td>
-                      <td className="px-2 py-4 text-right"><button type="button" onClick={() => void openPurge(client)} className="min-h-11 rounded-xl border border-red-300 px-3 py-2 font-bold text-red-700">{client.purgeStatus ? 'Voir / reprendre' : 'Supprimer'}</button></td>
+                      <td className="px-2 py-4 text-right"><button type="button" disabled={purging} onClick={() => void openPurge(client)} className="min-h-11 rounded-xl border border-red-300 px-3 py-2 font-bold text-red-700 disabled:cursor-not-allowed disabled:opacity-40">{purging && selected?.id === client.id ? 'Suppression…' : client.purgeStatus ? 'Voir / reprendre' : 'Supprimer'}</button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -512,19 +720,18 @@ export default function AdminClientsView() {
         open={Boolean(selected)}
         onClose={closeDialog}
         ariaLabelledBy="purge-title"
-        initialFocusRef={passwordInput}
         closeOnBackdrop={!purging}
       >
         {selected && (
           <DialogBackdrop className="fixed inset-0 z-50 flex items-end overflow-hidden bg-slate-950/60 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)] sm:items-center sm:justify-center sm:px-4 sm:pb-4 sm:pt-[max(1rem,env(safe-area-inset-top))]">
           <DialogPanel as="section" className="max-h-dvh w-full min-w-0 overflow-y-auto overscroll-contain rounded-t-3xl bg-white px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-5 shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:max-w-lg sm:rounded-3xl sm:p-6">
             <div className="flex items-start justify-between gap-3">
-              <div><p className="flex items-center gap-2 text-xs font-bold uppercase text-red-700"><AlertTriangle aria-hidden="true" className="h-4 w-4" /> Action irréversible</p><h2 id="purge-title" className="mt-1 text-xl font-extrabold">{purgeState ? 'Suivi de la suppression' : 'Supprimer toutes les données'}</h2></div>
-              <button type="button" onClick={() => closeDialog()} aria-label="Fermer" className="flex min-h-11 min-w-11 items-center justify-center rounded-full hover:bg-slate-100"><X aria-hidden="true" className="h-5 w-5" /></button>
+              <div><p className="flex items-center gap-2 text-xs font-bold uppercase text-red-700"><AlertTriangle aria-hidden="true" className="h-4 w-4" /> Action irréversible</p><h2 id="purge-title" className="mt-1 text-xl font-extrabold">{purgeState?.authDeleted || selected.authDeleted ? 'Suivi du nettoyage résiduel' : purgeState ? 'Suivi de la suppression' : 'Supprimer toutes les données'}</h2></div>
+              <button type="button" onClick={() => closeDialog()} aria-disabled={commitInFlight} aria-label={commitInFlight ? 'Fermeture temporairement bloquée pendant le lancement sécurisé' : purging ? 'Fermer le suivi ; la suppression continuera automatiquement si elle est enregistrée' : 'Fermer'} title={commitInFlight ? 'Patientez pendant l’enregistrement irréversible de la demande.' : purging ? 'La suppression continuera automatiquement en arrière-plan si elle est enregistrée.' : undefined} className="flex min-h-11 min-w-11 items-center justify-center rounded-full hover:bg-slate-100"><X aria-hidden="true" className="h-5 w-5" /></button>
             </div>
-            <p className="mt-3 text-sm text-slate-600">Client : <strong className="break-all">{selected.email}</strong>. Le compte est gelé dès le lancement. Les dossiers sont purgés, puis un balayage Storage final est exécuté au moins deux heures et cinq minutes plus tard avant la suppression Auth, suivi d’un dernier contrôle ciblé.</p>
+            <p className="mt-3 text-sm text-slate-600">Client : <strong className="break-all">{selected.email}</strong>. Dès ce clic, le compte est supprimé automatiquement et la même adresse e-mail peut être réutilisée sans attendre. Le nettoyage Storage résiduel continue automatiquement en arrière-plan après le délai de sécurité de deux heures et cinq minutes, puis un dernier contrôle ciblé est exécuté.</p>
 
-            {!preview && !purgeState && !purgeError && <p role="status" className="mt-6 flex items-center gap-2 text-sm text-slate-600"><LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin" /> Chargement de l’état sécurisé…</p>}
+            {!preview && !purgeState && !purgeError && <p role="status" className="mt-6 flex items-center gap-2 text-sm text-slate-600"><LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin" /> Suppression automatique en cours…</p>}
             {purgeError && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{purgeError}</p>}
 
             {preview?.pending && (
@@ -535,8 +742,8 @@ export default function AdminClientsView() {
                 </p>
               </div>
             )}
-            {preview && !preview.pending && (
-              <form onSubmit={purge} className="mt-5 space-y-4">
+            {preview && !preview.pending && !purgeState && (
+              <div className="mt-5 space-y-4">
                 <dl className="grid grid-cols-2 gap-2 rounded-2xl bg-slate-50 p-4 text-xs">
                   <div><dt className="text-slate-500">Admins conservés</dt><dd className="font-bold">{preview.impact.preservedAdmins}</dd></div>
                   <div><dt className="text-slate-500">KYC</dt><dd className="font-bold">{preview.impact.kycApplications}</dd></div>
@@ -560,17 +767,16 @@ export default function AdminClientsView() {
                   </p>
                 )}
                 <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-900">Vous allez supprimer définitivement le compte <strong className="break-all">{preview.targetEmail}</strong>.</p>
-                <label className="block text-sm font-semibold">Confirmez avec votre mot de passe<input ref={passwordInput} type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" minLength={8} required className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 font-normal" /></label>
-                <p className="text-xs text-slate-500">Le défi expire à {new Date(preview.expiresAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}. Après lancement, l’état privé est conservé uniquement jusqu’au balayage final ou en cas d’échec.</p>
-                <button type="submit" disabled={purging || password.length < 8} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-red-700 px-4 text-sm font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-40">{purging ? <><LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin" /> Suppression sécurisée…</> : <><Trash2 aria-hidden="true" className="h-4 w-4" /> Supprimer ce compte</>}</button>
-              </form>
+                <p className="flex items-center gap-2 rounded-xl bg-blue-50 p-3 text-sm font-semibold text-blue-900" role="status"><LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin" /> Le défi sécurisé est validé automatiquement. Suppression et libération de l’e-mail en cours…</p>
+                <p className="text-xs text-slate-500">Le défi expire à {new Date(preview.expiresAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}. L’état privé est conservé uniquement jusqu’au nettoyage final ou en cas d’échec.</p>
+              </div>
             )}
 
             {purgeState && (
               <div className="mt-5 space-y-4">
                 {(selected.authDeleted || purgeState.authDeleted) && (
                   <p role="status" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-900">
-                    Le compte Auth est déjà supprimé. L’état privé minimal de l’opération reste visible uniquement pour terminer les contrôles et reprendre la finalisation en sécurité.
+                    Le compte Auth est supprimé et son e-mail peut déjà être réutilisé. L’état privé minimal de l’ancien compte reste visible uniquement le temps du nettoyage Storage résiduel.
                   </p>
                 )}
                 <div className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-900">
@@ -578,17 +784,14 @@ export default function AdminClientsView() {
                   <p><strong>Étape :</strong> {purgeState.stage.replaceAll('_', ' ')}</p>
                   {purgeState.storagePhase && <p><strong>Lot Storage :</strong> {purgeState.storagePhase.replaceAll('_', ' ')}</p>}
                   {purgeState.sweepNotBefore && (
-                    <p className="mt-1">Balayage final après {new Date(purgeState.sweepNotBefore).toLocaleString('fr-FR')}.</p>
+                    <p className="mt-1">Nettoyage Storage résiduel automatique après {new Date(purgeState.sweepNotBefore).toLocaleString('fr-FR')}.</p>
                   )}
                   {!purgeState.canResume && (
-                    <p className="mt-2 text-xs">Le compte reste gelé. La reprise sera proposée à l’expiration du délai ou du bail de traitement.</p>
+                    <p className="mt-2 text-xs">{selected.authDeleted || purgeState.authDeleted ? 'Aucune attente n’est nécessaire pour recréer le compte. La reprise du nettoyage est automatique.' : 'Le compte reste gelé pendant le traitement initial. Une reprise sera proposée si celui-ci est interrompu.'}</p>
                   )}
                 </div>
-                {purgeState.canResume && (
-                  <form onSubmit={resumePurge} className="space-y-4">
-                    <label className="block text-sm font-semibold">Confirmez avec votre mot de passe<input ref={passwordInput} type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" minLength={8} required className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5 font-normal" /></label>
-                    <button type="submit" disabled={purging || password.length < 8} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-red-700 px-4 text-sm font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-40">{purging ? <><LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin" /> Reprise sécurisée…</> : 'Reprendre la suppression'}</button>
-                  </form>
+                {purging && !purgeState.authDeleted && (
+                  <p className="flex items-center gap-2 rounded-xl bg-blue-50 p-3 text-sm font-semibold text-blue-900" role="status"><LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin" /> Reprise automatique des lots jusqu’à la suppression du compte…</p>
                 )}
               </div>
             )}

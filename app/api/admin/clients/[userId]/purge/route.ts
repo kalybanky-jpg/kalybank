@@ -15,7 +15,6 @@ import {
   executePurge,
   purgeStatus,
   requireActiveAdmin,
-  verifyAdminPassword,
 } from '@/lib/server/client-purge';
 
 export const dynamic = 'force-dynamic';
@@ -92,12 +91,6 @@ function purgeErrorResponse(error: unknown) {
   if (code === 'CLIENT_NOT_FOUND' || code === 'PURGE_OPERATION_NOT_FOUND') {
     return noStoreJson({ error: 'Client ou suppression introuvable.' }, 404);
   }
-  if (code === 'EMAIL_CONFIRMATION_MISMATCH') {
-    return noStoreJson(
-      { error: 'L’adresse e-mail saisie ne correspond pas exactement.' },
-      400,
-    );
-  }
   if (code === 'STORAGE_OWNERSHIP_ANOMALY') {
     return noStoreJson(
       {
@@ -169,21 +162,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
       (body as Record<string, unknown>).resume === true;
 
     if (resume) {
-      const input = parseClientPurgeResume(body);
-      if (!(await verifyAdminPassword(
-        access.admin,
-        input.currentPassword,
-        requestSignal,
-      ))) {
-        return noStoreJson(
-          { error: 'Le mot de passe actuel est incorrect.' },
-          400,
-        );
-      }
+      parseClientPurgeResume(body);
       const state = await authorizePurgeResume(
         access.admin,
         targetUserId,
-        input.exactEmail,
       );
       if (!state.challengeId) throw new Error('PURGE_OPERATION_NOT_FOUND');
       const firstResult = await executePurge({
@@ -202,29 +184,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     const input = parseClientPurgeExecution(body);
-    if (!(await verifyAdminPassword(
-      access.admin,
-      input.currentPassword,
-      requestSignal,
-    ))) {
-      return noStoreJson(
-        { error: 'Le mot de passe actuel est incorrect.' },
-        400,
-      );
-    }
     const target = await authoritativeClient(access.admin, targetUserId);
-    if (input.exactEmail !== target.email) {
-      return noStoreJson(
-        { error: 'L’adresse e-mail saisie ne correspond pas exactement.' },
-        400,
-      );
-    }
     const firstResult = await executePurge({
       admin: access.admin,
       targetUserId,
       challengeId: input.challengeId,
       challengeDigest: digest(input.challengeToken),
-      emailDigest: digest(input.exactEmail),
+      emailDigest: digest(target.email!),
       idempotencyKey: input.idempotencyKey,
     });
     const result = await continueWithinInteractiveBudget(firstResult, {

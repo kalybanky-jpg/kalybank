@@ -1,8 +1,8 @@
 -- Monalyz DATABASE SCHEMA SNAPSHOT
 -- GENERATED FILE: run `npx bun run db:snapshot`; do not edit manually.
 -- remote-project-ref: qljqldhvbakornnpalua
--- migration-manifest-sha256: 14ceb025343fa258671dde8587807a87c9ea00be63e11a141b21dd72a2cb3b92
--- migrations: 20260728060744_kaly_secure_external_financial_workflows.sql, 20260728061308_add_missing_foreign_key_indexes.sql, 20260728065832_rename_brand_to_monalyz.sql, 20260728092751_simplify_branch_manager_financial_workflows.sql, 20260728094442_add_outbox_claimed_by_index.sql, 20260728150934_add_profile_preferred_language.sql, 20260728151335_grant_profile_preferences_update.sql, 20260728173319_provision_demo_accounts.sql, 20260728183213_fix_demo_provisioner_uuid_literals.sql, 20260729115445_add_official_accounts_and_ledger.sql, 20260729115451_wire_ledger_to_financial_workflows.sql, 20260729115458_add_official_documents_and_demo_fixtures.sql, 20260730123059_automatic_account_numbers.sql, 20260730162101_kyc_workflow_and_internal_account.sql, 20260730170000_sequential_transfer_checks.sql, 20260731120000_user_localization_contract.sql, 20260801091705_configure_loan_products.sql, 20260801095428_dynamic_brand_settings.sql, 20260801163432_secure_brand_snapshot_function.sql, 20260803074608_scope_transactional_email_claims.sql, 20260803112108_harden_function_privileges_and_upload_staging.sql, 20260808112503_persist_signup_preferred_currency.sql, 20260808115958_add_tawk_support_backend.sql, 20260809080215_allow_demo_admin_email_changes.sql, 20260811060932_add_italian_dutch_customer_localization.sql, 20260811070824_guarded_client_data_purge.sql, 20260812144154_optional_transfer_validation_notes_and_progress_emails.sql
+-- migration-manifest-sha256: 09aad35880ae60c32efaa6bf1bc973bf176bce78040641488cd072ff38ef3836
+-- migrations: 20260728060744_kaly_secure_external_financial_workflows.sql, 20260728061308_add_missing_foreign_key_indexes.sql, 20260728065832_rename_brand_to_monalyz.sql, 20260728092751_simplify_branch_manager_financial_workflows.sql, 20260728094442_add_outbox_claimed_by_index.sql, 20260728150934_add_profile_preferred_language.sql, 20260728151335_grant_profile_preferences_update.sql, 20260728173319_provision_demo_accounts.sql, 20260728183213_fix_demo_provisioner_uuid_literals.sql, 20260729115445_add_official_accounts_and_ledger.sql, 20260729115451_wire_ledger_to_financial_workflows.sql, 20260729115458_add_official_documents_and_demo_fixtures.sql, 20260730123059_automatic_account_numbers.sql, 20260730162101_kyc_workflow_and_internal_account.sql, 20260730170000_sequential_transfer_checks.sql, 20260731120000_user_localization_contract.sql, 20260801091705_configure_loan_products.sql, 20260801095428_dynamic_brand_settings.sql, 20260801163432_secure_brand_snapshot_function.sql, 20260803074608_scope_transactional_email_claims.sql, 20260803112108_harden_function_privileges_and_upload_staging.sql, 20260808112503_persist_signup_preferred_currency.sql, 20260808115958_add_tawk_support_backend.sql, 20260809080215_allow_demo_admin_email_changes.sql, 20260811060932_add_italian_dutch_customer_localization.sql, 20260811070824_guarded_client_data_purge.sql, 20260812144154_optional_transfer_validation_notes_and_progress_emails.sql, 20260817213814_release_test_client_identity_immediately.sql
 -- schema-only: true
 -- production-data-included: false
 -- schemas: public, private
@@ -105,6 +105,8 @@ CREATE OR REPLACE FUNCTION "private"."arm_guarded_client_auth_delete"() RETURNS 
     AS $$
 declare
   operation private.client_purge_operations;
+  immediate_release_ready boolean;
+  legacy_release_ready boolean;
 begin
   -- auth.users is already row-locked when a row trigger runs. Never wait on
   -- the owner lock here: fail fast instead of creating a row/advisory cycle.
@@ -113,24 +115,43 @@ begin
   ) then
     raise exception 'PURGE_AUTH_DELETE_BUSY' using errcode = '55P03';
   end if;
-  select * into operation from private.client_purge_operations
-  where target_user_id = old.id and consumed_at is not null
+
+  select * into operation
+  from private.client_purge_operations
+  where target_user_id = old.id
+    and consumed_at is not null
   for update;
   if not found then
     raise exception 'UNGUARDED_AUTH_DELETE_FORBIDDEN' using errcode = '42501';
   end if;
+
+  immediate_release_ready :=
+    operation.stage = 'auth'
+    and operation.storage_cycle_stage = 'storage'
+    and operation.storage_phase = 'complete'
+    and operation.sweep_not_before is not null;
+  legacy_release_ready :=
+    operation.stage = 'auth'
+    and operation.storage_cycle_stage = 'storage_sweep'
+    and operation.storage_phase = 'complete'
+    and operation.sweep_not_before is not null
+    and operation.sweep_not_before <= statement_timestamp();
+
   if exists (select 1 from public.staff_members where user_id = old.id)
-     or operation.stage not in ('auth', 'verify')
-     or operation.storage_cycle_stage <> 'storage_sweep'
-     or operation.storage_phase <> 'complete'
-     or operation.sweep_not_before is null
-     or operation.sweep_not_before > statement_timestamp() then
+     or not (immediate_release_ready or legacy_release_ready)
+     or exists (
+       select 1
+       from public.profiles profile
+       where profile.user_id = old.id
+         and profile.access_status <> 'frozen'
+     ) then
     raise exception 'GUARDED_AUTH_DELETE_NOT_READY' using errcode = '55000';
   end if;
   if old.email is null
      or lower(btrim(old.email)) is distinct from lower(btrim(operation.target_email)) then
     raise exception 'PURGE_TARGET_EMAIL_CHANGED' using errcode = '55000';
   end if;
+
   perform pg_catalog.set_config('monalyz.client_purge_maintenance', 'on', true);
   return old;
 end;
@@ -176,7 +197,6 @@ CREATE OR REPLACE FUNCTION "private"."audit_event_matches_client"("p_actor_id" "
           select 1
           from public.support_user_identities active_identity
           where active_identity.normalized_email = support_email.value
-            and active_identity.valid_to is null
             and active_identity.user_id <> p_target_user_id
         )
     );
@@ -351,8 +371,7 @@ begin
           )
           and not exists (
             select 1 from public.support_user_identities active_identity
-            where active_identity.valid_to is null
-              and active_identity.user_id <> p_target_user_id
+            where active_identity.user_id <> p_target_user_id
               and active_identity.normalized_email in (
                 transcript.visitor_email_normalized, transcript.notification_email
               )
@@ -1416,7 +1435,6 @@ begin
                select 1
                from public.support_user_identities active_identity
                where active_identity.normalized_email = support_email.value
-                 and active_identity.valid_to is null
                  and active_identity.user_id <> operation.target_user_id
              )
          )
@@ -1655,7 +1673,6 @@ begin
                  select 1
                  from public.support_user_identities active_identity
                  where active_identity.normalized_email = support_email.value
-                   and active_identity.valid_to is null
                    and active_identity.user_id <> operation.target_user_id
                )
            )
@@ -2327,6 +2344,17 @@ CREATE OR REPLACE FUNCTION "private"."reject_reserved_purge_email"() RETURNS "tr
 declare
   normalized_new_email text := lower(btrim(new.email));
 begin
+  -- The retired UUID remains the immutable key of the delayed Storage sweep.
+  if tg_op = 'INSERT' and exists (
+    select 1
+    from private.client_purge_operations operation
+    where operation.target_user_id = new.id
+      and operation.consumed_at is not null
+  ) then
+    raise exception 'PURGE_TARGET_ID_RESERVED' using errcode = '55000';
+  end if;
+
+  -- The target may not change identity while its guarded erasure is active.
   if tg_op = 'UPDATE' and exists (
     select 1
     from private.client_purge_operations operation
@@ -2336,11 +2364,19 @@ begin
     raise exception 'PURGE_TARGET_EMAIL_RESERVED' using errcode = '55000';
   end if;
 
+  -- Reserve the address only while the retired Auth row still exists. Once
+  -- that UUID has been deleted, the remaining Storage sweep is UUID-scoped
+  -- and must not prevent a fresh test account from claiming the same address.
   if normalized_new_email is not null and exists (
     select 1
     from private.client_purge_operations operation
     where operation.consumed_at is not null
       and lower(btrim(operation.target_email)) = normalized_new_email
+      and exists (
+        select 1
+        from auth.users target_user
+        where target_user.id = operation.target_user_id
+      )
   ) then
     raise exception 'PURGE_TARGET_EMAIL_RESERVED' using errcode = '55000';
   end if;
@@ -2969,6 +3005,8 @@ CREATE OR REPLACE FUNCTION "public"."admin_assert_client_purge_auth_ready"("p_ac
 declare
   operation private.client_purge_operations;
   current_target_email text;
+  immediate_release_ready boolean;
+  legacy_release_ready boolean;
 begin
   perform private.require_active_purge_admin(p_actor_id);
   if p_target_user_id is null or p_target_user_id = p_actor_id then
@@ -2980,32 +3018,52 @@ begin
   if exists (select 1 from public.staff_members where user_id = p_target_user_id) then
     raise exception 'STAFF_PURGE_FORBIDDEN' using errcode = '42501';
   end if;
-  select * into operation from private.client_purge_operations
-  where challenge_id = p_challenge_id and actor_id = p_actor_id
-    and target_user_id = p_target_user_id and consumed_at is not null
+
+  select * into operation
+  from private.client_purge_operations
+  where challenge_id = p_challenge_id
+    and actor_id = p_actor_id
+    and target_user_id = p_target_user_id
+    and consumed_at is not null
   for update;
-  if not found or operation.stage <> 'auth'
-     or operation.storage_cycle_stage <> 'storage_sweep'
-     or operation.storage_phase <> 'complete'
-     or operation.sweep_not_before is null
-     or operation.sweep_not_before > statement_timestamp() then
+
+  immediate_release_ready := found
+    and operation.stage = 'auth'
+    and operation.storage_cycle_stage = 'storage'
+    and operation.storage_phase = 'complete'
+    and operation.sweep_not_before is not null;
+  legacy_release_ready := found
+    and operation.stage = 'auth'
+    and operation.storage_cycle_stage = 'storage_sweep'
+    and operation.storage_phase = 'complete'
+    and operation.sweep_not_before is not null
+    and operation.sweep_not_before <= statement_timestamp();
+  if not (immediate_release_ready or legacy_release_ready) then
     raise exception 'PURGE_AUTH_STAGE_INVALID' using errcode = '55000';
   end if;
   if exists (
-    select 1 from public.profiles profile
-    where profile.user_id = p_target_user_id and profile.access_status <> 'frozen'
+    select 1
+    from public.profiles profile
+    where profile.user_id = p_target_user_id
+      and profile.access_status <> 'frozen'
   ) then
     raise exception 'PURGE_TARGET_NOT_FROZEN' using errcode = '55000';
   end if;
+
   select lower(btrim(users.email)) into current_target_email
-  from auth.users users where users.id = p_target_user_id for update;
+  from auth.users users
+  where users.id = p_target_user_id
+  for update;
   if found and current_target_email is distinct from lower(btrim(operation.target_email)) then
     raise exception 'PURGE_TARGET_EMAIL_CHANGED' using errcode = '55000';
   end if;
+
   return jsonb_build_object(
     'allowed', true,
     'targetEmail', operation.target_email,
-    'authExists', exists (select 1 from auth.users where id = p_target_user_id)
+    'authExists', exists (select 1 from auth.users where id = p_target_user_id),
+    'sweepNotBefore', operation.sweep_not_before,
+    'ignoredUnsafeStorageReferences', operation.ignored_unsafe_storage_references
   );
 end;
 $$;
@@ -3146,7 +3204,6 @@ begin
         select 1
         from public.support_user_identities active_identity
         where active_identity.normalized_email = candidate.email
-          and active_identity.valid_to is null
           and active_identity.user_id <> p_target_user_id
       )
     ) unambiguous_emails;
@@ -3601,7 +3658,6 @@ begin
       select 1
       from public.support_user_identities active_identity
       where active_identity.normalized_email = candidate.email
-        and active_identity.valid_to is null
         and active_identity.user_id <> p_target_user_id
     )
   )
@@ -3615,8 +3671,7 @@ begin
        )
        and not exists (
          select 1 from public.support_user_identities active_identity
-         where active_identity.valid_to is null
-           and active_identity.user_id <> p_target_user_id
+         where active_identity.user_id <> p_target_user_id
            and active_identity.normalized_email in (
              transcript.visitor_email_normalized,
              transcript.notification_email
@@ -3903,11 +3958,15 @@ CREATE OR REPLACE FUNCTION "public"."admin_mark_client_purge_stage"("p_actor_id"
     AS $$
 declare
   operation private.client_purge_operations;
+  target_auth_exists boolean;
 begin
   perform private.require_active_purge_admin(p_actor_id);
   if p_stage is null
-     or p_stage not in ('storage', 'database', 'storage_sweep', 'auth', 'verify')
-     or (p_error_code is not null and char_length(p_error_code) > 100) then
+     or p_stage not in (
+       'storage', 'database', 'auth', 'waiting_sweep', 'storage_sweep', 'verify'
+     )
+     or (p_error_code is not null and char_length(p_error_code) > 100)
+     or (p_stage = 'waiting_sweep' and p_error_code is not null) then
     raise exception 'INVALID_PURGE_STAGE' using errcode = '22023';
   end if;
 
@@ -3920,12 +3979,69 @@ begin
   if not found then
     raise exception 'PURGE_OPERATION_NOT_FOUND' using errcode = 'P0002';
   end if;
+
+  target_auth_exists := exists (
+    select 1 from auth.users users where users.id = operation.target_user_id
+  );
   if p_stage <> operation.stage and not (
-    (operation.stage = 'storage' and p_stage = 'database')
-    or (operation.stage = 'storage_sweep' and p_stage = 'auth')
-    or (operation.stage = 'auth' and p_stage = 'verify')
+    (
+      operation.stage = 'storage'
+      and p_stage = 'database'
+      and operation.storage_cycle_stage = 'storage'
+      and operation.storage_phase = 'complete'
+    )
+    or (
+      operation.stage = 'auth'
+      and p_stage = 'waiting_sweep'
+      and operation.storage_cycle_stage = 'storage'
+      and operation.storage_phase = 'complete'
+      and operation.sweep_not_before is not null
+      and not target_auth_exists
+    )
+    or (
+      operation.stage = 'storage_sweep'
+      and p_stage = 'verify'
+      and operation.storage_cycle_stage = 'storage_sweep'
+      and operation.storage_phase = 'complete'
+      and not target_auth_exists
+    )
+    -- Compatibility for an operation begun before this migration: its Auth
+    -- deletion still occurs after the delayed sweep.
+    or (
+      operation.stage = 'storage_sweep'
+      and p_stage = 'auth'
+      and operation.storage_cycle_stage = 'storage_sweep'
+      and operation.storage_phase = 'complete'
+      and operation.sweep_not_before is not null
+      and operation.sweep_not_before <= statement_timestamp()
+      and target_auth_exists
+    )
+    or (
+      operation.stage = 'auth'
+      and p_stage = 'verify'
+      and operation.storage_cycle_stage = 'storage_sweep'
+      and operation.storage_phase = 'complete'
+      and not target_auth_exists
+    )
   ) then
     raise exception 'INVALID_PURGE_STAGE_TRANSITION' using errcode = '55000';
+  end if;
+
+  if p_stage = 'waiting_sweep' then
+    if target_auth_exists
+       or operation.sweep_not_before is null
+       or operation.storage_cycle_stage <> 'storage'
+       or operation.storage_phase <> 'complete' then
+      raise exception 'PURGE_AUTH_DELETE_INCOMPLETE' using errcode = '55000';
+    end if;
+    update private.client_purge_operations
+    set stage = 'waiting_sweep',
+        status = 'waiting_sweep',
+        last_error_code = null,
+        retry_after = operation.sweep_not_before,
+        updated_at = statement_timestamp()
+    where challenge_id = p_challenge_id;
+    return;
   end if;
 
   update private.client_purge_operations
@@ -4071,7 +4187,6 @@ begin
       select 1
       from public.support_user_identities active_identity
       where active_identity.normalized_email = candidate.email
-        and active_identity.valid_to is null
         and active_identity.user_id <> p_target_user_id
     )
   ) unambiguous_emails;
@@ -4147,8 +4262,7 @@ begin
            )
            and not exists (
              select 1 from public.support_user_identities active_identity
-             where active_identity.valid_to is null
-               and active_identity.user_id <> p_target_user_id
+             where active_identity.user_id <> p_target_user_id
                and active_identity.normalized_email in (
                  transcript.visitor_email_normalized,
                  transcript.notification_email
@@ -4244,7 +4358,10 @@ begin
     and target_user_id = p_target_user_id
     and consumed_at is not null
   for update;
-  if not found or operation.stage <> 'database' then
+  if not found
+     or operation.stage <> 'database'
+     or operation.storage_cycle_stage <> 'storage'
+     or operation.storage_phase <> 'complete' then
     raise exception 'PURGE_OPERATION_NOT_FOUND' using errcode = 'P0002';
   end if;
 
@@ -4277,7 +4394,6 @@ begin
       select 1
       from public.support_user_identities active_identity
       where active_identity.normalized_email = candidate.email
-        and active_identity.valid_to is null
         and active_identity.user_id <> p_target_user_id
     )
   ) unambiguous_emails;
@@ -4309,8 +4425,7 @@ begin
        )
        and not exists (
          select 1 from public.support_user_identities active_identity
-         where active_identity.valid_to is null
-           and active_identity.user_id <> p_target_user_id
+         where active_identity.user_id <> p_target_user_id
            and active_identity.normalized_email in (
              transcript.visitor_email_normalized,
              transcript.notification_email
@@ -4382,18 +4497,22 @@ begin
   delete from public.kyc_applications where owner_id = p_target_user_id;
 
   purge_completed_at := pg_catalog.clock_timestamp();
-  -- Signed upload URLs live for at most two hours. The extra five minutes are
-  -- intentional clock/network margin before the final two Storage sweeps.
+  -- Signed upload URLs remain valid for at most two hours. Keep the existing
+  -- five-minute margin, but release Auth now and sweep only the retired UUID
+  -- after the grace period.
   sweep_time := purge_completed_at + interval '2 hours 5 minutes';
   update private.client_purge_operations
-  set stage = 'waiting_sweep', status = 'waiting_sweep',
-      sweep_not_before = sweep_time, retry_after = sweep_time,
-      last_error_code = null, updated_at = purge_completed_at
+  set stage = 'auth',
+      status = 'running',
+      sweep_not_before = sweep_time,
+      retry_after = statement_timestamp(),
+      last_error_code = null,
+      updated_at = purge_completed_at
   where challenge_id = p_challenge_id;
 
   return jsonb_build_object(
-    'status', 'waiting_sweep',
-    'stage', 'waiting_sweep',
+    'status', 'running',
+    'stage', 'auth',
     'sweepNotBefore', sweep_time,
     'ignoredUnsafeStorageReferences', operation.ignored_unsafe_storage_references
   );

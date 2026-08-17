@@ -1,5 +1,4 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import {
   storageChunks,
   validateClientPurgeStorageReference,
@@ -10,7 +9,6 @@ import {
 } from '@/lib/client-purge';
 import { createPrivilegedClient, noStoreJson } from '@/lib/server/api';
 import { createBoundedPrivilegedFetch } from '@/lib/server/bounded-privileged-fetch';
-import { getPublicSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
 
 type PrivilegedClient = ReturnType<typeof createPrivilegedClient>;
@@ -74,7 +72,6 @@ type PurgeStage =
 
 export const CLIENT_PURGE_STORAGE_VERIFY_CONCURRENCY = 8;
 export const CLIENT_PURGE_AUTH_FETCH_TIMEOUT_MS = 15_000;
-export const CLIENT_PURGE_AUTH_REQUEST_TIMEOUT_MS = 18_000;
 export const CLIENT_PURGE_INTERACTIVE_REQUEST_TIMEOUT_MS = 18_000;
 
 export function createClientPurgeRequestSignal(callerSignal?: AbortSignal) {
@@ -219,45 +216,6 @@ export async function requireActiveAdmin(requestSignal?: AbortSignal): Promise<
   return { admin: { user, email: user.email, worker }, response: null };
 }
 
-export async function verifyAdminPassword(
-  admin: ActiveAdmin,
-  password: string,
-  requestSignal?: AbortSignal,
-) {
-  const { url, publishableKey } = getPublicSupabaseConfig();
-  const authDeadline = AbortSignal.timeout(CLIENT_PURGE_AUTH_REQUEST_TIMEOUT_MS);
-  const authRequestSignal = requestSignal
-    ? AbortSignal.any([requestSignal, authDeadline])
-    : authDeadline;
-  const verifier = createSupabaseClient(url, publishableKey, {
-    auth: {
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-      persistSession: false,
-    },
-    global: {
-      fetch: createBoundedPrivilegedFetch(
-        CLIENT_PURGE_AUTH_FETCH_TIMEOUT_MS,
-        fetch,
-        authRequestSignal,
-      ),
-    },
-  });
-  const { data, error } = await verifier.auth.signInWithPassword({
-    email: admin.email,
-    password,
-  });
-  if (authRequestSignal.aborted) {
-    throw new Error('PURGE_AUTH_TIMEOUT');
-  }
-  if (error && error.code !== 'invalid_credentials') {
-    throw new Error('PURGE_AUTH_UNAVAILABLE');
-  }
-  const valid = !error && data.user?.id === admin.user.id;
-  if (data.session) await verifier.auth.signOut({ scope: 'local' });
-  return valid;
-}
-
 export async function assertPurgeTargetAllowed(
   admin: ActiveAdmin,
   targetUserId: string,
@@ -297,14 +255,18 @@ export async function purgeStatus(admin: ActiveAdmin, targetUserId: string) {
 export async function authorizePurgeResume(
   admin: ActiveAdmin,
   targetUserId: string,
-  exactEmail: string,
 ) {
   await assertPurgeTargetAllowed(admin, targetUserId);
+  const currentState = await purgeStatus(admin, targetUserId);
+  if (!currentState?.targetEmail) {
+    throw new Error('PURGE_OPERATION_NOT_FOUND');
+  }
   const lookup = await admin.worker.auth.admin.getUserById(targetUserId);
-  if (!missingAuthUser(lookup.data.user, lookup.error)) {
+  const authDeleted = missingAuthUser(lookup.data.user, lookup.error);
+  if (!authDeleted) {
     if (lookup.error) throw new Error('AUTH_LOOKUP_FAILED');
-    if (lookup.data.user?.email !== exactEmail) {
-      throw new Error('EMAIL_CONFIRMATION_MISMATCH');
+    if (lookup.data.user?.email !== currentState.targetEmail) {
+      throw new Error('PURGE_TARGET_EMAIL_CHANGED');
     }
   }
   const { data, error } = await rpc<ClientPurgeState>(
@@ -313,13 +275,13 @@ export async function authorizePurgeResume(
     {
       p_actor_id: admin.user.id,
       p_target_user_id: targetUserId,
-      p_target_email_digest: digest(exactEmail),
+      p_target_email_digest: digest(currentState.targetEmail),
     },
   );
   if (error || !data) {
     throw new Error(error?.message ?? error?.code ?? 'PURGE_RESUME_INVALID');
   }
-  return data;
+  return { ...data, authDeleted: data.authDeleted ?? authDeleted };
 }
 
 export async function preparePurge(
@@ -705,11 +667,20 @@ export async function executePurge(input: {
     stage = state.stage;
 
     if (state.status === 'waiting_sweep' || stage === 'waiting_sweep') {
+      let authDeleted = state.authDeleted;
+      if (authDeleted === undefined) {
+        const authLookup = await admin.worker.auth.admin.getUserById(targetUserId);
+        authDeleted = missingAuthUser(authLookup.data.user, authLookup.error);
+        if (!authDeleted && authLookup.error) {
+          throw new Error('AUTH_LOOKUP_FAILED');
+        }
+      }
       return {
         deleted: false as const,
         status: 'waiting_sweep' as const,
         stage: 'waiting_sweep' as const,
         sweepNotBefore: state.sweepNotBefore,
+        authDeleted,
         ignoredUnsafeStorageReferences:
           state.ignoredUnsafeStorageReferences ?? 0,
       };
@@ -745,11 +716,15 @@ export async function executePurge(input: {
           purgeError?.message ?? purgeError?.code ?? 'DATABASE_PURGE_FAILED',
         );
       }
+      if (data.stage !== 'auth') {
+        throw new Error('PURGE_AUTH_STAGE_INVALID');
+      }
       return {
         deleted: false as const,
-        status: 'waiting_sweep' as const,
-        stage: 'waiting_sweep' as const,
+        status: 'processing' as const,
+        stage: 'auth' as const,
         sweepNotBefore: data.sweepNotBefore,
+        authDeleted: false,
         ignoredUnsafeStorageReferences:
           data.ignoredUnsafeStorageReferences ?? 0,
       };
@@ -758,8 +733,8 @@ export async function executePurge(input: {
     if (stage === 'storage_sweep') {
       const work = await processStorageWorkUnit(admin, targetUserId, challengeId);
       if (work.complete) {
-        await markStage(admin, challengeId, 'auth');
-        stage = 'auth';
+        await markStage(admin, challengeId, 'verify');
+        stage = 'verify';
       }
       return {
         deleted: false as const,
@@ -767,6 +742,7 @@ export async function executePurge(input: {
         stage,
         storagePhase: 'phase' in work ? work.phase : work.kind,
         workKind: work.kind,
+        authDeleted: true,
       };
     }
 
@@ -777,6 +753,8 @@ export async function executePurge(input: {
       const { data: authReady, error: authReadyError } = await rpc<{
         allowed: boolean;
         targetEmail: string;
+        sweepNotBefore: string | null;
+        ignoredUnsafeStorageReferences?: number;
       }>(admin.worker, 'admin_assert_client_purge_auth_ready', {
         p_actor_id: admin.user.id,
         p_target_user_id: targetUserId,
@@ -784,6 +762,9 @@ export async function executePurge(input: {
       });
       if (authReadyError || !authReady?.allowed) {
         throw new Error(authReadyError?.code ?? 'PURGE_AUTH_STAGE_INVALID');
+      }
+      if (!authReady.sweepNotBefore) {
+        throw new Error('PURGE_AUTH_STAGE_INVALID');
       }
       const beforeDelete = await admin.worker.auth.admin.getUserById(targetUserId);
       if (!missingAuthUser(beforeDelete.data.user, beforeDelete.error)) {
@@ -803,12 +784,16 @@ export async function executePurge(input: {
           throw new Error(deleteError.code ?? 'AUTH_DELETE_FAILED');
         }
       }
-      await markStage(admin, challengeId, 'verify');
+      await markStage(admin, challengeId, 'waiting_sweep');
+      stage = 'waiting_sweep';
       return {
         deleted: false as const,
-        status: 'processing' as const,
-        stage: 'verify' as const,
+        status: 'waiting_sweep' as const,
+        stage: 'waiting_sweep' as const,
+        sweepNotBefore: authReady.sweepNotBefore,
         authDeleted: true,
+        ignoredUnsafeStorageReferences:
+          authReady.ignoredUnsafeStorageReferences ?? 0,
       };
     }
 

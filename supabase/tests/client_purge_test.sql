@@ -405,8 +405,8 @@ select ok(not has_table_privilege('service_role', 'public.profiles', 'DELETE'), 
 select ok(not has_table_privilege('service_role', 'public.staff_members', 'INSERT'), 'service role cannot insert staff directly');
 select ok(not has_table_privilege('service_role', 'public.staff_members', 'UPDATE'), 'service role cannot update staff directly');
 select ok(not has_table_privilege('service_role', 'public.staff_members', 'DELETE'), 'service role cannot delete staff directly');
-select has_trigger('auth', 'users', 'auth_users_reject_reserved_purge_email_insert', 'Auth inserts reserve consumed purge e-mails');
-select has_trigger('auth', 'users', 'auth_users_reject_reserved_purge_email_update', 'Auth e-mail updates reserve consumed purge e-mails');
+select has_trigger('auth', 'users', 'auth_users_reject_reserved_purge_email_insert', 'Auth inserts protect active purge identities and old UUID namespaces');
+select has_trigger('auth', 'users', 'auth_users_reject_reserved_purge_email_update', 'Auth e-mail updates protect identities until the old Auth row is deleted');
 
 select throws_ok(
   $$update public.kyc_drafts
@@ -723,7 +723,7 @@ select throws_ok(
 select throws_ok(
   $$delete from auth.users where id = '91000000-0000-4000-8000-000000000002'$$,
   '55000', 'GUARDED_AUTH_DELETE_NOT_READY',
-  'Auth deletion is blocked before the delayed sweep is complete'
+  'Auth deletion is blocked before the relational purge is complete'
 );
 select throws_ok(
   $$delete from auth.users where id = '91000000-0000-4000-8000-000000000005'$$,
@@ -926,10 +926,20 @@ select is(
       '91000000-0000-4000-8000-000000000002', challenge_id
     ) ->> 'status'
   ),
-  'waiting_sweep',
-  'relational erasure enters the delayed sweep state'
+  'running',
+  'relational erasure advances directly to immediate Auth deletion'
 )
 from purge_test_state where label = 'main';
+select is(
+  (
+    select stage
+    from private.client_purge_operations operation
+    join purge_test_state state using (challenge_id)
+    where state.label = 'main'
+  ),
+  'auth',
+  'the durable stage is Auth before any residual waiting period'
+);
 -- Each RPC runs in its own transaction in production. pgTAP keeps this whole
 -- scenario in one transaction, so explicitly end the RPC-local bypass before
 -- proving that ordinary writes are quarantined.
@@ -958,7 +968,128 @@ select is((select count(*)::integer from public.support_transcripts where tawk_e
 select is((select count(*)::integer from public.support_transcripts where tawk_event_id = 'purge-preview-move'), 1, 'a transcript reparented before begin is preserved');
 select is((select count(*)::integer from public.support_transcripts where tawk_event_id = 'purge-preview-alias-event'), 1, 'an unresolved transcript for an alias reassigned before begin is preserved');
 select is((select count(*)::integer from public.external_transfer_executions where external_reference = 'PURGE-PREVIEW-MOVED'), 1, 'external evidence reparented before begin is preserved');
-select is((select count(*)::integer from auth.users where id = '91000000-0000-4000-8000-000000000002'), 1, 'Auth remains until the delayed Storage sweep');
+select is((select count(*)::integer from auth.users where id = '91000000-0000-4000-8000-000000000002'), 1, 'Auth remains present until the guarded immediate delete runs');
+
+select is(
+  (
+    public.admin_assert_client_purge_auth_ready(
+      '91000000-0000-4000-8000-000000000001',
+      '91000000-0000-4000-8000-000000000002', challenge_id
+    ) ->> 'allowed'
+  ),
+  'true',
+  'the locked RPC allows Auth deletion immediately after relational erasure'
+)
+from purge_test_state where label = 'main';
+select lives_ok(
+  $$delete from auth.users where id = '91000000-0000-4000-8000-000000000002'$$,
+  'the strict Auth trigger deletes the old identity before the residual sweep'
+);
+-- arm_guarded_client_auth_delete enables the transaction-local maintenance
+-- bypass. Production Auth calls end that transaction immediately; pgTAP keeps
+-- the whole scenario in one transaction, so restore the ordinary guard path
+-- before exercising the replacement account.
+select set_config('monalyz.client_purge_maintenance', 'off', true);
+select is(
+  (select count(*)::integer from auth.users
+   where id = '91000000-0000-4000-8000-000000000002'),
+  0,
+  'the old Auth UUID is absent immediately'
+);
+select throws_ok(
+  $$insert into auth.users(id, email, raw_user_meta_data)
+    values(
+      '91000000-0000-4000-8000-000000000002',
+      'different-client@monalyz.test',
+      '{"base_currency":"EUR","preferred_language":"fr"}'::jsonb
+    )$$,
+  '55000', 'PURGE_TARGET_ID_RESERVED',
+  'the retired UUID remains reserved to its residual Storage sweep'
+);
+select lives_ok(
+  $$insert into auth.users(id, email, raw_user_meta_data)
+    values(
+      '91000000-0000-4000-8000-000000000008',
+      'PURGE-CLIENT@MONALYZ.TEST',
+      '{"base_currency":"EUR","preferred_language":"fr"}'::jsonb
+    )$$,
+  'the same e-mail is reusable immediately with a new UUID'
+);
+select is(
+  (select access_status from public.profiles
+   where user_id = '91000000-0000-4000-8000-000000000008'),
+  'active',
+  'the replacement profile is active before the residual sweep'
+);
+insert into public.notifications(recipient_id,title,message,notification_type)
+values(
+  '91000000-0000-4000-8000-000000000008',
+  'Replacement', 'Must survive old UUID cleanup', 'info'
+);
+insert into public.support_transcripts (
+  user_id, tawk_event_id, tawk_property_id, tawk_chat_id,
+  visitor_email_normalized, identity_status, event_at, payload, raw_body,
+  raw_body_sha256, email_status
+) values (
+  '91000000-0000-4000-8000-000000000008',
+  'replacement-direct-transcript', 'purge-property',
+  'replacement-direct-chat', 'purge-client@monalyz.test', 'resolved',
+  statement_timestamp(), '{}', '{}', repeat('8',64), 'skipped'
+);
+insert into public.support_transcripts (
+  tawk_event_id, tawk_property_id, tawk_chat_id,
+  visitor_email_normalized, identity_status, event_at, payload, raw_body,
+  raw_body_sha256, email_status
+) values (
+  'replacement-historical-email-transcript', 'purge-property',
+  'replacement-historical-email-chat', 'purge-client@monalyz.test',
+  'not_found', statement_timestamp(), '{}', '{}', repeat('9',64), 'skipped'
+);
+insert into public.audit_events(actor_id, action, entity_type, entity_id, metadata)
+values(
+  '91000000-0000-4000-8000-000000000008',
+  'preserve_replacement_reused_email_audit', 'profile',
+  '91000000-0000-4000-8000-000000000008',
+  '{"email":"purge-client@monalyz.test"}'::jsonb
+);
+select lives_ok(
+  $$update auth.users
+    set email = 'replacement-moved@monalyz.test'
+    where id = '91000000-0000-4000-8000-000000000008'$$,
+  'the replacement may change e-mail while the old UUID cleanup is pending'
+);
+select is(
+  (select count(*)::integer
+   from public.support_user_identities
+   where user_id = '91000000-0000-4000-8000-000000000008'
+     and normalized_email = 'purge-client@monalyz.test'
+     and valid_to is not null),
+  1,
+  'the reused e-mail remains historical ownership evidence for the replacement UUID'
+);
+select is(
+  (select count(*)::integer
+   from public.support_user_identities
+   where user_id = '91000000-0000-4000-8000-000000000008'
+     and normalized_email = 'replacement-moved@monalyz.test'
+     and valid_to is null),
+  1,
+  'the replacement has one active support identity for its changed e-mail'
+);
+select public.admin_mark_client_purge_stage(
+  '91000000-0000-4000-8000-000000000001', challenge_id, 'waiting_sweep', null
+)
+from purge_test_state where label = 'main';
+select is(
+  (
+    select status || ':' || stage
+    from private.client_purge_operations operation
+    join purge_test_state state using (challenge_id)
+    where state.label = 'main'
+  ),
+  'waiting_sweep:waiting_sweep',
+  'waiting_sweep is entered only after the old Auth identity is absent'
+);
 
 select throws_ok(
   $$insert into public.external_loan_fundings (
@@ -986,12 +1117,6 @@ insert into public.external_loan_fundings (
   '91000000-0000-4000-8000-000000000001/quarantine-evidence.pdf',
   '91000000-0000-4000-8000-000000000001', statement_timestamp()
 );
-insert into public.support_user_identities (
-  user_id, normalized_email, valid_from, valid_to
-) values (
-  '91000000-0000-4000-8000-000000000002', 'purge-client@monalyz.test',
-  statement_timestamp(), null
-);
 insert into public.support_transcripts (
   tawk_event_id, tawk_property_id, tawk_chat_id, visitor_email_normalized,
   identity_status, event_at, payload, raw_body, raw_body_sha256, email_status
@@ -1001,6 +1126,16 @@ insert into public.support_transcripts (
   repeat('6',64), 'skipped'
 );
 select set_config('monalyz.client_purge_maintenance', 'off', true);
+
+select is(
+  (
+    select count(*)::integer
+    from public.admin_list_pending_client_purges(20)
+    where target_user_id = '91000000-0000-4000-8000-000000000002'
+  ),
+  0,
+  'the scheduler does not lease residual cleanup before its deadline'
+);
 
 update private.client_purge_operations operation
 set sweep_not_before = statement_timestamp() - interval '1 second',
@@ -1054,40 +1189,6 @@ select is(
   1,
   'the consumed relational path remains quarantined after the delayed sweep'
 );
-select public.admin_mark_client_purge_stage(
-  '91000000-0000-4000-8000-000000000001', challenge_id, 'auth', null
-)
-from purge_test_state where label = 'main';
-select is(
-  (
-    public.admin_assert_client_purge_auth_ready(
-      '91000000-0000-4000-8000-000000000001',
-      '91000000-0000-4000-8000-000000000002', challenge_id
-    ) ->> 'allowed'
-  ),
-  'true',
-  'the locked RPC revalidates target, staff, profile, delay and Storage state'
-)
-from purge_test_state where label = 'main';
-select lives_ok(
-  $$delete from auth.users where id = '91000000-0000-4000-8000-000000000002'$$,
-  'the strict Auth trigger arms only a ready guarded cascade'
-);
-select throws_ok(
-  $$insert into auth.users(id, email, raw_user_meta_data)
-    values(
-      '91000000-0000-4000-8000-000000000008',
-      'PURGE-CLIENT@MONALYZ.TEST', '{}'::jsonb
-    )$$,
-  '55000', 'PURGE_TARGET_EMAIL_RESERVED',
-  'the deleted Auth e-mail remains reserved until final verification'
-);
-select throws_ok(
-  $$update auth.users set email = 'purge-client@monalyz.test'
-    where id = '91000000-0000-4000-8000-000000000006'$$,
-  '55000', 'PURGE_TARGET_EMAIL_RESERVED',
-  'an existing Auth identity cannot adopt the reserved e-mail'
-);
 select is(
   (
     select count(*)::integer
@@ -1099,6 +1200,18 @@ select is(
   ),
   1,
   'a post-Auth failed operation stays visible for safe resumption'
+);
+select is(
+  (
+    select count(*)::integer
+    from public.admin_list_client_purge_candidates(
+      '91000000-0000-4000-8000-000000000001', 'replacement-moved@monalyz.test', 10, 0
+    )
+    where user_id = '91000000-0000-4000-8000-000000000008'
+      and access_status = 'active'
+  ),
+  1,
+  'the replacement account remains independently visible during old UUID cleanup'
 );
 select public.admin_mark_client_purge_stage(
   '91000000-0000-4000-8000-000000000001', challenge_id, 'verify', null
@@ -1145,23 +1258,21 @@ select ok(
   'exhaustive final verification succeeds'
 )
 from purge_test_state where label = 'main';
-select is((select count(*)::integer from public.support_transcripts where tawk_event_id = 'purge-delayed-tawk'), 0, 'terminal cleanup removes a delayed unresolved Tawk transcript');
-select is((select count(*)::integer from public.support_user_identities where user_id = '91000000-0000-4000-8000-000000000002'), 0, 'terminal cleanup removes identities recreated during the wait');
+select is((select count(*)::integer from public.support_transcripts where tawk_event_id = 'purge-delayed-tawk'), 1, 'terminal cleanup preserves an unresolved transcript covered by the replacement historical e-mail identity');
+select is((select count(*)::integer from public.support_transcripts where tawk_event_id = 'replacement-direct-transcript' and user_id = '91000000-0000-4000-8000-000000000008'), 1, 'terminal cleanup preserves the replacement UUID transcript');
+select is((select count(*)::integer from public.support_transcripts where tawk_event_id = 'replacement-historical-email-transcript'), 1, 'terminal cleanup preserves a replacement transcript after its reused e-mail becomes historical');
+select is((select count(*)::integer from public.audit_events where action = 'preserve_replacement_reused_email_audit' and actor_id = '91000000-0000-4000-8000-000000000008'), 1, 'terminal cleanup preserves the replacement audit after its reused e-mail becomes historical');
+select is((select count(*)::integer from public.support_user_identities where user_id = '91000000-0000-4000-8000-000000000002'), 0, 'terminal cleanup leaves no identity for the old UUID');
+select is((select count(*)::integer from public.support_user_identities where user_id = '91000000-0000-4000-8000-000000000008' and normalized_email = 'purge-client@monalyz.test' and valid_to is not null), 1, 'terminal cleanup preserves the replacement historical support identity');
+select is((select count(*)::integer from public.support_user_identities where user_id = '91000000-0000-4000-8000-000000000008' and normalized_email = 'replacement-moved@monalyz.test' and valid_to is null), 1, 'terminal cleanup preserves the active replacement support identity');
+select is((select count(*)::integer from auth.users where id = '91000000-0000-4000-8000-000000000008'), 1, 'terminal cleanup preserves replacement Auth');
+select is((select count(*)::integer from public.profiles where user_id = '91000000-0000-4000-8000-000000000008' and access_status = 'active'), 1, 'terminal cleanup preserves the active replacement profile');
+select is((select count(*)::integer from public.notifications where recipient_id = '91000000-0000-4000-8000-000000000008'), 1, 'terminal cleanup preserves replacement-owned data');
 select is((select count(*)::integer from public.external_transfer_executions where external_reference = 'PURGE-PREVIEW-MOVED'), 1, 'final verification never deletes foreign evidence by path alone');
 select is((select count(*)::integer from private.client_purge_operations where target_user_id = '91000000-0000-4000-8000-000000000002'), 0, 'success leaves no private operation trace');
 select is((select count(*)::integer from private.client_purge_storage_manifest manifest join purge_test_state state using (challenge_id) where state.label = 'main'), 0, 'success cascades the Storage manifest');
 select is((select count(*)::integer from private.client_purge_storage_scan_queue queue join purge_test_state state using (challenge_id) where state.label = 'main'), 0, 'success cascades scan cursors');
 select is((select count(*)::integer from private.client_purge_entity_manifest entity join purge_test_state state using (challenge_id) where state.label = 'main'), 0, 'success cascades the entity manifest');
-select lives_ok(
-  $$insert into auth.users(id, email, raw_user_meta_data)
-    values(
-      '91000000-0000-4000-8000-000000000008',
-      'purge-client@monalyz.test',
-      '{"base_currency":"EUR","preferred_language":"fr"}'::jsonb
-    )$$,
-  'the e-mail becomes reusable only after the trace-free finalization'
-);
-
 select throws_ok(
   $$select * from public.admin_list_client_purge_candidates(
     '91000000-0000-4000-8000-000000000001', '', null, 0)$$,

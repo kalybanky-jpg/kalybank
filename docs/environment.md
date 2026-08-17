@@ -15,7 +15,7 @@
 | `APP_ORIGIN` | Oui en production | Fonctions/runtime | Origine canonique pour les mutations et redirections |
 | `APP_ALLOWED_ORIGINS` | Non | Fonctions/runtime | Origines HTTPS supplémentaires autorisées pour les mutations pendant une migration de domaine, séparées par des virgules |
 | `SUPABASE_SECRET_KEY` | Oui en production | Fonctions/runtime, secret | Client privilégié pour staging, marque, PDF, health check et outbox |
-| `CLIENT_PURGE_SWEEP_SECRET` | Oui pour la reprise différée | Fonctions/runtime, secret | Secret aléatoire de 32 caractères minimum envoyé uniquement par le planificateur à `POST /api/internal/client-purge-sweep` |
+| `CLIENT_PURGE_SWEEP_SECRET` | Oui pour le nettoyage résiduel | Fonctions/runtime, secret | Secret aléatoire de 32 caractères minimum envoyé uniquement par le planificateur à `POST /api/internal/client-purge-sweep` |
 | `CLIENT_PURGE_CHALLENGE_SECRET` | Oui pour la suppression client | Fonctions/runtime, secret | Secret aléatoire distinct de 32 caractères minimum servant à dériver un défi stable pour une même clé d’idempotence, sans stocker sa valeur brute |
 | `SEND_EMAIL_HOOK_SECRET` | Oui si le hook Auth est actif | Fonctions/runtime, secret | Signature Standard Webhooks du hook Supabase Auth |
 | `TRANSACTIONAL_EMAIL_PROVIDER` | Oui pour l’outbox | Fonctions/runtime | `resend` ou `brevo` |
@@ -47,10 +47,14 @@ lecture et chaque suppression suivent un curseur avec la même borne. Il
 n’existe pas de plafond global applicatif à 10 000 objets. Une référence historique qui ne
 respecte pas l’appartenance du client est signalée et ignorée : sa ligne métier
 est supprimée, mais l’objet étranger n’entre jamais dans le manifeste.
-Le sweep différé attend au moins 2 h 05 après la phase relationnelle, soit cinq
-minutes de marge au-delà de la durée maximale des URL signées. Après la
-suppression Auth, un dernier sweep ciblé et une seconde vérification Storage
-sont exigés avant la finalisation sans trace.
+Après l’inventaire Storage et la purge relationnelle, l’identité Supabase Auth
+est supprimée immédiatement : l’adresse e-mail peut donc être réutilisée tout
+de suite par un nouveau compte, qui reçoit un nouvel UUID. Seul le nettoyage
+résiduel de l’ancien UUID reste différé. Il attend au moins 2 h 05 après la
+phase relationnelle, soit cinq minutes de marge au-delà de la durée maximale
+des URL signées, puis exécute deux vérifications Storage ciblées avant la
+finalisation de l’opération. Ce sweep ne doit jamais cibler le nouvel UUID ni
+réserver l’adresse e-mail réutilisée.
 
 Le scénario destructif `test:client-purge:integration` est verrouillé à
 GitHub Actions, `CI=true`, une instance Supabase locale sur le port `54321` et

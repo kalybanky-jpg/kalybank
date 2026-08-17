@@ -137,6 +137,27 @@ Les comptes de démonstration utilisent un IBAN synthétique valide et
 `is_demo = true`. Ils sont clairement marqués dans l’interface et ne peuvent
 pas être confondus avec une exécution réelle.
 
+## Suppression des comptes clients pendant les tests réels
+
+La suppression administrateur conserve les comptes du personnel hors périmètre
+et traite les comptes clients dans cet ordre : inventaire et suppression
+Storage initiale, purge relationnelle, puis suppression immédiate de l’identité
+Supabase Auth. L’adresse e-mail est alors libérée et peut être utilisée sans
+attendre par un nouveau compte, dont l’UUID est distinct.
+
+Dans le registre clients, un seul clic démarre l’inventaire, valide le défi
+idempotent puis enchaîne automatiquement les lots jusqu’à cette suppression
+Auth. La cible et son adresse sont relues côté serveur depuis la session
+administrateur et Supabase Auth ; le navigateur ne fournit ni adresse de
+confirmation ni mot de passe pour cette opération.
+
+Une opération privée attachée uniquement à l’ancien UUID reste ensuite en
+attente pendant 2 h 05, durée couvrant les anciennes URL d’upload signées. Le
+worker planifié supprime les éventuels objets tardifs de cet ancien préfixe,
+vérifie leur absence et finalise l’opération. Les données, l’identité et les
+fichiers d’un compte recréé avec le même e-mail ne font pas partie de ce
+nettoyage résiduel.
+
 ## Résolution de la langue
 
 Le layout racine résout la langue avant le premier rendu afin que toute entrée

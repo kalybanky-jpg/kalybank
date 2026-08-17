@@ -360,7 +360,7 @@ async function resumeState(
 async function mark(
   admin: ActiveAdmin,
   challengeId: string,
-  stage: 'storage' | 'database' | 'storage_sweep' | 'auth' | 'verify',
+  stage: 'storage' | 'database' | 'waiting_sweep' | 'storage_sweep' | 'auth' | 'verify',
   errorCode: string | null,
 ) {
   const { error } = await admin.worker.rpc('admin_mark_client_purge_stage', {
@@ -666,7 +666,8 @@ async function main() {
     startState: resumedDatabase,
     leaseAlreadyAcquired: true,
   });
-  assert.equal(richOutcome.status, 'waiting_sweep');
+  assert.equal(richOutcome.status, 'processing');
+  assert.equal(!richOutcome.deleted && richOutcome.stage, 'auth');
   assert.equal(richOutcome.ignoredUnsafeStorageReferences, 1);
   const persistedManifestSize = Number(
     dockerPsql(
@@ -686,7 +687,6 @@ async function main() {
   for (const [label, userId] of [
     ['staff/self', admin.user.id],
     ['unrelated client', foreign.id],
-    ['purge target before sweep readiness', rich.id],
   ] as const) {
     const forbiddenDelete = await worker.auth.admin.deleteUser(userId, false);
     assert.ok(
@@ -717,6 +717,72 @@ async function main() {
     /PURGE_TARGET_PROMOTION_FORBIDDEN/,
     'the database guard, not an ACL denial, rejects staff promotion during purge',
   );
+
+  const authReady = await untypedWorker.rpc(
+    'admin_assert_client_purge_auth_ready',
+    {
+      p_actor_id: admin.user.id,
+      p_target_user_id: rich.id,
+      p_challenge_id: preview.challengeId,
+    },
+  );
+  if (authReady.error) throw authReady.error;
+  const directAuthDelete = await worker.auth.admin.deleteUser(rich.id, false);
+  if (directAuthDelete.error) {
+    throw new Error(`DIRECT_AUTH_DELETE_FAILED: ${directAuthDelete.error.message}`);
+  }
+  assert.equal(
+    dockerPsql(
+      `select stage || ':' || status
+       from private.client_purge_operations
+       where challenge_id = :'challenge_id'::uuid;`,
+      { challenge_id: preview.challengeId },
+    ),
+    'auth:running',
+    'Auth may succeed before the durable auth-to-waiting transition',
+  );
+  await assertAuthMissing(worker, rich.id);
+
+  // Resume the interrupted auth stage. The old identity is already gone, so
+  // executePurge must not call deleteUser a second time and must durably enter
+  // the residual waiting phase.
+  richOutcome = await executePurge({
+    admin,
+    targetUserId: rich.id,
+    challengeId: preview.challengeId,
+    startState: {
+      status: 'running',
+      stage: 'auth',
+      sweepNotBefore: richOutcome.sweepNotBefore,
+    },
+    leaseAlreadyAcquired: true,
+  });
+  assert.equal(richOutcome.status, 'waiting_sweep');
+  assert.equal(!richOutcome.deleted && richOutcome.stage, 'waiting_sweep');
+  assert.equal(richOutcome.authDeleted, true);
+  assert.ok(
+    new Date(richOutcome.sweepNotBefore!).getTime() - Date.now() >=
+      2 * 60 * 60 * 1_000 + 4 * 60 * 1_000,
+  );
+
+  // Reusing the same e-mail is the central test-mode contract. The replacement
+  // receives a different UUID and must stay outside the old purge namespace.
+  const replacement = await createAuthUser(worker, richEmail);
+  assert.notEqual(replacement.id, rich.id);
+  const replacementObject = `${replacement.id}/replacement-proof.pdf`;
+  await uploadMany(worker, 'kyc-evidence', [replacementObject]);
+  const replacementClient = createClient<Database>(
+    configuration.url,
+    configuration.anonKey,
+    { auth: { autoRefreshToken: false, detectSessionInUrl: false, persistSession: false } },
+  );
+  const replacementSession = await replacementClient.auth.signInWithPassword({
+    email: richEmail,
+    password: TEST_PASSWORD,
+  });
+  assert.equal(replacementSession.error, null);
+  assert.equal(replacementSession.data.user?.id, replacement.id);
+
   const { error: lateUploadError } = await worker.storage
     .from('kyc-evidence')
     .uploadToSignedUrl(
@@ -732,6 +798,28 @@ async function main() {
     .from('kyc-evidence')
     .download(lateSignedObject);
   assert.equal(lateDownloadBeforeSweepError, null);
+
+  const { data: postAuthRows, error: postAuthRowsError } = await worker.rpc(
+    'admin_list_client_purge_candidates',
+    {
+      p_actor_id: admin.user.id,
+      p_search: richEmail,
+      p_limit: 10,
+      p_offset: 0,
+    },
+  );
+  if (postAuthRowsError) throw postAuthRowsError;
+  assert.ok(
+    postAuthRows?.some(
+      (row) => row.user_id === rich.id && row.access_status === 'auth_deleted',
+    ),
+  );
+  assert.ok(
+    postAuthRows?.some(
+      (row) => row.user_id === replacement.id && row.access_status === 'active',
+    ),
+  );
+
   timeTravelPurge(rich.id);
   const [richPending] = await pendingPurges(worker);
   assert.equal(richPending.target_user_id, rich.id);
@@ -758,56 +846,8 @@ async function main() {
     rich.id,
     preview.challengeId,
     richFinal,
-    (outcome) => !outcome.deleted && outcome.stage === 'auth',
+    (outcome) => !outcome.deleted && outcome.stage === 'verify',
   );
-  await mark(sweepAdmin, preview.challengeId, 'auth', 'TEST_AUTH_INTERRUPTION');
-  expirePurgeLease(rich.id);
-  const resumedAuth = await resumeState(sweepAdmin, rich.id, richEmail);
-  const authReady = await untypedWorker.rpc(
-    'admin_assert_client_purge_auth_ready',
-    {
-      p_actor_id: sweepAdmin.user.id,
-      p_target_user_id: rich.id,
-      p_challenge_id: preview.challengeId,
-    },
-  );
-  if (authReady.error) throw authReady.error;
-  const directAuthDelete = await worker.auth.admin.deleteUser(rich.id, false);
-  if (directAuthDelete.error) {
-    throw new Error(`DIRECT_AUTH_DELETE_FAILED: ${directAuthDelete.error.message}`);
-  }
-  assert.equal(
-    dockerPsql(
-      `select stage || ':' || status
-       from private.client_purge_operations
-       where challenge_id = :'challenge_id'::uuid;`,
-      { challenge_id: preview.challengeId },
-    ),
-    'auth:running',
-    'Auth may succeed before the durable auth-to-verify transition',
-  );
-  await assertAuthMissing(worker, rich.id);
-  richFinal = await executePurge({
-    admin: sweepAdmin,
-    targetUserId: rich.id,
-    challengeId: preview.challengeId,
-    startState: resumedAuth,
-    leaseAlreadyAcquired: true,
-  });
-  assert.equal(!richFinal.deleted && richFinal.stage, 'verify');
-  await assertAuthMissing(worker, rich.id);
-  const { data: postAuthRows, error: postAuthRowsError } = await worker.rpc(
-    'admin_list_client_purge_candidates',
-    {
-      p_actor_id: admin.user.id,
-      p_search: richEmail,
-      p_limit: 10,
-      p_offset: 0,
-    },
-  );
-  if (postAuthRowsError) throw postAuthRowsError;
-  assert.equal(postAuthRows?.[0]?.email, richEmail);
-  assert.equal(postAuthRows?.[0]?.access_status, 'auth_deleted');
   await mark(sweepAdmin, preview.challengeId, 'verify', 'TEST_VERIFY_INTERRUPTION');
   expirePurgeLease(rich.id);
   const resumedVerify = await resumeState(sweepAdmin, rich.id, richEmail);
@@ -841,6 +881,21 @@ async function main() {
     .from('kyc-evidence')
     .download(lateSignedObject);
   assert.ok(lateDownloadAfterSweepError);
+  const replacementAuth = await worker.auth.admin.getUserById(replacement.id);
+  assert.equal(replacementAuth.error, null);
+  assert.equal(replacementAuth.data.user?.email, richEmail);
+  assert.equal(
+    dockerPsql(
+      `select access_status from public.profiles where user_id = :'target_id'::uuid;`,
+      { target_id: replacement.id },
+    ),
+    'active',
+  );
+  const { error: replacementDownloadError } = await worker.storage
+    .from('kyc-evidence')
+    .download(replacementObject);
+  assert.equal(replacementDownloadError, null);
+  await replacementClient.auth.signOut({ scope: 'local' });
   const purgedRelationCounts = JSON.parse(
     dockerPsql(
       `select jsonb_build_object(
@@ -1155,8 +1210,11 @@ async function main() {
       changedEmailBlocked: true,
       exactAuditMatchingPreservedJoann: true,
       mutationRaceNoDeadlock: true,
+      authDeletedBeforeWaitingSweep: true,
+      emailReusedBeforeSweep: true,
+      replacementPreserved: true,
       durableStoragePages: 3,
-      resumedStages: ['storage', 'database', 'waiting_sweep', 'storage_sweep', 'auth', 'verify'],
+      resumedStages: ['storage', 'database', 'auth', 'waiting_sweep', 'storage_sweep', 'verify'],
     }),
   );
 }

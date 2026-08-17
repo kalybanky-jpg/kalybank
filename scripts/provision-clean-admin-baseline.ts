@@ -3,15 +3,21 @@ import { execFileSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
+import {
+  createClient,
+  isAuthRetryableFetchError,
+  type SupabaseClient,
+  type User,
+} from "@supabase/supabase-js";
 
 const ADMIN_EMAIL = "admin.demo.local@monalyz.test";
 const ADMIN_PASSWORD = "Monalyz-Demo-Local-2026!";
 const LOCAL_SUPABASE_ORIGIN = "http://127.0.0.1:54321";
 const ROOT_DIRECTORY = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const SQL_FILE = "supabase/bootstrap/clean-admin-baseline.sql";
-const AUTH_READ_MAX_ATTEMPTS = 5;
-const AUTH_READ_RETRY_BASE_DELAY_MS = 200;
+const AUTH_READ_MAX_ATTEMPTS = 16;
+const AUTH_READ_RETRY_BASE_DELAY_MS = 250;
+const AUTH_READ_RETRY_MAX_DELAY_MS = 2_000;
 
 function requiredEnvironment(name: string): string {
   const value = process.env[name]?.trim();
@@ -29,14 +35,20 @@ function isExpectedDemoAdmin(user: User): boolean {
 }
 
 function describeAuthReadError(error: unknown): string {
-  if (
-    error &&
-    typeof error === "object" &&
-    "message" in error &&
-    typeof error.message === "string" &&
-    error.message.trim()
-  ) {
-    return error.message;
+  if (error && typeof error === "object") {
+    const candidate = error as Record<string, unknown>;
+    const details = {
+      name: typeof candidate.name === "string" ? candidate.name : undefined,
+      message:
+        typeof candidate.message === "string" ? candidate.message : undefined,
+      status:
+        typeof candidate.status === "number" ? candidate.status : undefined,
+      code: typeof candidate.code === "string" ? candidate.code : undefined,
+    };
+
+    if (Object.values(details).some((value) => value !== undefined)) {
+      return JSON.stringify(details);
+    }
   }
 
   try {
@@ -46,13 +58,27 @@ function describeAuthReadError(error: unknown): string {
   }
 }
 
+function isRetryableAuthReadError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+
+  const candidate = error as Record<string, unknown>;
+  const status = candidate.status;
+  return (
+    isAuthRetryableFetchError(error) ||
+    (typeof status === "number" &&
+      (status === 0 || (status >= 500 && status <= 599)))
+  );
+}
+
 async function listUsersPageWithRetry(
   client: SupabaseClient,
   page: number,
 ): Promise<User[]> {
   let lastError: unknown;
+  let attempts = 0;
 
   for (let attempt = 1; attempt <= AUTH_READ_MAX_ATTEMPTS; attempt += 1) {
+    attempts = attempt;
     const { data, error } = await client.auth.admin.listUsers({
       page,
       perPage: 1_000,
@@ -61,14 +87,25 @@ async function listUsersPageWithRetry(
     if (!error) return data.users;
 
     lastError = error;
-    if (attempt < AUTH_READ_MAX_ATTEMPTS) {
-      const delayMs = AUTH_READ_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1);
+    if (
+      isRetryableAuthReadError(error) &&
+      attempt < AUTH_READ_MAX_ATTEMPTS
+    ) {
+      // `supabase db reset` can finish before Kong can reach the restarted
+      // local Auth service. Keep this retry scoped to its idempotent read.
+      const delayMs = Math.min(
+        AUTH_READ_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1),
+        AUTH_READ_RETRY_MAX_DELAY_MS,
+      );
       await new Promise((resolve) => setTimeout(resolve, delayMs));
+      continue;
     }
+
+    break;
   }
 
   throw new Error(
-    `Lecture Auth impossible après ${AUTH_READ_MAX_ATTEMPTS} tentatives : ${describeAuthReadError(lastError)}`,
+    `Lecture Auth impossible après ${attempts}/${AUTH_READ_MAX_ATTEMPTS} tentatives : ${describeAuthReadError(lastError)}`,
   );
 }
 

@@ -1028,13 +1028,12 @@ values(
 );
 insert into public.support_transcripts (
   user_id, tawk_event_id, tawk_property_id, tawk_chat_id,
-  visitor_email_normalized, identity_status, event_at, payload, raw_body,
-  raw_body_sha256, email_status
+  identity_status, event_at, payload, raw_body, raw_body_sha256, email_status
 ) values (
   '91000000-0000-4000-8000-000000000008',
   'replacement-direct-transcript', 'purge-property',
-  'replacement-direct-chat', 'purge-client@monalyz.test', 'resolved',
-  statement_timestamp(), '{}', '{}', repeat('8',64), 'skipped'
+  'replacement-direct-chat', 'resolved', statement_timestamp(), '{}', '{}',
+  repeat('8',64), 'pending'
 );
 insert into public.support_transcripts (
   tawk_event_id, tawk_property_id, tawk_chat_id,

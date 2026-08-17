@@ -42,6 +42,20 @@ test("the seed remains empty and the bootstrap is forced to local Supabase", () 
   assert.match(bootstrap, /assert\.equal\(\s*parsedUrl\.href,\s*`\$\{LOCAL_SUPABASE_ORIGIN\}\/`/);
   assert.match(bootstrap, /auth\.admin\.createUser/);
   assert.match(bootstrap, /auth\.admin\.updateUserById/);
+  assert.match(bootstrap, /AUTH_READ_MAX_ATTEMPTS = 5/);
+  assert.match(bootstrap, /AUTH_READ_RETRY_BASE_DELAY_MS = 200/);
+  assert.match(
+    bootstrap,
+    /attempt <= AUTH_READ_MAX_ATTEMPTS[\s\S]*?auth\.admin\.listUsers/,
+  );
+  assert.match(
+    bootstrap,
+    /attempt < AUTH_READ_MAX_ATTEMPTS[\s\S]*?AUTH_READ_RETRY_BASE_DELAY_MS \* 2 \*\* \(attempt - 1\)[\s\S]*?setTimeout/,
+  );
+  assert.match(
+    bootstrap,
+    /Lecture Auth impossible après \$\{AUTH_READ_MAX_ATTEMPTS\} tentatives/,
+  );
   assert.match(bootstrap, /rpc\(\s*"current_app_role"/);
   assert.match(bootstrap, /async function main\(\): Promise<void>/);
   assert.match(bootstrap, /void main\(\)\.catch/);

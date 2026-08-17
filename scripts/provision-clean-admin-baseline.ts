@@ -10,6 +10,8 @@ const ADMIN_PASSWORD = "Monalyz-Demo-Local-2026!";
 const LOCAL_SUPABASE_ORIGIN = "http://127.0.0.1:54321";
 const ROOT_DIRECTORY = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const SQL_FILE = "supabase/bootstrap/clean-admin-baseline.sql";
+const AUTH_READ_MAX_ATTEMPTS = 5;
+const AUTH_READ_RETRY_BASE_DELAY_MS = 200;
 
 function requiredEnvironment(name: string): string {
   const value = process.env[name]?.trim();
@@ -26,17 +28,57 @@ function isExpectedDemoAdmin(user: User): boolean {
   );
 }
 
-async function listAllUsers(client: SupabaseClient): Promise<User[]> {
-  const users: User[] = [];
+function describeAuthReadError(error: unknown): string {
+  if (
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof error.message === "string" &&
+    error.message.trim()
+  ) {
+    return error.message;
+  }
 
-  for (let page = 1; page <= 10; page += 1) {
+  try {
+    return JSON.stringify(error) || String(error);
+  } catch {
+    return String(error);
+  }
+}
+
+async function listUsersPageWithRetry(
+  client: SupabaseClient,
+  page: number,
+): Promise<User[]> {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= AUTH_READ_MAX_ATTEMPTS; attempt += 1) {
     const { data, error } = await client.auth.admin.listUsers({
       page,
       perPage: 1_000,
     });
-    if (error) throw new Error(`Lecture Auth impossible : ${error.message}`);
-    users.push(...data.users);
-    if (data.users.length < 1_000) return users;
+
+    if (!error) return data.users;
+
+    lastError = error;
+    if (attempt < AUTH_READ_MAX_ATTEMPTS) {
+      const delayMs = AUTH_READ_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+
+  throw new Error(
+    `Lecture Auth impossible après ${AUTH_READ_MAX_ATTEMPTS} tentatives : ${describeAuthReadError(lastError)}`,
+  );
+}
+
+async function listAllUsers(client: SupabaseClient): Promise<User[]> {
+  const users: User[] = [];
+
+  for (let page = 1; page <= 10; page += 1) {
+    const pageUsers = await listUsersPageWithRetry(client, page);
+    users.push(...pageUsers);
+    if (pageUsers.length < 1_000) return users;
   }
 
   throw new Error("La pagination Auth a dépassé la limite de sécurité.");

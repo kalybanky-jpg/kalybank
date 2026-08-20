@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { serializeKycDocumentPaths } from '../lib/domain/kyc';
 import { kycTranslations, type KycCopy } from '../lib/kyc-i18n';
 import { SUPPORTED_LANGUAGES } from '../lib/language';
 
@@ -41,7 +42,18 @@ const uploadFeedbackKeys = [
   'retryUpload',
   'selfieSourceHint',
   'chooseFromGallery',
+  'selfieAttached',
+  'removeSelfie',
 ] as const satisfies readonly (keyof KycCopy)[];
+
+const optionalSelfieMarkers = {
+  fr: /facultati/i,
+  en: /optional/i,
+  de: /optional/i,
+  es: /opcional/i,
+  it: /facoltativ/i,
+  nl: /optioneel/i,
+} as const;
 
 test('every KYC step provides concise guidance in every supported language', () => {
   for (const language of SUPPORTED_LANGUAGES) {
@@ -80,6 +92,32 @@ test('Italian and Dutch KYC copy does not fall back to French or English', () =>
       assert.notEqual(kycTranslations[language][key], kycTranslations.en[key]);
     }
   }
+});
+
+test('the selfie is explicitly optional in every supported language', () => {
+  for (const language of SUPPORTED_LANGUAGES) {
+    const copy = kycTranslations[language];
+    assert.match(copy.selfie, optionalSelfieMarkers[language]);
+    assert.match(copy.selfieHint, optionalSelfieMarkers[language]);
+    assert.match(copy.selfieSourceHint, optionalSelfieMarkers[language]);
+    assert.match(copy.submit, /\S/);
+  }
+  assert.equal(kycTranslations.fr.submit, 'Envoyer');
+});
+
+test('a KYC submission payload omits an absent optional selfie', () => {
+  assert.deepEqual(
+    serializeKycDocumentPaths({
+      id_front: 'owner/id_front/front.jpg',
+      id_back: 'owner/id_back/back.jpg',
+      proof_of_address: 'owner/proof_of_address/address.pdf',
+    }),
+    {
+      id_front: 'owner/id_front/front.jpg',
+      id_back: 'owner/id_back/back.jpg',
+      proof_of_address: 'owner/proof_of_address/address.pdf',
+    },
+  );
 });
 
 test('KYC status, correction reasons and document views include Italian and Dutch', async () => {
@@ -185,4 +223,24 @@ test('the selfie step offers separate camera and gallery choices through the sam
   assert.match(source, /await onCapture\(file\)/);
   assert.match(source, /copy\.openCamera/);
   assert.match(source, /copy\.chooseFromGallery/);
+  const validation = source.slice(
+    source.indexOf('const validate = () =>'),
+    source.indexOf('const submit = async'),
+  );
+  assert.match(validation, /if \(key === 'selfie'\) return ''/);
+  const optionalSelfieReturn = validation.indexOf(
+    "if (key === 'selfie') return ''",
+  );
+  assert.ok(
+    optionalSelfieReturn < validation.indexOf(
+      "if (uploadStates[key]?.phase === 'error')",
+    ),
+  );
+  assert.ok(optionalSelfieReturn < validation.indexOf('if (!paths[key]'));
+  assert.match(source, /submitting \? copy\.sending : copy\.submit/);
+  assert.match(source, /hasSelfie=\{Boolean\(paths\.selfie\)\}/);
+  assert.match(source, /removable=\{!correctionMode && Boolean\(paths\.selfie\)\}/);
+  assert.match(source, /copy\.selfieAttached/);
+  assert.match(source, /copy\.removeSelfie/);
+  assert.match(source, /await deleteEvidence\('kyc-evidence', \[selfiePath\]\)/);
 });

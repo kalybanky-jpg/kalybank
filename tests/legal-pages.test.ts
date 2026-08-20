@@ -34,15 +34,18 @@ test('the global footer exposes every legal route from every page', async () => 
 });
 
 test('legal copy describes the operational and data-processing boundaries', async () => {
-  const [notices, privacy, terms, cookies] = await Promise.all([
+  const [notices, privacy, terms, cookies, shell] = await Promise.all([
     readFile(new URL('../app/mentions-legales/page.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../app/confidentialite/page.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../app/conditions-utilisation/page.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../app/cookies/page.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../components/legal/LegalPageShell.tsx', import.meta.url), 'utf8'),
   ]);
 
   assert.match(notices, /ne déclenche aucun mouvement financier automatique/);
-  assert.match(privacy, /selfie pris avec la caméra ou choisi dans la galerie/);
+  assert.match(shell, /LEGAL_LAST_UPDATED = '18 août 2026'/);
+  assert.match(privacy, /selfie facultatif pris avec la caméra ou choisi dans la galerie/);
+  assert.match(terms, /Le selfie est facultatif/);
   assert.match(privacy, /Supabase/);
   assert.match(privacy, /Netlify/);
   assert.match(privacy, /Tawk\.to/);

@@ -5,6 +5,7 @@ import {
   parseKycDocumentPaths,
   parseKycDraft,
   parseKycReviewState,
+  parseKycSelfieReviewState,
   serializeKycDraft,
   type KycDraftForm,
 } from '../lib/domain/kyc';
@@ -50,6 +51,8 @@ test('KYC JSON parsers return safe defaults and known evidence keys only', () =>
     { id_front: 'user/front.jpg' },
   );
   assert.equal(parseKycReviewState('unexpected'), 'pending');
+  assert.equal(parseKycReviewState('not_applicable'), 'pending');
+  assert.equal(parseKycSelfieReviewState('not_applicable'), 'not_applicable');
 });
 
 test('notification JSON falls back to supported contracts', () => {

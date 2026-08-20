@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import BrandLogo from '@/components/brand/BrandLogo';
 
-export const LEGAL_LAST_UPDATED = '17 août 2026';
+export const LEGAL_LAST_UPDATED = '18 août 2026';
 
 interface LegalPageShellProps {
   title: string;

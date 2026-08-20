@@ -122,8 +122,8 @@ La préparation client commune accepte une source raster jusqu’à 25 Mio et
 compresse progressivement les JPEG, PNG et WebP supérieurs à 3,5 Mo, avec un
 plus grand côté de 3 200 px maximum. La taille préparée est ensuite contrôlée
 impérativement. Ce parcours
-de preuve accepte uniquement PDF, PNG ou JPEG de 1 octet à 10 Mio ; un selfie
-KYC doit être JPEG. Les PDF restent byte-identiques. Aucun gros payload ne
+de preuve accepte uniquement PDF, PNG ou JPEG de 1 octet à 10 Mio ; un éventuel
+selfie KYC facultatif doit être JPEG. Les PDF restent byte-identiques. Aucun gros payload ne
 traverse Netlify.
 
 ### `DELETE /api/evidence`

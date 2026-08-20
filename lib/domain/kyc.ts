@@ -5,7 +5,11 @@ import {
   jsonString,
   type JsonObject,
 } from '../supabase/json';
-import type { KYCApplication, KYCReviewState } from '../types';
+import type {
+  KYCApplication,
+  KYCReviewState,
+  KYCSelfieReviewState,
+} from '../types';
 
 export const KYC_EVIDENCE_KEYS = [
   'id_front',
@@ -134,6 +138,10 @@ const REVIEW_STATES = new Set<KYCReviewState>([
   'compliant',
   'non_compliant',
 ]);
+const SELFIE_REVIEW_STATES = new Set<KYCSelfieReviewState>([
+  ...REVIEW_STATES,
+  'not_applicable',
+]);
 
 const KYC_WORKFLOW_STATUSES = new Set<
   NonNullable<KYCApplication['workflowStatus']>
@@ -153,6 +161,14 @@ const KYC_DOCUMENT_TYPES = new Set<
 export function parseKycReviewState(value: string): KYCReviewState {
   return REVIEW_STATES.has(value as KYCReviewState)
     ? (value as KYCReviewState)
+    : 'pending';
+}
+
+export function parseKycSelfieReviewState(
+  value: string,
+): KYCSelfieReviewState {
+  return SELFIE_REVIEW_STATES.has(value as KYCSelfieReviewState)
+    ? (value as KYCSelfieReviewState)
     : 'pending';
 }
 

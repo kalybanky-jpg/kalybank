@@ -39,6 +39,7 @@ import {
   parseKycDocumentType,
   parseKycDocumentPaths,
   parseKycReviewState,
+  parseKycSelfieReviewState,
   parseKycWorkflowStatus,
 } from './domain/kyc';
 import {
@@ -885,9 +886,10 @@ export function AppProvider({
       const kycRows = (kycResult.data ?? []) as KycRow[];
       const mappedKyc = await Promise.all(
         kycRows.map(async (kyc): Promise<KYCApplication> => {
-          const pathEntries = Object.entries(
-            parseKycDocumentPaths(kyc.document_object_paths),
+          const documentPaths = parseKycDocumentPaths(
+            kyc.document_object_paths,
           );
+          const pathEntries = Object.entries(documentPaths);
           const signedEntries = await Promise.all(
             pathEntries.map(async ([key, path]) => {
               const { data } = await supabase.storage
@@ -917,6 +919,7 @@ export function AppProvider({
               idFrontUrl: signed.id_front ?? '',
               idBackUrl: signed.id_back ?? '',
               selfieUrl: signed.selfie ?? '',
+              selfieProvided: Boolean(documentPaths.selfie),
               proofOfAddressUrl: signed.proof_of_address ?? '',
             },
             documentType: parseKycDocumentType(kyc.document_type),
@@ -940,7 +943,7 @@ export function AppProvider({
                   dataConsistency: parseKycReviewState(
                     kyc.kyc_review_checklists.data_consistency,
                   ),
-                  selfieMatch: parseKycReviewState(
+                  selfieMatch: parseKycSelfieReviewState(
                     kyc.kyc_review_checklists.selfie_match,
                   ),
                   adulthood: parseKycReviewState(

@@ -12,6 +12,7 @@ import {
   LoaderCircle,
   LockKeyhole,
   RotateCcw,
+  Trash2,
   UploadCloud,
 } from 'lucide-react';
 import BrandLogo from '@/components/brand/BrandLogo';
@@ -27,7 +28,7 @@ import {
   type KycDraftForm,
   type KycEvidenceKey,
 } from '@/lib/domain/kyc';
-import { uploadEvidence } from '@/lib/evidence';
+import { deleteEvidence, uploadEvidence } from '@/lib/evidence';
 import { appErrorCode, localizedAppError } from '@/lib/user-i18n';
 import { splitFullName } from '@/lib/identity';
 import { kycTranslations } from '@/lib/kyc-i18n';
@@ -146,14 +147,20 @@ async function prepareImage(file: File, square = false): Promise<File> {
 function SelfieCapture({
   copy,
   disabled,
+  hasSelfie,
+  removable,
   onPreparingChange,
   onCapture,
+  onRemove,
   previewUrl,
 }: {
   copy: ReturnType<typeof getCopy>;
   disabled: boolean;
+  hasSelfie: boolean;
+  removable: boolean;
   onPreparingChange: (preparing: boolean) => void;
   onCapture: (file: File) => Promise<void>;
+  onRemove: () => Promise<void>;
   previewUrl?: string;
 }) {
   const galleryInputRef = useRef<HTMLInputElement>(null);
@@ -279,6 +286,7 @@ function SelfieCapture({
       {/* Blob previews are local and cannot be handled by next/image. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       {previewUrl && !open && <img src={previewUrl} alt={copy.selfiePreview} className="mx-auto max-h-72 rounded-2xl object-contain" />}
+      {hasSelfie && !previewUrl && !open && <p className="flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-800"><Check aria-hidden="true" className="h-4 w-4" />{copy.selfieAttached}</p>}
       {open && <video ref={videoRef} playsInline muted className="mx-auto aspect-square max-h-80 rounded-2xl bg-black object-cover" />}
       {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
       <input
@@ -292,11 +300,12 @@ function SelfieCapture({
       />
       <div className="flex flex-col items-stretch justify-center gap-3 sm:flex-row">
         <button disabled={disabled || capturing} type="button" onClick={open ? capture : start} className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">
-          <Camera aria-hidden="true" className="h-4 w-4" /> {capturing ? copy.preparingFile : open ? copy.takePhoto : previewUrl ? copy.retake : copy.openCamera}
+          <Camera aria-hidden="true" className="h-4 w-4" /> {capturing ? copy.preparingFile : open ? copy.takePhoto : previewUrl || hasSelfie ? copy.retake : copy.openCamera}
         </button>
         <button disabled={disabled || capturing} type="button" onClick={chooseFromGallery} className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-blue-200 bg-white px-5 py-3 text-sm font-bold text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50">
           <Images aria-hidden="true" className="h-4 w-4" /> {copy.chooseFromGallery}
         </button>
+        {removable && <button disabled={disabled || capturing} type="button" onClick={() => void onRemove()} className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white px-5 py-3 text-sm font-bold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"><Trash2 aria-hidden="true" className="h-4 w-4" />{copy.removeSelfie}</button>}
       </div>
     </div>
   );
@@ -376,6 +385,7 @@ export default function OnboardingPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [removingSelfie, setRemovingSelfie] = useState(false);
   const [cameraPreparing, setCameraPreparing] = useState(false);
   const [error, setError] = useState('');
   const stepTitleRef = useRef<HTMLHeadingElement>(null);
@@ -397,7 +407,7 @@ export default function OnboardingPage() {
     return selected.filter((step) => step !== 'id_back' || form.documentType !== 'passport');
   }, [correctionMode, requestedItems, form.documentType]);
   const step = steps[Math.min(stepIndex, Math.max(0, steps.length - 1))] ?? 'identity';
-  const uploadPending = cameraPreparing || EVIDENCE_KEYS.some((key) => {
+  const uploadPending = cameraPreparing || removingSelfie || EVIDENCE_KEYS.some((key) => {
     const phase = uploadStates[key]?.phase;
     return phase === 'preparing' || phase === 'uploading';
   });
@@ -599,6 +609,50 @@ export default function OnboardingPage() {
     }
   };
 
+  const removeDraftSelfie = async () => {
+    if (correctionMode || uploadPending || submitting || !paths.selfie) return;
+    const selfiePath = paths.selfie;
+    const nextPaths = { ...paths };
+    delete nextPaths.selfie;
+    uploadRequestIdsRef.current.selfie += 1;
+    const previewUrl = previewUrlsRef.current.selfie;
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    delete previewUrlsRef.current.selfie;
+    setPaths(nextPaths);
+    setPreviews((current) => {
+      const next = { ...current };
+      delete next.selfie;
+      return next;
+    });
+    setUploadStates((current) => {
+      const next = { ...current };
+      delete next.selfie;
+      return next;
+    });
+    setUploadedNow((current) => {
+      const next = new Set(current);
+      next.delete('selfie');
+      return next;
+    });
+    setError('');
+    setRemovingSelfie(true);
+    try {
+      const { error: saveError } = await createClient().rpc('save_kyc_draft', {
+        p_current_step: stepIndex,
+        p_payload: serializeKycDraft(form),
+        p_document_object_paths: serializeKycDocumentPaths(nextPaths),
+        p_preferred_language: language,
+      });
+      if (saveError) throw saveError;
+      await deleteEvidence('kyc-evidence', [selfiePath]);
+      if (mountedRef.current) setSaved(true);
+    } catch {
+      if (mountedRef.current) setError(localizedAppError(language, 'SAVE_FAILED'));
+    } finally {
+      if (mountedRef.current) setRemovingSelfie(false);
+    }
+  };
+
   const validate = () => {
     if (step === 'identity' && (!form.firstName.trim() || !form.lastName.trim() || !form.placeOfBirth.trim() || !form.nationality.trim())) return copy.required;
     if (step === 'birth') {
@@ -615,8 +669,9 @@ export default function OnboardingPage() {
     }
     if (['id_front', 'id_back', 'proof_of_address', 'selfie'].includes(step)) {
       const key = step as EvidenceKey;
-      if (uploadStates[key]?.phase === 'error') return copy.uploadFailed;
       if (uploadStates[key]?.phase === 'preparing' || uploadStates[key]?.phase === 'uploading') return copy.uploadingFile;
+      if (key === 'selfie') return '';
+      if (uploadStates[key]?.phase === 'error') return copy.uploadFailed;
       if (!paths[key] || (correctionMode && requestedItems.includes(key) && !uploadedNow.has(key))) return copy.required;
     }
     return '';
@@ -790,12 +845,15 @@ export default function OnboardingPage() {
                 <SelfieCapture
                   copy={copy}
                   disabled={uploadPending || submitting}
+                  hasSelfie={Boolean(paths.selfie)}
+                  removable={!correctionMode && Boolean(paths.selfie)}
                   onPreparingChange={(preparing) => {
                     cameraPreparingRef.current = preparing;
                     if (mountedRef.current) setCameraPreparing(preparing);
                   }}
                   previewUrl={previews.selfie}
                   onCapture={(file) => upload('selfie', file)}
+                  onRemove={removeDraftSelfie}
                 />
                 <EvidenceUploadFeedback
                   copy={copy}
@@ -812,7 +870,7 @@ export default function OnboardingPage() {
           <div className="mt-7 flex items-center gap-3 border-t pt-5">
             {stepIndex > 0 && <button disabled={uploadPending || submitting} type="button" onClick={() => { setError(''); setStepIndex((value) => value - 1); }} className="flex h-12 items-center gap-2 rounded-xl border px-4 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-50"><ArrowLeft className="h-4 w-4" />{copy.back}</button>}
             <button disabled={uploadPending || submitting} type="submit" className="ml-auto flex h-12 items-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">
-              {stepIndex === steps.length - 1 ? <><FileCheck2 className="h-4 w-4" />{submitting ? copy.sending : correctionMode ? copy.resubmit : copy.submit}</> : <>{copy.next}<ArrowRight className="h-4 w-4" /></>}
+              {stepIndex === steps.length - 1 ? <><FileCheck2 className="h-4 w-4" />{submitting ? copy.sending : copy.submit}</> : <>{copy.next}<ArrowRight className="h-4 w-4" /></>}
             </button>
           </div>
           <p className="mt-5 flex items-center justify-center gap-2 text-[11px] text-slate-500"><LockKeyhole className="h-3.5 w-3.5" />{copy.privacy}</p>

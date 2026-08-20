@@ -34,7 +34,7 @@ export default async function TermsPage() {
       <section>
         <h2>Vérification d’identité</h2>
         <p className="mt-3">
-          Vous pouvez prendre votre selfie directement avec la caméra ou choisir une photo dans votre galerie. Vous garantissez disposer des droits nécessaires sur les fichiers transmis. Les pièces et le selfie sont contrôlés manuellement ; leur dépôt ne vaut ni acceptation automatique, ni ouverture immédiate d’un service financier.
+          Le selfie est facultatif. Si vous choisissez de le fournir, vous pouvez le prendre directement avec la caméra ou sélectionner une photo dans votre galerie. Vous garantissez disposer des droits nécessaires sur les fichiers transmis. Les pièces et tout selfie fourni sont contrôlés manuellement ; leur dépôt ne vaut ni acceptation automatique, ni ouverture immédiate d’un service financier.
         </p>
       </section>
 

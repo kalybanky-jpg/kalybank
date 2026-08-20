@@ -263,11 +263,12 @@ export interface SystemNotification {
 }
 
 export type KYCReviewState = 'pending' | 'compliant' | 'non_compliant';
+export type KYCSelfieReviewState = KYCReviewState | 'not_applicable';
 
 export interface KYCReviewChecklist {
   documentQuality: KYCReviewState;
   dataConsistency: KYCReviewState;
-  selfieMatch: KYCReviewState;
+  selfieMatch: KYCSelfieReviewState;
   adulthood: KYCReviewState;
   fatca: KYCReviewState;
   pep: KYCReviewState;
@@ -300,6 +301,7 @@ export interface KYCApplication {
     idFrontUrl: string;
     idBackUrl: string;
     selfieUrl: string;
+    selfieProvided: boolean;
     proofOfAddressUrl: string;
   };
   documentType?: 'national_identity_card' | 'passport' | 'residence_permit';

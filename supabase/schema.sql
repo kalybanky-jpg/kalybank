@@ -1,8 +1,8 @@
 -- Monalyz DATABASE SCHEMA SNAPSHOT
 -- GENERATED FILE: run `npx bun run db:snapshot`; do not edit manually.
 -- remote-project-ref: qljqldhvbakornnpalua
--- migration-manifest-sha256: 09aad35880ae60c32efaa6bf1bc973bf176bce78040641488cd072ff38ef3836
--- migrations: 20260728060744_kaly_secure_external_financial_workflows.sql, 20260728061308_add_missing_foreign_key_indexes.sql, 20260728065832_rename_brand_to_monalyz.sql, 20260728092751_simplify_branch_manager_financial_workflows.sql, 20260728094442_add_outbox_claimed_by_index.sql, 20260728150934_add_profile_preferred_language.sql, 20260728151335_grant_profile_preferences_update.sql, 20260728173319_provision_demo_accounts.sql, 20260728183213_fix_demo_provisioner_uuid_literals.sql, 20260729115445_add_official_accounts_and_ledger.sql, 20260729115451_wire_ledger_to_financial_workflows.sql, 20260729115458_add_official_documents_and_demo_fixtures.sql, 20260730123059_automatic_account_numbers.sql, 20260730162101_kyc_workflow_and_internal_account.sql, 20260730170000_sequential_transfer_checks.sql, 20260731120000_user_localization_contract.sql, 20260801091705_configure_loan_products.sql, 20260801095428_dynamic_brand_settings.sql, 20260801163432_secure_brand_snapshot_function.sql, 20260803074608_scope_transactional_email_claims.sql, 20260803112108_harden_function_privileges_and_upload_staging.sql, 20260808112503_persist_signup_preferred_currency.sql, 20260808115958_add_tawk_support_backend.sql, 20260809080215_allow_demo_admin_email_changes.sql, 20260811060932_add_italian_dutch_customer_localization.sql, 20260811070824_guarded_client_data_purge.sql, 20260812144154_optional_transfer_validation_notes_and_progress_emails.sql, 20260817213814_release_test_client_identity_immediately.sql
+-- migration-manifest-sha256: 60aea42181d06eb77bdcb34836633964f88eaaa1aad5ee2edd0e4faf4e7e1ed3
+-- migrations: 20260728060744_kaly_secure_external_financial_workflows.sql, 20260728061308_add_missing_foreign_key_indexes.sql, 20260728065832_rename_brand_to_monalyz.sql, 20260728092751_simplify_branch_manager_financial_workflows.sql, 20260728094442_add_outbox_claimed_by_index.sql, 20260728150934_add_profile_preferred_language.sql, 20260728151335_grant_profile_preferences_update.sql, 20260728173319_provision_demo_accounts.sql, 20260728183213_fix_demo_provisioner_uuid_literals.sql, 20260729115445_add_official_accounts_and_ledger.sql, 20260729115451_wire_ledger_to_financial_workflows.sql, 20260729115458_add_official_documents_and_demo_fixtures.sql, 20260730123059_automatic_account_numbers.sql, 20260730162101_kyc_workflow_and_internal_account.sql, 20260730170000_sequential_transfer_checks.sql, 20260731120000_user_localization_contract.sql, 20260801091705_configure_loan_products.sql, 20260801095428_dynamic_brand_settings.sql, 20260801163432_secure_brand_snapshot_function.sql, 20260803074608_scope_transactional_email_claims.sql, 20260803112108_harden_function_privileges_and_upload_staging.sql, 20260808112503_persist_signup_preferred_currency.sql, 20260808115958_add_tawk_support_backend.sql, 20260809080215_allow_demo_admin_email_changes.sql, 20260811060932_add_italian_dutch_customer_localization.sql, 20260811070824_guarded_client_data_purge.sql, 20260812144154_optional_transfer_validation_notes_and_progress_emails.sql, 20260817213814_release_test_client_identity_immediately.sql, 20260817233759_make_kyc_selfie_optional.sql
 -- schema-only: true
 -- production-data-included: false
 -- schemas: public, private
@@ -2668,7 +2668,6 @@ begin
      or p_document_expires_on < current_date
      or jsonb_typeof(p_document_object_paths) <> 'object'
      or not (p_document_object_paths ? 'id_front')
-     or not (p_document_object_paths ? 'selfie')
      or not (p_document_object_paths ? 'proof_of_address')
      or (
        p_document_type <> 'passport'
@@ -4691,13 +4690,27 @@ begin
   where id = p_kyc_id
   returning * into kyc_row;
 
-  insert into public.kyc_review_checklists (kyc_id, updated_by)
-  values (p_kyc_id, caller_id)
+  insert into public.kyc_review_checklists (
+    kyc_id,
+    selfie_match,
+    updated_by
+  )
+  values (
+    p_kyc_id,
+    case
+      when kyc_row.document_object_paths ? 'selfie' then 'pending'
+      else 'not_applicable'
+    end,
+    caller_id
+  )
   on conflict (kyc_id) do update
   set
     document_quality = 'pending',
     data_consistency = 'pending',
-    selfie_match = 'pending',
+    selfie_match = case
+      when kyc_row.document_object_paths ? 'selfie' then 'pending'
+      else 'not_applicable'
+    end,
     adulthood = 'pending',
     fatca = 'pending',
     pep = 'pending',
@@ -6811,22 +6824,47 @@ begin
   select * into checklist_row
   from public.kyc_review_checklists
   where kyc_id = p_kyc_id;
-  if not found
-     or 'pending' in (
-       checklist_row.document_quality,
-       checklist_row.data_consistency,
-       checklist_row.selfie_match,
-       checklist_row.adulthood,
-       checklist_row.fatca,
-       checklist_row.pep
-     ) then
+  if not found then
     raise exception 'KYC_CHECKLIST_INCOMPLETE' using errcode = '22023';
+  end if;
+  if (
+       not (kyc_row.document_object_paths ? 'selfie')
+       and checklist_row.selfie_match <> 'not_applicable'
+     )
+     or (
+       kyc_row.document_object_paths ? 'selfie'
+       and checklist_row.selfie_match = 'not_applicable'
+     ) then
+    raise exception 'INVALID_KYC_SELFIE_REVIEW_STATE' using errcode = '23514';
+  end if;
+  if 'pending' in (
+    checklist_row.document_quality,
+    checklist_row.data_consistency,
+    checklist_row.selfie_match,
+    checklist_row.adulthood,
+    checklist_row.fatca,
+    checklist_row.pep
+  ) then
+    raise exception 'KYC_CHECKLIST_INCOMPLETE' using errcode = '22023';
+  end if;
+
+  if p_reason_code = 'selfie_mismatch' then
+    raise exception 'INVALID_KYC_DECISION_REASON' using errcode = '22023';
+  end if;
+  if p_decision = 'rejected' and not ('non_compliant' in (
+    checklist_row.document_quality,
+    checklist_row.data_consistency,
+    checklist_row.adulthood,
+    checklist_row.fatca,
+    checklist_row.pep
+  )) then
+    raise exception 'KYC_REJECTION_REQUIRES_MANDATORY_FAILURE'
+      using errcode = '23514';
   end if;
 
   if p_decision = 'approved' and 'non_compliant' in (
     checklist_row.document_quality,
     checklist_row.data_consistency,
-    checklist_row.selfie_match,
     checklist_row.adulthood,
     checklist_row.fatca,
     checklist_row.pep
@@ -6934,7 +6972,7 @@ begin
       when p_decision = 'rejected'
         then array[
           'identity', 'birth', 'address', 'profile', 'document_metadata',
-          'id_front', 'id_back', 'selfie', 'proof_of_address'
+          'id_front', 'id_back', 'proof_of_address'
         ]::text[]
       else '{}'
     end,
@@ -8053,12 +8091,12 @@ begin
      or not (
        p_requested_items <@ array[
          'identity', 'birth', 'address', 'profile', 'document_metadata',
-         'id_front', 'id_back', 'selfie', 'proof_of_address'
+         'id_front', 'id_back', 'proof_of_address'
        ]::text[]
      )
      or p_reason_code not in (
        'unreadable_document', 'expired_document',
-       'inconsistent_information', 'missing_document', 'selfie_mismatch',
+       'inconsistent_information', 'missing_document',
        'address_not_verified', 'regulatory_information', 'other'
      )
      or nullif(trim(coalesce(p_note, '')), '') is null
@@ -9522,7 +9560,7 @@ CREATE TABLE IF NOT EXISTS "public"."kyc_review_checklists" (
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     CONSTRAINT "kyc_review_checklists_comments_check" CHECK ((("internal_comments" IS NULL) OR ("char_length"("internal_comments") <= 2000))),
-    CONSTRAINT "kyc_review_checklists_states_check" CHECK ((("document_quality" = ANY (ARRAY['pending'::"text", 'compliant'::"text", 'non_compliant'::"text"])) AND ("data_consistency" = ANY (ARRAY['pending'::"text", 'compliant'::"text", 'non_compliant'::"text"])) AND ("selfie_match" = ANY (ARRAY['pending'::"text", 'compliant'::"text", 'non_compliant'::"text"])) AND ("adulthood" = ANY (ARRAY['pending'::"text", 'compliant'::"text", 'non_compliant'::"text"])) AND ("fatca" = ANY (ARRAY['pending'::"text", 'compliant'::"text", 'non_compliant'::"text"])) AND ("pep" = ANY (ARRAY['pending'::"text", 'compliant'::"text", 'non_compliant'::"text"]))))
+    CONSTRAINT "kyc_review_checklists_states_check" CHECK ((("document_quality" = ANY (ARRAY['pending'::"text", 'compliant'::"text", 'non_compliant'::"text"])) AND ("data_consistency" = ANY (ARRAY['pending'::"text", 'compliant'::"text", 'non_compliant'::"text"])) AND ("selfie_match" = ANY (ARRAY['pending'::"text", 'compliant'::"text", 'non_compliant'::"text", 'not_applicable'::"text"])) AND ("adulthood" = ANY (ARRAY['pending'::"text", 'compliant'::"text", 'non_compliant'::"text"])) AND ("fatca" = ANY (ARRAY['pending'::"text", 'compliant'::"text", 'non_compliant'::"text"])) AND ("pep" = ANY (ARRAY['pending'::"text", 'compliant'::"text", 'non_compliant'::"text"]))))
 );
 
 
@@ -9536,23 +9574,35 @@ CREATE OR REPLACE FUNCTION "public"."update_kyc_review_checklist"("p_kyc_id" "uu
 declare
   caller_id uuid := (select auth.uid());
   checklist_row public.kyc_review_checklists;
+  has_selfie boolean;
 begin
   if caller_id is null
      or not private.is_active_staff(array['reviewer', 'supervisor', 'admin']) then
     raise exception 'STAFF_PERMISSION_REQUIRED' using errcode = '42501';
   end if;
-  if not exists (
-    select 1 from public.kyc_applications
-    where id = p_kyc_id and status = 'under_review'
-  ) then
+
+  select application.document_object_paths ? 'selfie'
+  into has_selfie
+  from public.kyc_applications as application
+  where application.id = p_kyc_id
+    and application.status = 'under_review'
+  for update;
+
+  if not found then
     raise exception 'KYC_NOT_UNDER_REVIEW' using errcode = '55000';
+  end if;
+  if has_selfie and p_selfie_match = 'not_applicable' then
+    raise exception 'INVALID_KYC_SELFIE_REVIEW_STATE' using errcode = '22023';
   end if;
 
   update public.kyc_review_checklists
   set
     document_quality = p_document_quality,
     data_consistency = p_data_consistency,
-    selfie_match = p_selfie_match,
+    selfie_match = case
+      when has_selfie then p_selfie_match
+      else 'not_applicable'
+    end,
     adulthood = p_adulthood,
     fatca = p_fatca,
     pep = p_pep,

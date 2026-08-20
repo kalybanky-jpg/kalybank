@@ -5,7 +5,12 @@ import {
   CheckCircle2, Clock, Eye, FileText, Search, ShieldCheck, X, XCircle,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
-import type { KYCApplication, KYCReviewChecklist, KYCReviewState } from '@/lib/types';
+import type {
+  KYCApplication,
+  KYCReviewChecklist,
+  KYCReviewState,
+  KYCSelfieReviewState,
+} from '@/lib/types';
 import { useBrand } from '@/components/brand/BrandProvider';
 import { Dialog, DialogBackdrop, DialogPanel } from '@/components/ui/Dialog';
 
@@ -13,7 +18,8 @@ const STATUS_LABELS: Record<string, string> = {
   submitted: 'Soumis', under_review: 'En vérification', approved: 'Approuvé',
   rejected: 'Rejeté', needs_information: 'Complément requis', resubmitted: 'Resoumis',
 };
-const CHECKS: [keyof KYCReviewChecklist, string][] = [
+type ChecklistStateKey = Exclude<keyof KYCReviewChecklist, 'internalComments'>;
+const CHECKS: [ChecklistStateKey, string][] = [
   ['documentQuality', 'Qualité et validité des pièces'],
   ['dataConsistency', 'Cohérence des données déclarées'],
   ['selfieMatch', 'Comparaison manuelle du selfie'],
@@ -24,13 +30,13 @@ const CHECKS: [keyof KYCReviewChecklist, string][] = [
 const REQUEST_ITEMS = [
   ['identity', 'Identité'], ['birth', 'Naissance'], ['address', 'Adresse'],
   ['profile', 'Profil FATCA/PPE'], ['document_metadata', 'Informations de la pièce'],
-  ['id_front', 'Recto'], ['id_back', 'Verso'], ['selfie', 'Selfie'],
+  ['id_front', 'Recto'], ['id_back', 'Verso'],
   ['proof_of_address', 'Justificatif de domicile'],
 ] as const;
 const REASONS = [
   ['unreadable_document', 'Document illisible'], ['expired_document', 'Document expiré'],
   ['inconsistent_information', 'Informations incohérentes'], ['missing_document', 'Document manquant'],
-  ['selfie_mismatch', 'Selfie non concordant'], ['address_not_verified', 'Adresse non vérifiable'],
+  ['address_not_verified', 'Adresse non vérifiable'],
   ['regulatory_information', 'Informations réglementaires'], ['other', 'Autre'],
 ] as const;
 const EMPTY_CHECKLIST: KYCReviewChecklist = {
@@ -58,7 +64,13 @@ export default function AdminKycManagement() {
 
   const openApplication = (application: KYCApplication) => {
     setSelected(application);
-    setChecklist(application.checklist ?? EMPTY_CHECKLIST);
+    const applicationChecklist = application.checklist ?? EMPTY_CHECKLIST;
+    setChecklist(
+      application.documents.selfieProvided
+        ? applicationChecklist
+        : { ...applicationChecklist, selfieMatch: 'not_applicable' },
+    );
+    setDocumentKey('idFrontUrl');
     setRequested([]);
     setNote('');
     setError('');
@@ -176,7 +188,9 @@ export default function AdminKycManagement() {
                   : <img src={selected.documents[documentKey]} alt="Justificatif KYC privé" referrerPolicy="no-referrer" className="max-h-full max-w-full object-contain" />
                   : <p className="text-xs text-slate-400">Aperçu indisponible.</p>}
               </div>
-              <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">La comparaison du selfie reste entièrement manuelle.</p>
+              {selected.documents.selfieProvided
+                ? <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">La comparaison du selfie fourni reste entièrement manuelle.</p>
+                : <p className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900">Aucun selfie fourni : cette preuve est facultative et le contrôle est non applicable.</p>}
             </div>
 
             <div className="space-y-4 text-xs">
@@ -202,7 +216,15 @@ export default function AdminKycManagement() {
             <section>
               <h3 className="font-extrabold">Checklist administrative</h3>
               <div className="mt-3 space-y-3">
-                {CHECKS.map(([key, label]) => <label key={key} className="grid min-w-0 grid-cols-1 items-center gap-3 rounded-xl border p-3 text-xs sm:grid-cols-[minmax(0,1fr)_170px]"><span className="break-words">{label}</span><select value={checklist[key] as string} onChange={(event) => setChecklist((current) => ({ ...current, [key]: event.target.value as KYCReviewState }))} className="min-h-11 min-w-0 rounded-lg border p-2"><option value="pending">À contrôler</option><option value="compliant">Conforme</option><option value="non_compliant">Non conforme</option></select></label>)}
+                {CHECKS.map(([key, label]) => {
+                  const selfieNotProvided = key === 'selfieMatch' && !selected.documents.selfieProvided;
+                  return <label key={key} className="grid min-w-0 grid-cols-1 items-center gap-3 rounded-xl border p-3 text-xs sm:grid-cols-[minmax(0,1fr)_170px]"><span className="break-words">{selfieNotProvided ? 'Selfie non fourni (facultatif)' : label}</span><select disabled={selfieNotProvided} value={checklist[key] as string} onChange={(event) => {
+                    const value = event.target.value;
+                    setChecklist((current) => key === 'selfieMatch'
+                      ? { ...current, selfieMatch: value as KYCSelfieReviewState }
+                      : { ...current, [key]: value as KYCReviewState });
+                  }} className="min-h-11 min-w-0 rounded-lg border p-2 disabled:bg-slate-100"><option value="pending">À contrôler</option><option value="compliant">Conforme</option><option value="non_compliant">Non conforme</option>{selfieNotProvided && <option value="not_applicable">Non applicable</option>}</select></label>;
+                })}
                 <label className="block text-xs font-bold">Commentaires internes<textarea value={checklist.internalComments} onChange={(event) => setChecklist((current) => ({ ...current, internalComments: event.target.value }))} className="mt-2 min-h-24 w-full rounded-xl border p-3 font-normal" /></label>
                 <button type="button" disabled={busy} onClick={() => void run(() => updateKYCChecklist(selected.id, checklist))} className="w-full rounded-xl border border-blue-600 py-3 font-bold text-blue-700">Enregistrer la checklist</button>
               </div>

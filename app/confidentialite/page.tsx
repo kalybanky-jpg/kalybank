@@ -29,7 +29,7 @@ export default async function PrivacyPage() {
         <h2>Données traitées</h2>
         <ul className="mt-3">
           <li>identité, coordonnées, langue, devise de référence et données d’authentification ;</li>
-          <li>dossier de vérification d’identité : informations déclarées, pièce d’identité, justificatif de domicile et selfie pris avec la caméra ou choisi dans la galerie ;</li>
+          <li>dossier de vérification d’identité : informations déclarées, pièce d’identité, justificatif de domicile et, si vous choisissez de le fournir, selfie facultatif pris avec la caméra ou choisi dans la galerie ;</li>
           <li>positions, écritures, intentions de virement, demandes de prêt et documents officiels enregistrés par le personnel habilité ;</li>
           <li>messages de support, abonnement facultatif aux notifications et préférences de l’appareil ;</li>
           <li>journaux techniques, événements de sécurité et traces d’audit nécessaires à l’intégrité du service.</li>

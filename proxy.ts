@@ -10,6 +10,7 @@ import {
 const USER_PATHS = ['/myaccount', '/onboarding'];
 const STAFF_PATHS = ['/admin'];
 const AUTH_PATHS = ['/login', '/admin-login', '/admin/login', '/register', '/reset-pin'];
+const NON_INDEXABLE_PATHS = ['/api', '/admin', '/admin-login', '/auth', '/myaccount', '/onboarding', '/reset-pin'];
 
 function startsWithAny(pathname: string, prefixes: string[]) {
   return prefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
@@ -96,6 +97,9 @@ export async function handleProxy(request: NextRequest, dependencies: ProxyDepen
     target.headers.set('X-Content-Type-Options', 'nosniff');
     target.headers.set('X-Frame-Options', 'DENY');
     target.headers.set('Permissions-Policy', PERMISSIONS_POLICY);
+    if (startsWithAny(request.nextUrl.pathname, NON_INDEXABLE_PATHS)) {
+      target.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
+    }
     return target;
   };
 

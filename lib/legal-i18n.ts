@@ -251,7 +251,8 @@ const pages: Record<Language, Record<LegalPageKey, LegalPageCopy>> = {
   },
 };
 
-export async function getLegalLanguage(): Promise<Language> {
+export async function getLegalLanguage(requestedLanguage?: string): Promise<Language> {
+  if (isSupportedLanguage(requestedLanguage)) return requestedLanguage;
   const cookieLanguage = (await cookies()).get(LANGUAGE_COOKIE)?.value;
   if (isSupportedLanguage(cookieLanguage)) return cookieLanguage;
   const accepted = parseAcceptLanguage((await headers()).get('accept-language'));

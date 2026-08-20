@@ -11,15 +11,22 @@ const legalRoutes = [
   'cookies',
 ] as const;
 
-test('all public legal pages are versioned and expose metadata', async () => {
+test('legacy legal routes redirect to stable localized URLs', async () => {
   for (const route of legalRoutes) {
     const source = await readFile(
       new URL(`../app/${route}/page.tsx`, import.meta.url),
       'utf8',
     );
-    assert.match(source, /export async function generateMetadata\(\): Promise<Metadata>/);
-    assert.match(source, /<LegalDocument/);
+    assert.match(source, /redirect\(localizedLegalPath\(language,/);
   }
+
+  const localizedSource = await readFile(
+    new URL('../app/[language]/[legalPage]/page.tsx', import.meta.url),
+    'utf8',
+  );
+  assert.match(localizedSource, /generateStaticParams/);
+  assert.match(localizedSource, /localizedLegalAlternates/);
+  assert.match(localizedSource, /<LegalDocument/);
 });
 
 test('the global footer exposes every legal route from every page', async () => {
@@ -29,8 +36,8 @@ test('the global footer exposes every legal route from every page', async () => 
   ]);
 
   assert.match(layout, /<LegalFooter bankName=\{initialBrand\.bankName\} \/>/);
-  for (const route of legalRoutes) {
-    assert.match(footer, new RegExp(`href: '/${route}'`));
+  for (const page of ['notices', 'privacy', 'terms', 'cookies']) {
+    assert.match(footer, new RegExp(`localizedLegalPath\\(language, '${page}'\\)`));
   }
   assert.match(footer, /NEXT_PUBLIC_SUPPORT_EMAIL/);
 });
@@ -56,7 +63,8 @@ test('legal copy describes the operational and data-processing boundaries', asyn
   assert.match(translations, /ne se connecte pas à une infrastructure bancaire tierce/);
   assert.match(translations, /Stockages strictement nécessaires/);
   assert.match(selector, /LANGUAGE_OPTIONS/);
-  assert.match(selector, /router\.refresh\(\)/);
+  assert.match(selector, /router\.push/);
+  assert.match(selector, /isSupportedLanguage/);
   assert.match(
     interpolateLegalText(getLegalPage('fr', 'notices').sections[0]?.paragraphs?.[0] ?? '', 'Monalyz', 'support@monalyz.com'),
     /MONALYZ/,

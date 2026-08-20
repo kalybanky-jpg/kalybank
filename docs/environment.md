@@ -11,6 +11,8 @@
 | `NEXT_PUBLIC_SUPABASE_URL` | Oui | Build et fonctions | URL du projet Supabase |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Oui | Build et fonctions | Clé publique protégée par RLS |
 | `NEXT_PUBLIC_APP_ORIGIN` | Oui | Build et fonctions | Origine HTTPS des callbacks e-mail et de l’UI |
+| `NEXT_PUBLIC_CANONICAL_ORIGIN` | Non | Build et fonctions | Origine HTTPS préférée pour les URL canoniques, le sitemap et les données structurées ; repli production sur `https://bank.monalyz.com` |
+| `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` | Non | Build | Jeton de validation HTML fourni par Google Search Console |
 | `NEXT_PUBLIC_SUPPORT_EMAIL` | Non | Build | Adresse affichée dans l’interface |
 | `APP_ORIGIN` | Oui en production | Fonctions/runtime | Origine canonique pour les mutations et redirections |
 | `APP_ALLOWED_ORIGINS` | Non | Fonctions/runtime | Origines HTTPS supplémentaires autorisées pour les mutations pendant une migration de domaine, séparées par des virgules |

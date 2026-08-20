@@ -10,15 +10,9 @@ import {
 } from '@/lib/language';
 import { isPublicSupabaseConfigured } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
-import { safeHttpOrigin } from '@/lib/security/navigation';
 import { getRequestBrandSettings } from '@/lib/server/branding';
 import LegalFooter from '@/components/legal/LegalFooter';
-
-const metadataOrigin =
-  safeHttpOrigin(process.env.APP_ORIGIN ?? process.env.NEXT_PUBLIC_APP_ORIGIN) ??
-  (process.env.NODE_ENV === 'production'
-    ? 'https://monalyz.com'
-    : 'http://127.0.0.1:3000');
+import { CANONICAL_ORIGIN } from '@/lib/seo';
 
 const description =
   'Instructions, contrôles et traçabilité d’opérations financières exécutées hors application.';
@@ -33,8 +27,9 @@ export const viewport: Viewport = {
 
 export async function generateMetadata(): Promise<Metadata> {
   const brand = await getRequestBrandSettings();
+  const googleVerification = process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION?.trim();
   return {
-    metadataBase: new URL(metadataOrigin),
+    metadataBase: new URL(CANONICAL_ORIGIN),
     applicationName: brand.bankName,
     title: {
       default: brand.bankName,
@@ -42,6 +37,19 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     description,
     manifest: '/manifest.webmanifest',
+    category: 'finance',
+    robots: {
+      index: true,
+      follow: true,
+      googleBot: {
+        index: true,
+        follow: true,
+        'max-image-preview': 'large',
+        'max-snippet': -1,
+        'max-video-preview': -1,
+      },
+    },
+    verification: googleVerification ? { google: googleVerification } : undefined,
     icons: {
       icon: [
         { url: brand.faviconIcoUrl, sizes: '16x16 32x32 48x48' },
@@ -56,6 +64,7 @@ export async function generateMetadata(): Promise<Metadata> {
     openGraph: {
       type: 'website',
       siteName: brand.bankName,
+      url: CANONICAL_ORIGIN,
       title: brand.bankName,
       description,
       images: [
@@ -110,10 +119,38 @@ export default async function RootLayout({children}: {children: React.ReactNode}
     acceptedLanguages: parseAcceptLanguage(requestHeaders.get('accept-language')),
   });
   const initialBrand = await getRequestBrandSettings();
+  const organizationJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: initialBrand.bankName,
+    legalName: '2 C FINANCE',
+    alternateName: initialBrand.bankName.toUpperCase(),
+    url: CANONICAL_ORIGIN,
+    logo: new URL(initialBrand.primaryLogoUrl, CANONICAL_ORIGIN).toString(),
+    email: process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? 'support@monalyz.com',
+    identifier: [
+      { '@type': 'PropertyValue', propertyID: 'SIREN', value: '979 247 145' },
+      { '@type': 'PropertyValue', propertyID: 'SIRET', value: '979 247 145 00019' },
+    ],
+    address: {
+      '@type': 'PostalAddress',
+      streetAddress: '20 BOULEVARD MONTMARTRE',
+      postalCode: '75009',
+      addressLocality: 'PARIS',
+      addressCountry: 'FR',
+    },
+  };
 
   return (
     <html lang={initialLanguage.language}>
       <body suppressHydrationWarning>
+        <script
+          nonce={requestHeaders.get('x-nonce') ?? undefined}
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(organizationJsonLd).replaceAll('<', '\\u003c'),
+          }}
+        />
         <Providers
           initialLanguage={initialLanguage.language}
           initialLanguageSource={initialLanguage.source}

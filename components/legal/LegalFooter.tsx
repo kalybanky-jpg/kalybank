@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { getLegalLanguage, getLegalShell } from '@/lib/legal-i18n';
+import { localizedLegalPath } from '@/lib/seo';
 
 export default async function LegalFooter({ bankName }: { bankName: string }) {
   const supportEmail =
@@ -7,10 +8,10 @@ export default async function LegalFooter({ bankName }: { bankName: string }) {
   const language = await getLegalLanguage();
   const copy = getLegalShell(language);
   const legalLinks = [
-    { href: '/mentions-legales', label: copy.links.notices },
-    { href: '/confidentialite', label: copy.links.privacy },
-    { href: '/conditions-utilisation', label: copy.links.terms },
-    { href: '/cookies', label: copy.links.cookies },
+    { href: localizedLegalPath(language, 'notices'), label: copy.links.notices },
+    { href: localizedLegalPath(language, 'privacy'), label: copy.links.privacy },
+    { href: localizedLegalPath(language, 'terms'), label: copy.links.terms },
+    { href: localizedLegalPath(language, 'cookies'), label: copy.links.cookies },
   ] as const;
 
   return (

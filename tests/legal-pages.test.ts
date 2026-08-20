@@ -17,7 +17,7 @@ test('legacy legal routes redirect to stable localized URLs', async () => {
       new URL(`../app/${route}/page.tsx`, import.meta.url),
       'utf8',
     );
-    assert.match(source, /redirect\(localizedLegalPath\(language,/);
+    assert.match(source, /permanentRedirect\(localizedLegalPath\(language,/);
   }
 
   const localizedSource = await readFile(

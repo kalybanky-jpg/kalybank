@@ -50,3 +50,14 @@ test('canonical metadata, organization data and private noindex headers are vers
   assert.match(login, /canonical: absoluteUrl\('\/login'\)/);
   assert.match(register, /canonical: absoluteUrl\('\/register'\)/);
 });
+
+test('Google Search Console verification file is published verbatim', async () => {
+  const verification = await readFile(
+    new URL('../public/googlecdd3581b40b5ac13.html', import.meta.url),
+    'utf8',
+  );
+  assert.equal(
+    verification.trim(),
+    'google-site-verification: googlecdd3581b40b5ac13.html',
+  );
+});

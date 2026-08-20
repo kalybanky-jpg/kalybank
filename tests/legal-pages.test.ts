@@ -43,6 +43,10 @@ test('legal copy describes the operational and data-processing boundaries', asyn
   ]);
 
   assert.match(notices, /ne déclenche aucun mouvement financier automatique/);
+  assert.match(notices, /2 C FINANCE/);
+  assert.match(notices, /MONALYZ/);
+  assert.match(notices, /979 247 145 00019/);
+  assert.match(notices, /20 BOULEVARD MONTMARTRE/);
   assert.match(shell, /LEGAL_LAST_UPDATED = '18 août 2026'/);
   assert.match(privacy, /selfie facultatif pris avec la caméra ou choisi dans la galerie/);
   assert.match(terms, /Le selfie est facultatif/);

@@ -18,14 +18,25 @@ export default async function LegalNoticePage() {
       introduction={`Cette page identifie le service ${bankName}, son point de contact et son prestataire d’hébergement.`}
     >
       <section>
-        <h2>Édition et publication</h2>
+        <h2>Éditeur du service</h2>
         <p className="mt-3">
-          Le présent service numérique est publié sous la marque {bankName}. Le responsable de publication est l’équipe {bankName}, joignable à l’adresse{' '}
+          Le présent service numérique est édité par <strong>2 C FINANCE</strong>, sous le nom commercial <strong>MONALYZ</strong>. Le responsable de publication est joignable à l’adresse{' '}
           <a href={`mailto:${supportEmail}`}>{supportEmail}</a>.
         </p>
-        <p className="mt-3">
-          Aucune forme juridique, adresse de siège ou donnée d’immatriculation distincte n’étant déclarée dans la configuration publique du service, aucune information de cette nature n’est inventée sur cette page. Toute demande d’identification administrative complémentaire peut être adressée au point de contact ci-dessus.
-        </p>
+        <dl className="mt-4 grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+          <dt className="font-semibold text-slate-500">Dénomination</dt>
+          <dd>2 C FINANCE</dd>
+          <dt className="font-semibold text-slate-500">Nom commercial</dt>
+          <dd>MONALYZ</dd>
+          <dt className="font-semibold text-slate-500">SIREN</dt>
+          <dd>979 247 145</dd>
+          <dt className="font-semibold text-slate-500">SIRET du siège social</dt>
+          <dd>979 247 145 00019</dd>
+          <dt className="font-semibold text-slate-500">Forme juridique</dt>
+          <dd>SAS, société par actions simplifiée</dd>
+          <dt className="font-semibold text-slate-500">Adresse postale</dt>
+          <dd>20 BOULEVARD MONTMARTRE, 75009 PARIS</dd>
+        </dl>
       </section>
 
       <section>

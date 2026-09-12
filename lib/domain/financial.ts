@@ -28,14 +28,27 @@ export function currencyExponent(currency: string) {
   return CURRENCY_EXPONENTS[currency.toUpperCase()] ?? 2;
 }
 
-export function toMinorUnits(amount: number, currency: string) {
-  if (!Number.isFinite(amount) || amount <= 0) {
-    throw new Error('Le montant doit être un nombre strictement positif.');
+export function toMinorUnits(
+  amount: number,
+  currency: string,
+  options?: { allowZero?: boolean },
+) {
+  const allowZero = options?.allowZero ?? false;
+  if (!Number.isFinite(amount) || (allowZero ? amount < 0 : amount <= 0)) {
+    throw new Error(
+      allowZero
+        ? 'Le montant doit être un nombre positif ou nul.'
+        : 'Le montant doit être un nombre strictement positif.',
+    );
+  }
+
+  if (allowZero && amount === 0) {
+    return 0;
   }
 
   const factor = 10 ** currencyExponent(currency);
   const minor = Math.round((amount + Number.EPSILON) * factor);
-  if (!Number.isSafeInteger(minor) || minor <= 0) {
+  if (!Number.isSafeInteger(minor) || (allowZero ? minor < 0 : minor <= 0)) {
     throw new Error('Le montant dépasse la précision prise en charge.');
   }
   return minor;

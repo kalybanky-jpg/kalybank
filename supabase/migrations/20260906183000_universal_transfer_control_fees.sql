@@ -97,13 +97,14 @@ begin
     action,
     entity_type,
     entity_id,
-    payload
+    metadata
   ) values (
     caller_id,
     'branch_manager_update_universal_transfer_control_fees',
     'transfer_control_fees',
-    'universal',
+    null,
     jsonb_build_object(
+      'scope', 'universal',
       'dualReviewFeeMinor', p_dual_review_fee_minor,
       'escalationFeeMinor', p_escalation_fee_minor,
       'complianceFeeMinor', p_compliance_fee_minor,

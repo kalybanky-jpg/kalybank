@@ -1515,15 +1515,26 @@ export function AppProvider({
       throw new Error('Les montants des frais doivent être des nombres positifs ou nuls.');
     }
 
+    const rates = [
+      fees.dualReviewFeeRate,
+      fees.escalationFeeRate,
+      fees.complianceFeeRate,
+      fees.finalAuthorizationFeeRate,
+    ];
+    if (rates.some((rate) => !Number.isFinite(rate) || rate < 0 || rate > 100)) {
+      throw new Error('Les taux de pourcentage doivent être compris entre 0% et 100%.');
+    }
+
     setLastError(null);
     const { error } = await (createClient() as any).rpc('update_transfer_control_fees', {
       p_currency: fees.currency,
-      p_dual_review_fee_minor: toMinorUnits(fees.dualReviewFee, fees.currency),
-      p_escalation_fee_minor: toMinorUnits(fees.escalationFee, fees.currency),
-      p_compliance_fee_minor: toMinorUnits(fees.complianceFee, fees.currency),
+      p_dual_review_fee_minor: toMinorUnits(fees.dualReviewFee, fees.currency, { allowZero: true }),
+      p_escalation_fee_minor: toMinorUnits(fees.escalationFee, fees.currency, { allowZero: true }),
+      p_compliance_fee_minor: toMinorUnits(fees.complianceFee, fees.currency, { allowZero: true }),
       p_final_authorization_fee_minor: toMinorUnits(
         fees.finalAuthorizationFee,
         fees.currency,
+        { allowZero: true },
       ),
       p_dual_review_fee_mode: fees.dualReviewFeeMode ?? 'fixed',
       p_dual_review_fee_rate: fees.dualReviewFeeRate ?? 1.0,
@@ -1536,16 +1547,11 @@ export function AppProvider({
     });
 
     if (error) {
-      setTransferControlFees((prev) =>
-        prev.map((item) =>
-          item.currency === fees.currency
-            ? { ...item, ...fees, updatedAt: new Date().toISOString() }
-            : item,
-        ),
-      );
-    } else {
-      await refreshData();
+      const message = error.message || 'Impossible d\'enregistrer les frais de contrôle.';
+      setLastError(message);
+      throw new Error(message);
     }
+    await refreshData();
   };
 
   const updateUniversalTransferControlFees: AppState['updateUniversalTransferControlFees'] = async (
@@ -1560,12 +1566,22 @@ export function AppProvider({
       throw new Error('Les montants des frais doivent être des nombres positifs ou nuls.');
     }
 
+    const rates = [
+      fees.dualReviewFeeRate,
+      fees.escalationFeeRate,
+      fees.complianceFeeRate,
+      fees.finalAuthorizationFeeRate,
+    ];
+    if (rates.some((rate) => !Number.isFinite(rate) || rate < 0 || rate > 100)) {
+      throw new Error('Les taux de pourcentage doivent être compris entre 0% et 100%.');
+    }
+
     setLastError(null);
     const { error } = await (createClient() as any).rpc('update_universal_transfer_control_fees', {
-      p_dual_review_fee_minor: toMinorUnits(fees.dualReviewFee, 'EUR'),
-      p_escalation_fee_minor: toMinorUnits(fees.escalationFee, 'EUR'),
-      p_compliance_fee_minor: toMinorUnits(fees.complianceFee, 'EUR'),
-      p_final_authorization_fee_minor: toMinorUnits(fees.finalAuthorizationFee, 'EUR'),
+      p_dual_review_fee_minor: toMinorUnits(fees.dualReviewFee, 'EUR', { allowZero: true }),
+      p_escalation_fee_minor: toMinorUnits(fees.escalationFee, 'EUR', { allowZero: true }),
+      p_compliance_fee_minor: toMinorUnits(fees.complianceFee, 'EUR', { allowZero: true }),
+      p_final_authorization_fee_minor: toMinorUnits(fees.finalAuthorizationFee, 'EUR', { allowZero: true }),
       p_dual_review_fee_mode: fees.dualReviewFeeMode ?? 'fixed',
       p_dual_review_fee_rate: fees.dualReviewFeeRate ?? 1.0,
       p_escalation_fee_mode: fees.escalationFeeMode ?? 'fixed',
@@ -1577,12 +1593,11 @@ export function AppProvider({
     });
 
     if (error) {
-      setTransferControlFees((prev) =>
-        prev.map((item) => ({ ...item, ...fees, updatedAt: new Date().toISOString() })),
-      );
-    } else {
-      await refreshData();
+      const message = error.message || 'Impossible d\'enregistrer les frais de contrôle.';
+      setLastError(message);
+      throw new Error(message);
     }
+    await refreshData();
   };
 
   const issueOfficialDocument: AppState['issueOfficialDocument'] = async (

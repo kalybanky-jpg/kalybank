@@ -36,6 +36,15 @@ test('invalid or unsafe amounts are rejected before persistence', () => {
   assert.throws(() => toMinorUnits(Number.MAX_SAFE_INTEGER, 'KWD'));
 });
 
+test('minor-unit conversion supports zero when allowZero is explicitly enabled', () => {
+  assert.equal(toMinorUnits(0, 'EUR', { allowZero: true }), 0);
+  assert.equal(toMinorUnits(0, 'USD', { allowZero: true }), 0);
+  assert.equal(toMinorUnits(150, 'EUR', { allowZero: true }), 15000);
+  for (const amount of [-1, Number.NaN, Number.POSITIVE_INFINITY]) {
+    assert.throws(() => toMinorUnits(amount, 'EUR', { allowZero: true }));
+  }
+});
+
 test('external financial identifiers are masked in UI projections', () => {
   const masked = maskFinancialIdentifier('FR76 1234 5678 9012');
   assert.equal(masked.endsWith('9012'), true);

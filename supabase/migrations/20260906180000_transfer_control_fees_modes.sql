@@ -115,12 +115,12 @@ begin
     action,
     entity_type,
     entity_id,
-    payload
+    metadata
   ) values (
     caller_id,
     'branch_manager_update_transfer_control_fees',
     'transfer_control_fees',
-    normalized_currency,
+    null,
     jsonb_build_object(
       'currency', normalized_currency,
       'dualReviewFeeMinor', p_dual_review_fee_minor,

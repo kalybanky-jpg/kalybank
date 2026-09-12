@@ -10,25 +10,37 @@ import {
   Hash,
   KeyRound,
   Palette,
+  RotateCcw,
   Save,
   Settings,
 } from 'lucide-react';
 import BrandSettingsEditor from '@/components/brand/BrandSettingsEditor';
 import AdminCredentialsSettings from '@/components/AdminCredentialsSettings';
 
+const FEE_CURRENCIES = ['EUR', 'USD', 'CAD', 'CHF', 'GBP'] as const;
+type FeeCurrency = (typeof FEE_CURRENCIES)[number];
+
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  EUR: '€',
+  USD: '$',
+  CAD: '$ CA',
+  CHF: 'CHF',
+  GBP: '£',
+};
+
 interface FeeSettingsDraft {
-  dualReviewFee: number;
+  dualReviewFee: number | string;
   dualReviewFeeMode: 'fixed' | 'percentage';
-  dualReviewFeeRate: number;
-  escalationFee: number;
+  dualReviewFeeRate: number | string;
+  escalationFee: number | string;
   escalationFeeMode: 'fixed' | 'percentage';
-  escalationFeeRate: number;
-  complianceFee: number;
+  escalationFeeRate: number | string;
+  complianceFee: number | string;
   complianceFeeMode: 'fixed' | 'percentage';
-  complianceFeeRate: number;
-  finalAuthorizationFee: number;
+  complianceFeeRate: number | string;
+  finalAuthorizationFee: number | string;
   finalAuthorizationFeeMode: 'fixed' | 'percentage';
-  finalAuthorizationFeeRate: number;
+  finalAuthorizationFeeRate: number | string;
 }
 
 const defaultFeeDraft = (): FeeSettingsDraft => ({
@@ -146,6 +158,7 @@ export default function AdminSettingsView() {
     loanProductSettings,
     updateLoanProductSettings,
     transferControlFees,
+    updateTransferControlFees,
     updateUniversalTransferControlFees,
   } = useAppStore();
 
@@ -285,6 +298,8 @@ export default function AdminSettingsView() {
   };
 
   // Fees state & logic
+  const [selectedFeeTarget, setSelectedFeeTarget] = useState<'universal' | FeeCurrency>('universal');
+  const [isFeeDirty, setIsFeeDirty] = useState(false);
   const [feeDraft, setFeeDraft] = useState<FeeSettingsDraft>(() =>
     defaultFeeDraft(),
   );
@@ -294,38 +309,98 @@ export default function AdminSettingsView() {
     message: string;
   } | null>(null);
 
-  const universalFeeSettings = useMemo(
-    () =>
-      transferControlFees.find((settings) => settings.currency === 'EUR') ??
-      transferControlFees[0],
-    [transferControlFees],
-  );
+  const activeFeeSettings = useMemo(() => {
+    if (selectedFeeTarget === 'universal') {
+      return (
+        transferControlFees.find((settings) => settings.currency === 'EUR') ??
+        transferControlFees[0]
+      );
+    }
+    return (
+      transferControlFees.find((settings) => settings.currency === selectedFeeTarget) ??
+      transferControlFees[0]
+    );
+  }, [transferControlFees, selectedFeeTarget]);
+
+  const handleSelectFeeTarget = (target: 'universal' | FeeCurrency) => {
+    setSelectedFeeTarget(target);
+    setIsFeeDirty(false);
+    setFeeFeedback(null);
+    const targetSettings =
+      target === 'universal'
+        ? (transferControlFees.find((s) => s.currency === 'EUR') ?? transferControlFees[0])
+        : (transferControlFees.find((s) => s.currency === target) ?? transferControlFees[0]);
+    if (targetSettings) {
+      setFeeDraft({
+        dualReviewFee: targetSettings.dualReviewFee,
+        dualReviewFeeMode: targetSettings.dualReviewFeeMode ?? 'fixed',
+        dualReviewFeeRate: targetSettings.dualReviewFeeRate ?? 1.0,
+        escalationFee: targetSettings.escalationFee,
+        escalationFeeMode: targetSettings.escalationFeeMode ?? 'fixed',
+        escalationFeeRate: targetSettings.escalationFeeRate ?? 1.5,
+        complianceFee: targetSettings.complianceFee,
+        complianceFeeMode: targetSettings.complianceFeeMode ?? 'fixed',
+        complianceFeeRate: targetSettings.complianceFeeRate ?? 2.0,
+        finalAuthorizationFee: targetSettings.finalAuthorizationFee,
+        finalAuthorizationFeeMode: targetSettings.finalAuthorizationFeeMode ?? 'fixed',
+        finalAuthorizationFeeRate: targetSettings.finalAuthorizationFeeRate ?? 2.5,
+      });
+    } else {
+      setFeeDraft(defaultFeeDraft());
+    }
+  };
+
+  const resetFeeDraft = () => {
+    if (activeFeeSettings) {
+      setFeeDraft({
+        dualReviewFee: activeFeeSettings.dualReviewFee,
+        dualReviewFeeMode: activeFeeSettings.dualReviewFeeMode ?? 'fixed',
+        dualReviewFeeRate: activeFeeSettings.dualReviewFeeRate ?? 1.0,
+        escalationFee: activeFeeSettings.escalationFee,
+        escalationFeeMode: activeFeeSettings.escalationFeeMode ?? 'fixed',
+        escalationFeeRate: activeFeeSettings.escalationFeeRate ?? 1.5,
+        complianceFee: activeFeeSettings.complianceFee,
+        complianceFeeMode: activeFeeSettings.complianceFeeMode ?? 'fixed',
+        complianceFeeRate: activeFeeSettings.complianceFeeRate ?? 2.0,
+        finalAuthorizationFee: activeFeeSettings.finalAuthorizationFee,
+        finalAuthorizationFeeMode: activeFeeSettings.finalAuthorizationFeeMode ?? 'fixed',
+        finalAuthorizationFeeRate: activeFeeSettings.finalAuthorizationFeeRate ?? 2.5,
+      });
+    } else {
+      setFeeDraft(defaultFeeDraft());
+    }
+    setIsFeeDirty(false);
+    setFeeFeedback(null);
+  };
 
   useEffect(() => {
-    const nextDraft: FeeSettingsDraft = universalFeeSettings
-      ? {
-          dualReviewFee: Number(universalFeeSettings.dualReviewFee),
-          dualReviewFeeMode: universalFeeSettings.dualReviewFeeMode ?? 'fixed',
-          dualReviewFeeRate: Number(universalFeeSettings.dualReviewFeeRate ?? 1.0),
-          escalationFee: Number(universalFeeSettings.escalationFee),
-          escalationFeeMode: universalFeeSettings.escalationFeeMode ?? 'fixed',
-          escalationFeeRate: Number(universalFeeSettings.escalationFeeRate ?? 1.5),
-          complianceFee: Number(universalFeeSettings.complianceFee),
-          complianceFeeMode: universalFeeSettings.complianceFeeMode ?? 'fixed',
-          complianceFeeRate: Number(universalFeeSettings.complianceFeeRate ?? 2.0),
-          finalAuthorizationFee: Number(universalFeeSettings.finalAuthorizationFee),
-          finalAuthorizationFeeMode: universalFeeSettings.finalAuthorizationFeeMode ?? 'fixed',
-          finalAuthorizationFeeRate: Number(universalFeeSettings.finalAuthorizationFeeRate ?? 2.5),
-        }
-      : defaultFeeDraft();
-    const timer = window.setTimeout(() => setFeeDraft(nextDraft), 0);
-    return () => window.clearTimeout(timer);
-  }, [universalFeeSettings]);
+    if (isFeeDirty) return;
+    if (activeFeeSettings) {
+      setFeeDraft({
+        dualReviewFee: activeFeeSettings.dualReviewFee,
+        dualReviewFeeMode: activeFeeSettings.dualReviewFeeMode ?? 'fixed',
+        dualReviewFeeRate: activeFeeSettings.dualReviewFeeRate ?? 1.0,
+        escalationFee: activeFeeSettings.escalationFee,
+        escalationFeeMode: activeFeeSettings.escalationFeeMode ?? 'fixed',
+        escalationFeeRate: activeFeeSettings.escalationFeeRate ?? 1.5,
+        complianceFee: activeFeeSettings.complianceFee,
+        complianceFeeMode: activeFeeSettings.complianceFeeMode ?? 'fixed',
+        complianceFeeRate: activeFeeSettings.complianceFeeRate ?? 2.0,
+        finalAuthorizationFee: activeFeeSettings.finalAuthorizationFee,
+        finalAuthorizationFeeMode: activeFeeSettings.finalAuthorizationFeeMode ?? 'fixed',
+        finalAuthorizationFeeRate: activeFeeSettings.finalAuthorizationFeeRate ?? 2.5,
+      });
+    } else {
+      setFeeDraft(defaultFeeDraft());
+    }
+  }, [activeFeeSettings, isFeeDirty]);
 
   const updateFeeDraft = <K extends keyof FeeSettingsDraft>(
     key: K,
     value: FeeSettingsDraft[K],
   ) => {
+    setIsFeeDirty(true);
+    setFeeFeedback(null);
     setFeeDraft((prev) => ({ ...prev, [key]: value }));
   };
 
@@ -333,24 +408,109 @@ export default function AdminSettingsView() {
     event.preventDefault();
     setIsSavingFee(true);
     setFeeFeedback(null);
+
+    const steps = [
+      {
+        name: 'Double validation interne (Étape 1)',
+        mode: feeDraft.dualReviewFeeMode,
+        fee: feeDraft.dualReviewFee,
+        rate: feeDraft.dualReviewFeeRate,
+      },
+      {
+        name: 'Escalade hiérarchique (Étape 2)',
+        mode: feeDraft.escalationFeeMode,
+        fee: feeDraft.escalationFee,
+        rate: feeDraft.escalationFeeRate,
+      },
+      {
+        name: 'Contrôle conformité (Étape 3)',
+        mode: feeDraft.complianceFeeMode,
+        fee: feeDraft.complianceFee,
+        rate: feeDraft.complianceFeeRate,
+      },
+      {
+        name: 'Autorisation finale (Étape 4)',
+        mode: feeDraft.finalAuthorizationFeeMode,
+        fee: feeDraft.finalAuthorizationFee,
+        rate: feeDraft.finalAuthorizationFeeRate,
+      },
+    ];
+
+    for (const step of steps) {
+      if (step.mode === 'fixed') {
+        const strVal = String(step.fee).trim();
+        const numVal = Number(strVal);
+        if (strVal === '' || !Number.isFinite(numVal) || numVal < 0) {
+          setFeeFeedback({
+            type: 'error',
+            message: `Le montant fixe pour "${step.name}" doit être un nombre positif ou nul.`,
+          });
+          setIsSavingFee(false);
+          return;
+        }
+      } else {
+        const strRate = String(step.rate).trim();
+        const numRate = Number(strRate);
+        if (strRate === '' || !Number.isFinite(numRate) || numRate < 0 || numRate > 100) {
+          setFeeFeedback({
+            type: 'error',
+            message: `Le taux de pourcentage pour "${step.name}" doit être compris entre 0% et 100%.`,
+          });
+          setIsSavingFee(false);
+          return;
+        }
+      }
+    }
+
+    const dualReviewFee = Number(feeDraft.dualReviewFee) || 0;
+    const dualReviewFeeRate = Number(feeDraft.dualReviewFeeRate) || 0;
+    const escalationFee = Number(feeDraft.escalationFee) || 0;
+    const escalationFeeRate = Number(feeDraft.escalationFeeRate) || 0;
+    const complianceFee = Number(feeDraft.complianceFee) || 0;
+    const complianceFeeRate = Number(feeDraft.complianceFeeRate) || 0;
+    const finalAuthorizationFee = Number(feeDraft.finalAuthorizationFee) || 0;
+    const finalAuthorizationFeeRate = Number(feeDraft.finalAuthorizationFeeRate) || 0;
+
     try {
-      await updateUniversalTransferControlFees({
-        dualReviewFee: Number(feeDraft.dualReviewFee),
-        dualReviewFeeMode: feeDraft.dualReviewFeeMode,
-        dualReviewFeeRate: Number(feeDraft.dualReviewFeeRate),
-        escalationFee: Number(feeDraft.escalationFee),
-        escalationFeeMode: feeDraft.escalationFeeMode,
-        escalationFeeRate: Number(feeDraft.escalationFeeRate),
-        complianceFee: Number(feeDraft.complianceFee),
-        complianceFeeMode: feeDraft.complianceFeeMode,
-        complianceFeeRate: Number(feeDraft.complianceFeeRate),
-        finalAuthorizationFee: Number(feeDraft.finalAuthorizationFee),
-        finalAuthorizationFeeMode: feeDraft.finalAuthorizationFeeMode,
-        finalAuthorizationFeeRate: Number(feeDraft.finalAuthorizationFeeRate),
-      });
+      if (selectedFeeTarget === 'universal') {
+        await updateUniversalTransferControlFees({
+          dualReviewFee,
+          dualReviewFeeMode: feeDraft.dualReviewFeeMode,
+          dualReviewFeeRate,
+          escalationFee,
+          escalationFeeMode: feeDraft.escalationFeeMode,
+          escalationFeeRate,
+          complianceFee,
+          complianceFeeMode: feeDraft.complianceFeeMode,
+          complianceFeeRate,
+          finalAuthorizationFee,
+          finalAuthorizationFeeMode: feeDraft.finalAuthorizationFeeMode,
+          finalAuthorizationFeeRate,
+        });
+      } else {
+        await updateTransferControlFees({
+          currency: selectedFeeTarget,
+          dualReviewFee,
+          dualReviewFeeMode: feeDraft.dualReviewFeeMode,
+          dualReviewFeeRate,
+          escalationFee,
+          escalationFeeMode: feeDraft.escalationFeeMode,
+          escalationFeeRate,
+          complianceFee,
+          complianceFeeMode: feeDraft.complianceFeeMode,
+          complianceFeeRate,
+          finalAuthorizationFee,
+          finalAuthorizationFeeMode: feeDraft.finalAuthorizationFeeMode,
+          finalAuthorizationFeeRate,
+        });
+      }
+      setIsFeeDirty(false);
       setFeeFeedback({
         type: 'success',
-        message: 'Paramètres des frais de contrôle enregistrés avec succès.',
+        message:
+          selectedFeeTarget === 'universal'
+            ? 'Paramètres des frais de contrôle universels enregistrés avec succès pour toutes les devises.'
+            : `Paramètres des frais de contrôle enregistrés avec succès pour la devise ${selectedFeeTarget}.`,
       });
     } catch (err: unknown) {
       setFeeFeedback({
@@ -420,24 +580,53 @@ export default function AdminSettingsView() {
       case 'security':
         return <AdminCredentialsSettings />;
 
-      case 'fees':
+      case 'fees': {
+        const activeCurrencySymbol =
+          selectedFeeTarget === 'universal'
+            ? '€'
+            : CURRENCY_SYMBOLS[selectedFeeTarget] ?? selectedFeeTarget;
+        const fixedAmountLabel =
+          selectedFeeTarget === 'universal'
+            ? 'Montant fixe'
+            : `Montant fixe (${selectedFeeTarget})`;
+
         return (
           <form
             onSubmit={submitFeeSettings}
             className="min-w-0 rounded-3xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm"
           >
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-blue-100 text-blue-600">
-                <ArrowRightLeft className="w-5 h-5" />
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-blue-100 text-blue-600">
+                  <ArrowRightLeft className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="font-extrabold text-slate-900 text-base sm:text-lg">
+                    Frais des étapes de contrôle de virement
+                  </h2>
+                  <p className="text-xs text-slate-500 font-medium">
+                    Définissez un montant fixe ou un pourcentage (%) appliqué à chaque étape de validation.
+                  </p>
+                </div>
               </div>
-              <div>
-                <h2 className="font-extrabold text-slate-900 text-base sm:text-lg">
-                  Frais des étapes de contrôle de virement
-                </h2>
-                <p className="text-xs text-slate-500 font-medium">
-                  Définissez un montant fixe ou un pourcentage (%) appliqué à chaque étape de validation.
-                </p>
-              </div>
+
+              <label className="text-xs font-bold text-slate-800 sm:min-w-48">
+                Cible des paramètres
+                <select
+                  value={selectedFeeTarget}
+                  onChange={(event) =>
+                    handleSelectFeeTarget(event.target.value as 'universal' | FeeCurrency)
+                  }
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white p-2.5 text-sm font-bold text-slate-900 shadow-sm"
+                >
+                  <option value="universal">🌐 Toutes les devises (Universel)</option>
+                  <option value="EUR">EUR (€) - Euro</option>
+                  <option value="USD">USD ($) - Dollar US</option>
+                  <option value="CAD">CAD ($) - Dollar Canadien</option>
+                  <option value="CHF">CHF (CHF) - Franc Suisse</option>
+                  <option value="GBP">GBP (£) - Livre Sterling</option>
+                </select>
+              </label>
             </div>
 
             <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -480,17 +669,22 @@ export default function AdminSettingsView() {
                 <div className="mt-4">
                   {feeDraft.dualReviewFeeMode === 'fixed' ? (
                     <label className="block">
-                      <span className="text-[11px] font-bold text-slate-700">Montant fixe</span>
-                      <input
-                        type="number"
-                        min={0}
-                        step="any"
-                        required
-                        value={feeDraft.dualReviewFee}
-                        onChange={(e) => updateFeeDraft('dualReviewFee', Number(e.target.value))}
-                        className="mt-1 w-full rounded-xl border border-slate-300 bg-white p-2.5 font-mono text-sm font-semibold text-slate-900 shadow-sm"
-                        placeholder="150"
-                      />
+                      <span className="text-[11px] font-bold text-slate-700">{fixedAmountLabel}</span>
+                      <div className="relative mt-1">
+                        <input
+                          type="number"
+                          min={0}
+                          step="any"
+                          required
+                          value={feeDraft.dualReviewFee}
+                          onChange={(e) => updateFeeDraft('dualReviewFee', e.target.value)}
+                          className="w-full rounded-xl border border-slate-300 bg-white p-2.5 pr-10 font-mono text-sm font-semibold text-slate-900 shadow-sm"
+                          placeholder="150"
+                        />
+                        <span className="absolute right-3 top-2.5 font-mono text-xs font-bold text-slate-400">
+                          {activeCurrencySymbol}
+                        </span>
+                      </div>
                     </label>
                   ) : (
                     <div>
@@ -504,7 +698,7 @@ export default function AdminSettingsView() {
                             step="0.01"
                             required
                             value={feeDraft.dualReviewFeeRate}
-                            onChange={(e) => updateFeeDraft('dualReviewFeeRate', Number(e.target.value))}
+                            onChange={(e) => updateFeeDraft('dualReviewFeeRate', e.target.value)}
                             className="w-full rounded-xl border border-slate-300 bg-white p-2.5 pr-8 font-mono text-sm font-semibold text-slate-900 shadow-sm"
                             placeholder="1.00"
                           />
@@ -512,7 +706,7 @@ export default function AdminSettingsView() {
                         </div>
                       </label>
                       <p className="mt-1.5 text-[10px] text-blue-700 font-medium bg-blue-50/80 rounded-lg p-1.5">
-                        💡 Ex: {((10000 * feeDraft.dualReviewFeeRate) / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} pour 10 000
+                        💡 Ex: {(((10000 * (Number(feeDraft.dualReviewFeeRate) || 0)) / 100)).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {activeCurrencySymbol} pour 10 000 {activeCurrencySymbol}
                       </p>
                     </div>
                   )}
@@ -558,17 +752,22 @@ export default function AdminSettingsView() {
                 <div className="mt-4">
                   {feeDraft.escalationFeeMode === 'fixed' ? (
                     <label className="block">
-                      <span className="text-[11px] font-bold text-slate-700">Montant fixe</span>
-                      <input
-                        type="number"
-                        min={0}
-                        step="any"
-                        required
-                        value={feeDraft.escalationFee}
-                        onChange={(e) => updateFeeDraft('escalationFee', Number(e.target.value))}
-                        className="mt-1 w-full rounded-xl border border-slate-300 bg-white p-2.5 font-mono text-sm font-semibold text-slate-900 shadow-sm"
-                        placeholder="250"
-                      />
+                      <span className="text-[11px] font-bold text-slate-700">{fixedAmountLabel}</span>
+                      <div className="relative mt-1">
+                        <input
+                          type="number"
+                          min={0}
+                          step="any"
+                          required
+                          value={feeDraft.escalationFee}
+                          onChange={(e) => updateFeeDraft('escalationFee', e.target.value)}
+                          className="mt-1 w-full rounded-xl border border-slate-300 bg-white p-2.5 pr-10 font-mono text-sm font-semibold text-slate-900 shadow-sm"
+                          placeholder="250"
+                        />
+                        <span className="absolute right-3 top-2.5 font-mono text-xs font-bold text-slate-400">
+                          {activeCurrencySymbol}
+                        </span>
+                      </div>
                     </label>
                   ) : (
                     <div>
@@ -582,7 +781,7 @@ export default function AdminSettingsView() {
                             step="0.01"
                             required
                             value={feeDraft.escalationFeeRate}
-                            onChange={(e) => updateFeeDraft('escalationFeeRate', Number(e.target.value))}
+                            onChange={(e) => updateFeeDraft('escalationFeeRate', e.target.value)}
                             className="w-full rounded-xl border border-slate-300 bg-white p-2.5 pr-8 font-mono text-sm font-semibold text-slate-900 shadow-sm"
                             placeholder="1.50"
                           />
@@ -590,7 +789,7 @@ export default function AdminSettingsView() {
                         </div>
                       </label>
                       <p className="mt-1.5 text-[10px] text-indigo-700 font-medium bg-indigo-50/80 rounded-lg p-1.5">
-                        💡 Ex: {((10000 * feeDraft.escalationFeeRate) / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} pour 10 000
+                        💡 Ex: {(((10000 * (Number(feeDraft.escalationFeeRate) || 0)) / 100)).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {activeCurrencySymbol} pour 10 000 {activeCurrencySymbol}
                       </p>
                     </div>
                   )}
@@ -636,17 +835,22 @@ export default function AdminSettingsView() {
                 <div className="mt-4">
                   {feeDraft.complianceFeeMode === 'fixed' ? (
                     <label className="block">
-                      <span className="text-[11px] font-bold text-slate-700">Montant fixe</span>
-                      <input
-                        type="number"
-                        min={0}
-                        step="any"
-                        required
-                        value={feeDraft.complianceFee}
-                        onChange={(e) => updateFeeDraft('complianceFee', Number(e.target.value))}
-                        className="mt-1 w-full rounded-xl border border-slate-300 bg-white p-2.5 font-mono text-sm font-semibold text-slate-900 shadow-sm"
-                        placeholder="350"
-                      />
+                      <span className="text-[11px] font-bold text-slate-700">{fixedAmountLabel}</span>
+                      <div className="relative mt-1">
+                        <input
+                          type="number"
+                          min={0}
+                          step="any"
+                          required
+                          value={feeDraft.complianceFee}
+                          onChange={(e) => updateFeeDraft('complianceFee', e.target.value)}
+                          className="mt-1 w-full rounded-xl border border-slate-300 bg-white p-2.5 pr-10 font-mono text-sm font-semibold text-slate-900 shadow-sm"
+                          placeholder="350"
+                        />
+                        <span className="absolute right-3 top-2.5 font-mono text-xs font-bold text-slate-400">
+                          {activeCurrencySymbol}
+                        </span>
+                      </div>
                     </label>
                   ) : (
                     <div>
@@ -660,7 +864,7 @@ export default function AdminSettingsView() {
                             step="0.01"
                             required
                             value={feeDraft.complianceFeeRate}
-                            onChange={(e) => updateFeeDraft('complianceFeeRate', Number(e.target.value))}
+                            onChange={(e) => updateFeeDraft('complianceFeeRate', e.target.value)}
                             className="w-full rounded-xl border border-slate-300 bg-white p-2.5 pr-8 font-mono text-sm font-semibold text-slate-900 shadow-sm"
                             placeholder="2.00"
                           />
@@ -668,7 +872,7 @@ export default function AdminSettingsView() {
                         </div>
                       </label>
                       <p className="mt-1.5 text-[10px] text-purple-700 font-medium bg-purple-50/80 rounded-lg p-1.5">
-                        💡 Ex: {((10000 * feeDraft.complianceFeeRate) / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} pour 10 000
+                        💡 Ex: {(((10000 * (Number(feeDraft.complianceFeeRate) || 0)) / 100)).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {activeCurrencySymbol} pour 10 000 {activeCurrencySymbol}
                       </p>
                     </div>
                   )}
@@ -714,17 +918,22 @@ export default function AdminSettingsView() {
                 <div className="mt-4">
                   {feeDraft.finalAuthorizationFeeMode === 'fixed' ? (
                     <label className="block">
-                      <span className="text-[11px] font-bold text-slate-700">Montant fixe</span>
-                      <input
-                        type="number"
-                        min={0}
-                        step="any"
-                        required
-                        value={feeDraft.finalAuthorizationFee}
-                        onChange={(e) => updateFeeDraft('finalAuthorizationFee', Number(e.target.value))}
-                        className="mt-1 w-full rounded-xl border border-slate-300 bg-white p-2.5 font-mono text-sm font-semibold text-slate-900 shadow-sm"
-                        placeholder="500"
-                      />
+                      <span className="text-[11px] font-bold text-slate-700">{fixedAmountLabel}</span>
+                      <div className="relative mt-1">
+                        <input
+                          type="number"
+                          min={0}
+                          step="any"
+                          required
+                          value={feeDraft.finalAuthorizationFee}
+                          onChange={(e) => updateFeeDraft('finalAuthorizationFee', e.target.value)}
+                          className="mt-1 w-full rounded-xl border border-slate-300 bg-white p-2.5 pr-10 font-mono text-sm font-semibold text-slate-900 shadow-sm"
+                          placeholder="500"
+                        />
+                        <span className="absolute right-3 top-2.5 font-mono text-xs font-bold text-slate-400">
+                          {activeCurrencySymbol}
+                        </span>
+                      </div>
                     </label>
                   ) : (
                     <div>
@@ -738,7 +947,7 @@ export default function AdminSettingsView() {
                             step="0.01"
                             required
                             value={feeDraft.finalAuthorizationFeeRate}
-                            onChange={(e) => updateFeeDraft('finalAuthorizationFeeRate', Number(e.target.value))}
+                            onChange={(e) => updateFeeDraft('finalAuthorizationFeeRate', e.target.value)}
                             className="w-full rounded-xl border border-slate-300 bg-white p-2.5 pr-8 font-mono text-sm font-semibold text-slate-900 shadow-sm"
                             placeholder="2.50"
                           />
@@ -746,7 +955,7 @@ export default function AdminSettingsView() {
                         </div>
                       </label>
                       <p className="mt-1.5 text-[10px] text-emerald-700 font-medium bg-emerald-50/80 rounded-lg p-1.5">
-                        💡 Ex: {((10000 * feeDraft.finalAuthorizationFeeRate) / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} pour 10 000
+                        💡 Ex: {(((10000 * (Number(feeDraft.finalAuthorizationFeeRate) || 0)) / 100)).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {activeCurrencySymbol} pour 10 000 {activeCurrencySymbol}
                       </p>
                     </div>
                   )}
@@ -768,23 +977,40 @@ export default function AdminSettingsView() {
             )}
 
             <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <button
-                type="submit"
-                disabled={isSavingFee}
-                className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-xs font-bold text-white shadow-sm transition-all hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-              >
-                <Save className="h-4 w-4" />
-                {isSavingFee ? 'Enregistrement…' : 'Enregistrer les frais de contrôle'}
-              </button>
-              {universalFeeSettings?.updatedAt && (
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="submit"
+                  disabled={isSavingFee}
+                  className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-xs font-bold text-white shadow-sm transition-all hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+                >
+                  <Save className="h-4 w-4" />
+                  {isSavingFee
+                    ? 'Enregistrement…'
+                    : selectedFeeTarget === 'universal'
+                      ? 'Enregistrer pour toutes les devises'
+                      : `Enregistrer pour ${selectedFeeTarget}`}
+                </button>
+                {isFeeDirty && (
+                  <button
+                    type="button"
+                    onClick={resetFeeDraft}
+                    className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-3 text-xs font-bold text-slate-700 shadow-sm transition-all hover:bg-slate-50 sm:w-auto"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    Réinitialiser
+                  </button>
+                )}
+              </div>
+              {activeFeeSettings?.updatedAt && (
                 <p className="text-[10px] text-slate-400">
-                  Dernière modification :{' '}
-                  {new Date(universalFeeSettings.updatedAt).toLocaleString('fr-FR')}
+                  Dernière modification ({selectedFeeTarget === 'universal' ? 'Universel' : selectedFeeTarget}) :{' '}
+                  {new Date(activeFeeSettings.updatedAt).toLocaleString('fr-FR')}
                 </p>
               )}
             </div>
           </form>
         );
+      }
 
       case 'loans':
         return (

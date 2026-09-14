@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import {
   ArrowDown,
   ArrowRight,
@@ -136,12 +137,11 @@ function KycSubmissionNotice({
         <p className="mt-1 text-sm leading-5 text-emerald-900">{message}</p>
       </div>
       <div className="flex min-w-0 items-center gap-2 sm:shrink-0">
-        <a
-          href="/myaccount?tab=kyc"
+        <Link href="/myaccount?tab=kyc"
           className="flex min-h-11 flex-1 items-center justify-center rounded-xl bg-emerald-700 px-4 py-2 text-center text-sm font-bold text-white sm:flex-none"
         >
           {ctaLabel}
-        </a>
+        </Link>
         <button
           type="button"
           onClick={onDismiss}

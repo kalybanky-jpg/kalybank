@@ -5,6 +5,9 @@ const fr = {
   privacy: 'Vos données sont confidentielles et examinées uniquement pour vérifier votre identité.',
   draftSaved: 'Brouillon enregistré',
   resume: 'Votre brouillon a été restauré.',
+  resumeTitle: 'Reprise de votre dossier',
+  resumeStep: 'Vous reprenez à l’étape {step} sur {total}.',
+  resumeKyc: 'Reprendre la vérification',
   correction: 'Corrigez uniquement les éléments demandés.',
   identity: 'Identité',
   identityHint: 'Reprenez les informations de votre pièce d’identité.',
@@ -95,7 +98,7 @@ export type KycCopy = { [K in keyof typeof fr]: string };
 
 const en: KycCopy = {
   title: 'Identity verification', privacy: 'Your data is confidential and reviewed only to verify your identity.',
-  draftSaved: 'Draft saved', resume: 'Your draft has been restored.', correction: 'Correct only the requested items.',
+  draftSaved: 'Draft saved', resume: 'Your draft has been restored.', resumeTitle: 'Resuming your verification', resumeStep: 'You are resuming at step {step} of {total}.', resumeKyc: 'Resume verification', correction: 'Correct only the requested items.',
   identity: 'Identity', identityHint: 'Use the details shown on your identity document.',
   birth: 'Birth details', birthHint: 'Enter your date of birth (minimum age: 18).',
   address: 'Address', addressHint: 'Enter your current residential address.',
@@ -135,7 +138,7 @@ const en: KycCopy = {
 
 const de: KycCopy = {
   title: 'Identitätsprüfung', privacy: 'Ihre Daten sind vertraulich und werden nur zur Identitätsprüfung verwendet.',
-  draftSaved: 'Entwurf gespeichert', resume: 'Ihr Entwurf wurde wiederhergestellt.', correction: 'Korrigieren Sie nur die angeforderten Elemente.',
+  draftSaved: 'Entwurf gespeichert', resume: 'Ihr Entwurf wurde wiederhergestellt.', resumeTitle: 'Wiederaufnahme Ihrer Unterlagen', resumeStep: 'Sie fahren bei Schritt {step} von {total} fort.', resumeKyc: 'Prüfung fortsetzen', correction: 'Korrigieren Sie nur die angeforderten Elemente.',
   identity: 'Identität', identityHint: 'Übernehmen Sie die Angaben aus Ihrem Ausweisdokument.',
   birth: 'Geburtsdaten', birthHint: 'Geben Sie Ihr Geburtsdatum an (Mindestalter: 18 Jahre).',
   address: 'Adresse', addressHint: 'Geben Sie Ihre aktuelle Wohnadresse an.',
@@ -172,7 +175,7 @@ const de: KycCopy = {
 
 const es: KycCopy = {
   title: 'Verificación de identidad', privacy: 'Sus datos son confidenciales y se revisan únicamente para verificar su identidad.',
-  draftSaved: 'Borrador guardado', resume: 'Se ha restaurado su borrador.', correction: 'Corrija únicamente los elementos solicitados.',
+  draftSaved: 'Borrador guardado', resume: 'Se ha restaurado su borrador.', resumeTitle: 'Reanudación de su expediente', resumeStep: 'Continúa en el paso {step} de {total}.', resumeKyc: 'Reanudar verificación', correction: 'Corrija únicamente los elementos solicitados.',
   identity: 'Identidad', identityHint: 'Use los datos que figuran en su documento.',
   birth: 'Nacimiento', birthHint: 'Indique su fecha de nacimiento (edad mínima: 18 años).',
   address: 'Dirección', addressHint: 'Indique su dirección de residencia actual.',
@@ -208,7 +211,7 @@ const es: KycCopy = {
 
 const it: KycCopy = {
   title: 'Verifica dell’identità', privacy: 'I suoi dati sono riservati e vengono esaminati esclusivamente per verificare la sua identità.',
-  draftSaved: 'Bozza salvata', resume: 'La sua bozza è stata ripristinata.', correction: 'Corregga soltanto gli elementi richiesti.',
+  draftSaved: 'Bozza salvata', resume: 'La sua bozza è stata ripristinata.', resumeTitle: 'Ripresa della sua pratica', resumeStep: 'Riprende dalla fase {step} di {total}.', resumeKyc: 'Riprendi la verifica', correction: 'Corregga soltanto gli elementi richiesti.',
   identity: 'Identità', identityHint: 'Riporti i dati presenti sul suo documento d’identità.',
   birth: 'Nascita', birthHint: 'Indichi la sua data di nascita (età minima: 18 anni).',
   address: 'Indirizzo', addressHint: 'Indichi il suo attuale indirizzo di residenza.',
@@ -244,7 +247,7 @@ const it: KycCopy = {
 
 const nl: KycCopy = {
   title: 'Identiteitscontrole', privacy: 'Uw gegevens zijn vertrouwelijk en worden uitsluitend beoordeeld om uw identiteit te controleren.',
-  draftSaved: 'Concept opgeslagen', resume: 'Uw concept is hersteld.', correction: 'Pas alleen de gevraagde onderdelen aan.',
+  draftSaved: 'Concept opgeslagen', resume: 'Uw concept is hersteld.', resumeTitle: 'Voortzetting van uw dossier', resumeStep: 'U gaat verder bij stap {step} van {total}.', resumeKyc: 'Controle voortzetten', correction: 'Pas alleen de gevraagde onderdelen aan.',
   identity: 'Identiteit', identityHint: 'Neem de gegevens van uw identiteitsdocument over.',
   birth: 'Geboortegegevens', birthHint: 'Vul uw geboortedatum in (minimumleeftijd: 18 jaar).',
   address: 'Adres', addressHint: 'Vul uw huidige woonadres in.',

@@ -24,6 +24,7 @@ export interface BrandSettings {
 }
 
 export type AppErrorCode =
+  | 'APPROVED_KYC_REQUIRED'
   | 'AUTH_REQUIRED'
   | 'CONFIGURATION_UNAVAILABLE'
   | 'INVALID_REQUEST'

@@ -370,6 +370,68 @@ function getCopy(language: Language) {
   return kycTranslations[language];
 }
 
+const LOCAL_DRAFT_KEY_PREFIX = 'monalyz_kyc_draft_';
+const LOCAL_CORRECTION_KEY_PREFIX = 'monalyz_kyc_correction_';
+
+interface PersistedKycState {
+  stepIndex: number;
+  stepKey: SectionKey;
+  form: KycForm;
+  paths: Partial<Record<EvidenceKey, string>>;
+  updatedAt: number;
+  language: Language;
+}
+
+function getLocalDraft(userId: string): PersistedKycState | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(`${LOCAL_DRAFT_KEY_PREFIX}${userId}`);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function setLocalDraft(userId: string, state: PersistedKycState): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(`${LOCAL_DRAFT_KEY_PREFIX}${userId}`, JSON.stringify(state));
+  } catch {}
+}
+
+function clearLocalDraft(userId: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.removeItem(`${LOCAL_DRAFT_KEY_PREFIX}${userId}`);
+  } catch {}
+}
+
+function getLocalCorrection(kycId: string): { stepIndex: number; form: KycForm; paths: Partial<Record<EvidenceKey, string>> } | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(`${LOCAL_CORRECTION_KEY_PREFIX}${kycId}`);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function setLocalCorrection(kycId: string, state: { stepIndex: number; form: KycForm; paths: Partial<Record<EvidenceKey, string>> }): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(`${LOCAL_CORRECTION_KEY_PREFIX}${kycId}`, JSON.stringify(state));
+  } catch {}
+}
+
+function clearLocalCorrection(kycId: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.removeItem(`${LOCAL_CORRECTION_KEY_PREFIX}${kycId}`);
+  } catch {}
+}
+
 export default function OnboardingPage() {
   const [language, setLanguage] = useState<Language>('fr');
   const copy = getCopy(language);
@@ -382,6 +444,18 @@ export default function OnboardingPage() {
   const [kycId, setKycId] = useState('');
   const [stepIndex, setStepIndex] = useState(0);
   const [ready, setReady] = useState(false);
+  const [resumedFromStep, setResumedFromStep] = useState(false);
+  const userIdRef = useRef<string>('');
+  const kycIdRef = useRef<string>('');
+  const correctionModeRef = useRef<boolean>(false);
+  const readyRef = useRef<boolean>(false);
+  const formRef = useRef<KycForm>(EMPTY_FORM);
+  const pathsRef = useRef<Partial<Record<EvidenceKey, string>>>({});
+  const stepIndexRef = useRef<number>(0);
+  const stepKeyRef = useRef<SectionKey>('identity');
+  const stepsRef = useRef<SectionKey[]>(ALL_STEPS);
+  const languageRef = useRef<Language>('fr');
+  const debounceTimerRef = useRef<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -441,8 +515,100 @@ export default function OnboardingPage() {
     }
   }, [ready, step]);
 
+  useEffect(() => {
+    formRef.current = form;
+    pathsRef.current = paths;
+    stepIndexRef.current = stepIndex;
+    stepKeyRef.current = step;
+    stepsRef.current = steps;
+    correctionModeRef.current = correctionMode;
+    kycIdRef.current = kycId;
+    languageRef.current = language;
+  }, [form, paths, stepIndex, step, steps, correctionMode, kycId, language]);
+
+  const persistDraftImmediately = useCallback(
+    async (
+      targetIndex: number,
+      targetKey: SectionKey,
+      currentForm: KycForm,
+      currentPaths: Partial<Record<EvidenceKey, string>>,
+    ) => {
+      if (!readyRef.current || !userIdRef.current) return;
+      const uid = userIdRef.current;
+
+      if (correctionModeRef.current && kycIdRef.current) {
+        setLocalCorrection(kycIdRef.current, {
+          stepIndex: targetIndex,
+          form: currentForm,
+          paths: currentPaths,
+        });
+      } else {
+        setLocalDraft(uid, {
+          stepIndex: targetIndex,
+          stepKey: targetKey,
+          form: currentForm,
+          paths: currentPaths,
+          updatedAt: Date.now(),
+          language: languageRef.current,
+        });
+      }
+
+      if (correctionModeRef.current) return;
+
+      if (debounceTimerRef.current !== null) {
+        window.clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
+
+      try {
+        setSaving(true);
+        const payload: Json = {
+          ...serializeKycDraft(currentForm),
+          currentStepKey: targetKey,
+        };
+        const { error: saveError } = await createClient().rpc('save_kyc_draft', {
+          p_current_step: targetIndex,
+          p_payload: payload,
+          p_document_object_paths: serializeKycDocumentPaths(currentPaths),
+          p_preferred_language: languageRef.current,
+        });
+        if (mountedRef.current) {
+          setSaving(false);
+          setSaved(!saveError);
+        }
+      } catch {
+        if (mountedRef.current) {
+          setSaving(false);
+          setSaved(false);
+        }
+      }
+    },
+    [],
+  );
+
   const update = <K extends keyof KycForm>(key: K, value: KycForm[K]) => {
-    setForm((current) => ({ ...current, [key]: value }));
+    setForm((current) => {
+      const nextForm = { ...current, [key]: value };
+      if (userIdRef.current) {
+        if (correctionModeRef.current && kycIdRef.current) {
+          setLocalCorrection(kycIdRef.current, {
+            stepIndex: stepIndexRef.current,
+            form: nextForm,
+            paths: pathsRef.current,
+          });
+        } else {
+          setLocalDraft(userIdRef.current, {
+            stepIndex: stepIndexRef.current,
+            stepKey: step,
+            form: nextForm,
+            paths: pathsRef.current,
+            updatedAt: Date.now(),
+            language: languageRef.current,
+          });
+        }
+      }
+      return nextForm;
+    });
     setError('');
   };
 
@@ -452,6 +618,7 @@ export default function OnboardingPage() {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user || !active) return;
+      userIdRef.current = user.id;
       const [{ data: profile }, { data: application }, { data: draft }] = await Promise.all([
         supabase.from('profiles').select('display_name,preferred_language').eq('user_id', user.id).single(),
         supabase.from('kyc_applications').select('*').eq('owner_id', user.id).order('submitted_at', { ascending: false }).limit(1).maybeSingle(),
@@ -462,57 +629,167 @@ export default function OnboardingPage() {
       if (application && ['needs_information', 'rejected'].includes(application.status)) {
         const address = parseKycAddress(application.address);
         setKycId(application.id);
-        setRequestedItems(
-          application.requested_items.filter((item): item is SectionKey =>
-            ALL_STEPS.includes(item as SectionKey),
-          ),
+        kycIdRef.current = application.id;
+        const requested = application.requested_items.filter((item): item is SectionKey =>
+          ALL_STEPS.includes(item as SectionKey),
         );
-        setForm({
-          firstName: application.first_name, lastName: application.last_name,
-          placeOfBirth: application.place_of_birth, nationality: application.nationality,
-          dateOfBirth: application.date_of_birth, street: address.street,
-          postalCode: address.postalCode, city: address.city,
-          country: address.country, occupation: application.occupation,
-          incomeRange: application.income_range, fatca: application.fatca, pep: application.pep,
-          documentType: application.document_type ?? '', documentNumber: application.document_number ?? '',
-          issuingCountry: application.issuing_country ?? '', documentExpiresOn: application.document_expires_on ?? '',
-        });
-        setPaths(parseKycDocumentPaths(application.document_object_paths));
+        setRequestedItems(requested);
+        const localCorrection = getLocalCorrection(application.id);
+        if (localCorrection) {
+          setForm(localCorrection.form);
+          setPaths(localCorrection.paths);
+          const clampedIndex = Math.min(localCorrection.stepIndex, Math.max(0, requested.length - 1));
+          setStepIndex(clampedIndex);
+          if (clampedIndex > 0) setResumedFromStep(true);
+        } else {
+          setForm({
+            firstName: application.first_name, lastName: application.last_name,
+            placeOfBirth: application.place_of_birth, nationality: application.nationality,
+            dateOfBirth: application.date_of_birth, street: address.street,
+            postalCode: address.postalCode, city: address.city,
+            country: address.country, occupation: application.occupation,
+            incomeRange: application.income_range, fatca: application.fatca, pep: application.pep,
+            documentType: application.document_type ?? '', documentNumber: application.document_number ?? '',
+            issuingCountry: application.issuing_country ?? '', documentExpiresOn: application.document_expires_on ?? '',
+          });
+          setPaths(parseKycDocumentPaths(application.document_object_paths));
+        }
       } else if (application) {
         window.location.replace('/myaccount?tab=kyc');
         return;
-      } else if (draft) {
-        setForm({ ...EMPTY_FORM, ...parseKycDraft(draft.payload) });
-        setPaths(parseKycDocumentPaths(draft.document_object_paths));
-        setStepIndex(draft.current_step ?? 0);
-        setSaved(true);
       } else {
-        const parsed = splitFullName(
-          profile?.display_name ??
-          (typeof user.user_metadata.full_name === 'string' ? user.user_metadata.full_name : ''),
-        );
-        if (parsed) setForm((current) => ({ ...current, firstName: parsed.firstName, lastName: parsed.lastName }));
+        const localDraft = getLocalDraft(user.id);
+        const serverDraft = draft;
+        let mergedForm = { ...EMPTY_FORM };
+        let mergedPaths: Partial<Record<EvidenceKey, string>> = {};
+        let restoredStepIndex = 0;
+        let restoredStepKey: SectionKey | undefined;
+        let hasDraftData = false;
+
+        if (serverDraft && serverDraft.payload) {
+          hasDraftData = true;
+          mergedForm = { ...mergedForm, ...parseKycDraft(serverDraft.payload) };
+          mergedPaths = { ...mergedPaths, ...parseKycDocumentPaths(serverDraft.document_object_paths) };
+          restoredStepIndex = serverDraft.current_step ?? 0;
+          const payloadObj = typeof serverDraft.payload === 'object' && serverDraft.payload !== null
+            ? (serverDraft.payload as Record<string, unknown>)
+            : {};
+          if (typeof payloadObj.currentStepKey === 'string') {
+            restoredStepKey = payloadObj.currentStepKey as SectionKey;
+          }
+        }
+
+        if (localDraft) {
+          hasDraftData = true;
+          mergedForm = { ...mergedForm, ...localDraft.form };
+          mergedPaths = { ...mergedPaths, ...localDraft.paths };
+          if (localDraft.stepIndex >= restoredStepIndex) {
+            restoredStepIndex = localDraft.stepIndex;
+            restoredStepKey = localDraft.stepKey;
+          }
+        }
+
+        if (hasDraftData) {
+          setForm(mergedForm);
+          setPaths(mergedPaths);
+          const docType = mergedForm.documentType;
+          const availableSteps = ALL_STEPS.filter((s) => s !== 'id_back' || docType !== 'passport');
+          let targetIndex = restoredStepIndex;
+          if (restoredStepKey) {
+            const keyIndex = availableSteps.indexOf(restoredStepKey);
+            if (keyIndex >= 0) targetIndex = keyIndex;
+          }
+          targetIndex = Math.max(0, Math.min(targetIndex, availableSteps.length - 1));
+          setStepIndex(targetIndex);
+          setSaved(true);
+          if (targetIndex > 0) {
+            setResumedFromStep(true);
+          }
+        } else {
+          const parsed = splitFullName(
+            profile?.display_name ??
+            (typeof user.user_metadata.full_name === 'string' ? user.user_metadata.full_name : ''),
+          );
+          if (parsed) setForm((current) => ({ ...current, firstName: parsed.firstName, lastName: parsed.lastName }));
+        }
       }
       setReady(true);
+      readyRef.current = true;
     })();
     return () => { active = false; };
   }, []);
 
   useEffect(() => {
     if (!ready || correctionMode) return;
-    const timeout = window.setTimeout(async () => {
+    if (userIdRef.current) {
+      setLocalDraft(userIdRef.current, {
+        stepIndex,
+        stepKey: step,
+        form,
+        paths,
+        updatedAt: Date.now(),
+        language,
+      });
+    }
+    if (debounceTimerRef.current !== null) {
+      window.clearTimeout(debounceTimerRef.current);
+    }
+    debounceTimerRef.current = window.setTimeout(async () => {
+      debounceTimerRef.current = null;
       setSaving(true);
+      const payload: Json = {
+        ...serializeKycDraft(form),
+        currentStepKey: step,
+      };
       const { error: saveError } = await createClient().rpc('save_kyc_draft', {
         p_current_step: stepIndex,
-        p_payload: serializeKycDraft(form),
+        p_payload: payload,
         p_document_object_paths: serializeKycDocumentPaths(paths),
         p_preferred_language: language,
       });
-      setSaving(false);
-      setSaved(!saveError);
+      if (mountedRef.current) {
+        setSaving(false);
+        setSaved(!saveError);
+      }
     }, 650);
-    return () => window.clearTimeout(timeout);
-  }, [correctionMode, form, language, paths, ready, stepIndex]);
+    return () => {
+      if (debounceTimerRef.current !== null) {
+        window.clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
+    };
+  }, [correctionMode, form, language, paths, ready, stepIndex, step]);
+
+  useEffect(() => {
+    const handleLeave = () => {
+      if (!readyRef.current || !userIdRef.current) return;
+      if (correctionModeRef.current && kycIdRef.current) {
+        setLocalCorrection(kycIdRef.current, {
+          stepIndex: stepIndexRef.current,
+          form: formRef.current,
+          paths: pathsRef.current,
+        });
+      } else {
+        setLocalDraft(userIdRef.current, {
+          stepIndex: stepIndexRef.current,
+          stepKey: stepKeyRef.current,
+          form: formRef.current,
+          paths: pathsRef.current,
+          updatedAt: Date.now(),
+          language: languageRef.current,
+        });
+      }
+    };
+    window.addEventListener('beforeunload', handleLeave);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') handleLeave();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      window.removeEventListener('beforeunload', handleLeave);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, []);
 
   const upload = async (key: EvidenceKey, original: File, reusePreview = false) => {
     if (activeUploadRef.current) return;
@@ -720,10 +997,22 @@ export default function OnboardingPage() {
         });
         if (submitError) throw submitError;
       }
+      if (userIdRef.current) clearLocalDraft(userIdRef.current);
+      if (kycId) clearLocalCorrection(kycId);
       window.location.replace(`/myaccount?flash=${correctionMode ? 'kyc_resubmitted' : 'kyc_submitted'}`);
     } catch {
       setError(localizedAppError(language, 'SAVE_FAILED'));
       setSubmitting(false);
+    }
+  };
+
+  const handlePrevStep = () => {
+    setError('');
+    if (stepIndex > 0) {
+      const prevIndex = stepIndex - 1;
+      const prevKey = steps[prevIndex] ?? 'identity';
+      setStepIndex(prevIndex);
+      void persistDraftImmediately(prevIndex, prevKey, form, paths);
     }
   };
 
@@ -732,8 +1021,14 @@ export default function OnboardingPage() {
     if (activeUploadRef.current || cameraPreparingRef.current) return;
     const validation = validate();
     if (validation) { setError(validation); return; }
-    if (stepIndex < steps.length - 1) setStepIndex((value) => value + 1);
-    else await submit();
+    if (stepIndex < steps.length - 1) {
+      const nextIndex = stepIndex + 1;
+      const nextKey = steps[nextIndex] ?? 'identity';
+      setStepIndex(nextIndex);
+      void persistDraftImmediately(nextIndex, nextKey, form, paths);
+    } else {
+      await submit();
+    }
   };
 
   if (!ready) return <main className="min-h-screen bg-slate-950" />;
@@ -750,7 +1045,29 @@ export default function OnboardingPage() {
           <h1 className="text-2xl font-extrabold">{copy.title}</h1>
           <p className="mt-2 text-sm text-slate-400">{copy.privacy}</p>
         </header>
-        <form onSubmit={next} className="rounded-3xl bg-white p-5 shadow-2xl sm:p-8">
+        {resumedFromStep && (
+  <aside
+    role="status"
+    aria-live="polite"
+    className="mb-5 flex min-w-0 items-center justify-between gap-3 rounded-2xl border border-blue-200 bg-blue-50/90 p-4 text-xs font-semibold text-blue-900 shadow-sm"
+  >
+    <div className="flex min-w-0 items-center gap-2.5">
+      <RotateCcw className="h-4 w-4 shrink-0 text-blue-600" />
+      <span>
+        {copy.resumeTitle} : {copy.resumeStep.replace('{step}', String(stepIndex + 1)).replace('{total}', String(steps.length))}
+      </span>
+    </div>
+    <button
+      type="button"
+      onClick={() => setResumedFromStep(false)}
+      className="shrink-0 rounded-lg p-1 text-blue-700 hover:bg-blue-100"
+      aria-label="OK"
+    >
+      <Check className="h-4 w-4" />
+    </button>
+  </aside>
+)}
+<form onSubmit={next} className="rounded-3xl bg-white p-5 shadow-2xl sm:p-8">
           {correctionMode && <p className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{copy.correction}</p>}
           <div className="mb-7 flex items-center gap-2">
             {steps.map((item, index) => <span key={item} className={`h-1.5 flex-1 rounded-full ${index <= stepIndex ? 'bg-blue-600' : 'bg-slate-200'}`} />)}
@@ -868,7 +1185,7 @@ export default function OnboardingPage() {
 
           {error && <p role="alert" className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
           <div className="mt-7 flex items-center gap-3 border-t pt-5">
-            {stepIndex > 0 && <button disabled={uploadPending || submitting} type="button" onClick={() => { setError(''); setStepIndex((value) => value - 1); }} className="flex h-12 items-center gap-2 rounded-xl border px-4 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-50"><ArrowLeft className="h-4 w-4" />{copy.back}</button>}
+            {stepIndex > 0 && <button disabled={uploadPending || submitting} type="button" onClick={handlePrevStep} className="flex h-12 items-center gap-2 rounded-xl border px-4 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-50"><ArrowLeft className="h-4 w-4" />{copy.back}</button>}
             <button disabled={uploadPending || submitting} type="submit" className="ml-auto flex h-12 items-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">
               {stepIndex === steps.length - 1 ? <><FileCheck2 className="h-4 w-4" />{submitting ? copy.sending : copy.submit}</> : <>{copy.next}<ArrowRight className="h-4 w-4" /></>}
             </button>

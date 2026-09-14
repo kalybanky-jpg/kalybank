@@ -1,16 +1,18 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { useAppStore } from '@/lib/store';
 import { convertAnyAmount, formatDirectCurrency } from '@/lib/currency';
 import { bankingMessages } from '@/lib/banking-i18n';
-import { Calculator, Clock, FileText } from 'lucide-react';
+import { ArrowRight, Calculator, Clock, FileText, ShieldAlert } from 'lucide-react';
 import { formatLocalizedMonths, formatLocalizedPercent } from '@/lib/language';
 import { loanMotiveLabel } from '@/lib/user-i18n';
 import { useBranded } from '@/components/brand/BrandProvider';
 
 export default function UserLoansView() {
-  const { language, currency, rates, loans, setIsLoanModalOpen } = useAppStore();
+  const { language, currency, rates, loans, kycApplications, setActiveTab, setIsLoanModalOpen } = useAppStore();
+  const isKycApproved = kycApplications[0]?.workflowStatus === 'approved';
   const t = useBranded(bankingMessages[language]);
   const displayMoney = (amount: number, sourceCurrency: string) =>
     formatDirectCurrency(
@@ -38,6 +40,35 @@ export default function UserLoansView() {
           {t.loans.newLoan}
         </button>
       </header>
+
+      {!isKycApproved && (
+        <aside
+          role="status"
+          className="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50/80 p-4 text-xs sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div className="flex items-center gap-2.5 text-amber-900 font-medium">
+            <ShieldAlert className="h-5 w-5 shrink-0 text-amber-600" />
+            <span>{t.loans.kycRequiredNotice}</span>
+          </div>
+          {!kycApplications.length ? (
+            <Link href="/onboarding"
+              className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-amber-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-amber-700"
+            >
+              <span>{t.loans.completeKyc}</span>
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setActiveTab('kyc')}
+              className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-amber-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-amber-700"
+            >
+              <span>{t.loans.viewKyc}</span>
+              <ArrowRight className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </aside>
+      )}
 
       <section className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
         {loans.map((loan) => (

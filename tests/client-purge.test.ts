@@ -517,7 +517,7 @@ test('le sweep différé est livré comme Scheduled Function versionnée sans se
     new URL('../app/api/internal/client-purge-sweep/route.ts', import.meta.url),
     'utf8',
   );
-  assert.match(worker, /schedule: '\* \* \* \* \*'/);
+  assert.match(worker, /schedule: '\*\/15 \* \* \* \*'/);
   assert.match(worker, /\/api\/internal\/client-purge-sweep/);
   assert.match(worker, /x-client-purge-sweep-secret/);
   assert.match(

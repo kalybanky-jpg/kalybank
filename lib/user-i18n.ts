@@ -83,6 +83,13 @@ const fr = {
     productUnavailable: 'Aucune offre de prêt active n’est disponible dans cette devise.',
     fixedAnnualRate: 'TAEG fixe',
     perMonth: 'par mois', rateHypothesis: 'Hypothèse indicative à {rate}',
+    kycRequiredTitle: 'Vérification d’identité requise',
+    kycRequiredNoFile: 'Pour déposer une demande de prêt, vous devez d’abord finaliser votre inscription et la vérification de votre identité.',
+    kycRequiredUnderReview: 'Votre dossier d’identité est en cours d’examen. La demande de prêt sera accessible dès la validation de votre identité.',
+    kycRequiredNeedsAction: 'Votre dossier d’identité nécessite une correction avant de pouvoir effectuer une demande de prêt.',
+    kycStartVerification: 'Finaliser mon inscription',
+    kycCheckStatus: 'Suivre mon dossier d’identité',
+    kycCorrectFile: 'Corriger mon dossier d’identité',
   },
   transferModal: {
     subtitle: 'Instruction préparée dans {bankName} — exécution hors application',
@@ -212,6 +219,7 @@ const fr = {
     loan_decision: 'Décision de prêt',
   },
   errors: {
+        APPROVED_KYC_REQUIRED: 'Un dossier d’identité validé (KYC) est requis pour effectuer une demande de prêt.',
     AUTH_REQUIRED: 'Votre session a expiré. Veuillez vous reconnecter.',
     CONFIGURATION_UNAVAILABLE: 'Le service est temporairement indisponible.',
     INVALID_REQUEST: 'Certaines informations sont invalides. Veuillez les vérifier.',
@@ -274,6 +282,13 @@ const en: ExtraMessages = {
     productUnavailable: 'No active loan offer is available in this currency.',
     fixedAnnualRate: 'Fixed APR',
     perMonth: 'per month', rateHypothesis: 'Illustrative assumption at {rate}',
+    kycRequiredTitle: 'Identity verification required',
+    kycRequiredNoFile: 'To apply for a loan, you must first complete your registration and identity verification.',
+    kycRequiredUnderReview: 'Your identity file is currently under review. Loan applications will become available once your identity is approved.',
+    kycRequiredNeedsAction: 'Your identity file requires corrections before you can apply for a loan.',
+    kycStartVerification: 'Complete my registration',
+    kycCheckStatus: 'Track my identity status',
+    kycCorrectFile: 'Correct my identity file',
   },
   transferModal: {
     subtitle: 'Instruction prepared in {bankName} — execution outside the application', stepRecipient: 'Recipient', stepDetails: 'External details', stepAmount: 'Amount',
@@ -329,6 +344,7 @@ const en: ExtraMessages = {
     loan_disbursement_confirmation: 'Loan disbursement confirmation', loan_decision: 'Loan decision',
   },
   errors: {
+        APPROVED_KYC_REQUIRED: 'An approved identity verification (KYC) file is required to submit a loan application.',
     AUTH_REQUIRED: 'Your session has expired. Please sign in again.',
     CONFIGURATION_UNAVAILABLE: 'The service is temporarily unavailable.',
     INVALID_REQUEST: 'Some information is invalid. Please review it.',
@@ -389,6 +405,13 @@ const de: ExtraMessages = {
     productUnavailable: 'In dieser Währung ist derzeit kein aktives Kreditangebot verfügbar.',
     fixedAnnualRate: 'Eff. Jahreszins',
     perMonth: 'pro Monat', rateHypothesis: 'Unverbindliche Annahme mit {rate}',
+    kycRequiredTitle: 'Identitätsprüfung erforderlich',
+    kycRequiredNoFile: 'Um einen Kredit zu beantragen, müssen Sie zuerst Ihre Registrierung und Identitätsprüfung abschließen.',
+    kycRequiredUnderReview: 'Ihre Identitätsunterlagen werden derzeit geprüft. Ein Kreditantrag ist möglich, sobald Ihre Identität bestätigt wurde.',
+    kycRequiredNeedsAction: 'Ihre Identitätsunterlagen erfordern Korrekturen, bevor Sie einen Kredit beantragen können.',
+    kycStartVerification: 'Registrierung abschließen',
+    kycCheckStatus: 'Status meiner Unterlagen',
+    kycCorrectFile: 'Unterlagen korrigieren',
   },
   transferModal: {
     subtitle: 'In {bankName} vorbereiteter Auftrag — Ausführung außerhalb der Anwendung', stepRecipient: 'Empfänger', stepDetails: 'Externe Bankdaten', stepAmount: 'Betrag',
@@ -444,6 +467,7 @@ const de: ExtraMessages = {
     loan_disbursement_confirmation: 'Bestätigung der Kreditauszahlung', loan_decision: 'Kreditentscheidung',
   },
   errors: {
+        APPROVED_KYC_REQUIRED: 'Eine bestätigte Identitätsprüfung (KYC) ist für einen Kreditantrag erforderlich.',
     AUTH_REQUIRED: 'Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.',
     CONFIGURATION_UNAVAILABLE: 'Der Dienst ist vorübergehend nicht verfügbar.',
     INVALID_REQUEST: 'Einige Angaben sind ungültig. Bitte prüfen Sie sie.',
@@ -504,6 +528,13 @@ const es: ExtraMessages = {
     productUnavailable: 'No hay ninguna oferta de préstamo activa disponible en esta moneda.',
     fixedAnnualRate: 'TAE fija',
     perMonth: 'al mes', rateHypothesis: 'Hipótesis orientativa al {rate}',
+    kycRequiredTitle: 'Verificación de identidad requerida',
+    kycRequiredNoFile: 'Para solicitar un préstamo, primero debe completar su registro y la verificación de su identidad.',
+    kycRequiredUnderReview: 'Su expediente de identidad se encuentra en revisión. La solicitud de préstamo estará disponible tras su validación.',
+    kycRequiredNeedsAction: 'Su expediente de identidad requiere correcciones antes de poder solicitar un préstamo.',
+    kycStartVerification: 'Completar mi registro',
+    kycCheckStatus: 'Seguir mi expediente',
+    kycCorrectFile: 'Corregir mi expediente',
   },
   transferModal: {
     subtitle: 'Orden preparada en {bankName} — ejecución fuera de la aplicación', stepRecipient: 'Beneficiario', stepDetails: 'Datos bancarios externos', stepAmount: 'Importe',
@@ -559,6 +590,7 @@ const es: ExtraMessages = {
     loan_disbursement_confirmation: 'Confirmación de desembolso del préstamo', loan_decision: 'Decisión de préstamo',
   },
   errors: {
+        APPROVED_KYC_REQUIRED: 'Se requiere un expediente de identidad validado (KYC) para solicitar un préstamo.',
     AUTH_REQUIRED: 'Su sesión ha caducado. Vuelva a iniciar sesión.',
     CONFIGURATION_UNAVAILABLE: 'El servicio no está disponible temporalmente.',
     INVALID_REQUEST: 'Algunos datos no son válidos. Revíselos.',
@@ -619,6 +651,13 @@ const it: ExtraMessages = {
     productUnavailable: 'Non è disponibile alcuna offerta di prestito attiva in questa valuta.',
     fixedAnnualRate: 'TAEG fisso',
     perMonth: 'al mese', rateHypothesis: 'Ipotesi indicativa al {rate}',
+    kycRequiredTitle: 'Verifica dell’identità richiesta',
+    kycRequiredNoFile: 'Per richiedere un prestito, è necessario prima completare la registrazione e la verifica dell’identità.',
+    kycRequiredUnderReview: 'La sua pratica d’identità è attualmente in fase di esame. La richiesta di prestito sarà disponibile non appena validata.',
+    kycRequiredNeedsAction: 'La sua pratica d’identità richiede delle correzioni prima di poter inoltrare una richiesta di prestito.',
+    kycStartVerification: 'Completa la mia registrazione',
+    kycCheckStatus: 'Controlla la mia pratica',
+    kycCorrectFile: 'Correggi la mia pratica',
   },
   transferModal: {
     subtitle: 'Istruzione preparata in {bankName} — esecuzione fuori dall’applicazione', stepRecipient: 'Beneficiario', stepDetails: 'Coordinate esterne', stepAmount: 'Importo',
@@ -674,6 +713,7 @@ const it: ExtraMessages = {
     loan_disbursement_confirmation: 'Conferma dell’erogazione del prestito', loan_decision: 'Decisione sul prestito',
   },
   errors: {
+    APPROVED_KYC_REQUIRED: 'È necessaria una verifica dell’identità convalidata (KYC) per richiedere un prestito.',
     AUTH_REQUIRED: 'La sua sessione è scaduta. Acceda nuovamente.',
     CONFIGURATION_UNAVAILABLE: 'Il servizio è temporaneamente indisponibile.',
     INVALID_REQUEST: 'Alcune informazioni non sono valide. Le verifichi.',
@@ -734,6 +774,13 @@ const nl: ExtraMessages = {
     productUnavailable: 'Er is geen actief leningaanbod beschikbaar in deze valuta.',
     fixedAnnualRate: 'Vast jaarlijks kostenpercentage',
     perMonth: 'per maand', rateHypothesis: 'Indicatieve aanname bij {rate}',
+    kycRequiredTitle: 'Identiteitsverificatie vereist',
+    kycRequiredNoFile: 'Om een lening aan te vragen, moet u eerst uw registratie en identiteitsverificatie voltooien.',
+    kycRequiredUnderReview: 'Uw identiteitsdossier wordt momenteel beoordeeld. Het aanvragen van een lening is mogelijk zodra uw identiteit is goedgekeurd.',
+    kycRequiredNeedsAction: 'Uw identiteitsdossier vereist correcties voordat u een lening kunt aanvragen.',
+    kycStartVerification: 'Mijn registratie afronden',
+    kycCheckStatus: 'Mijn dossier volgen',
+    kycCorrectFile: 'Mijn dossier aanpassen',
   },
   transferModal: {
     subtitle: 'Opdracht voorbereid in {bankName} — uitvoering buiten de toepassing', stepRecipient: 'Begunstigde', stepDetails: 'Externe bankgegevens', stepAmount: 'Bedrag',
@@ -789,6 +836,7 @@ const nl: ExtraMessages = {
     loan_disbursement_confirmation: 'Bevestiging van de uitbetaling van de lening', loan_decision: 'Beslissing over de lening',
   },
   errors: {
+    APPROVED_KYC_REQUIRED: 'Een goedgekeurde identiteitsverificatie (KYC) is vereist om een lening aan te vragen.',
     AUTH_REQUIRED: 'Uw sessie is verlopen. Log opnieuw in.',
     CONFIGURATION_UNAVAILABLE: 'De service is tijdelijk niet beschikbaar.',
     INVALID_REQUEST: 'Sommige gegevens zijn ongeldig. Controleer ze.',
@@ -844,8 +892,10 @@ export function appErrorCode(error: unknown): AppErrorCode {
     if (code === 'PGRST301' || code === '401') return 'AUTH_REQUIRED';
     if (code === '42501' || code === '403') return 'PERMISSION_DENIED';
     if (code === 'PGRST116' || code === '404') return 'NOT_FOUND';
+    if (code === '23514' || String((error as any).message || '').includes('APPROVED_KYC_REQUIRED')) return 'APPROVED_KYC_REQUIRED';
     if ((fr.errors as Record<string, string>)[code]) return code as AppErrorCode;
   }
+  if (error instanceof Error && error.message.includes('APPROVED_KYC_REQUIRED')) return 'APPROVED_KYC_REQUIRED';
   if (error instanceof TypeError) return 'NETWORK_ERROR';
   return 'UNKNOWN_ERROR';
 }

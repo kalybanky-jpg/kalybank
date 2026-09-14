@@ -1889,6 +1889,71 @@ export type Database = {
           },
         ]
       }
+      transfer_control_fees: {
+        Row: {
+          compliance_fee_minor: number
+          compliance_fee_mode: string
+          compliance_fee_rate: number
+          created_at: string
+          currency: string
+          dual_review_fee_minor: number
+          dual_review_fee_mode: string
+          dual_review_fee_rate: number
+          escalation_fee_minor: number
+          escalation_fee_mode: string
+          escalation_fee_rate: number
+          final_authorization_fee_minor: number
+          final_authorization_fee_mode: string
+          final_authorization_fee_rate: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          compliance_fee_minor?: number
+          compliance_fee_mode?: string
+          compliance_fee_rate?: number
+          created_at?: string
+          currency: string
+          dual_review_fee_minor?: number
+          dual_review_fee_mode?: string
+          dual_review_fee_rate?: number
+          escalation_fee_minor?: number
+          escalation_fee_mode?: string
+          escalation_fee_rate?: number
+          final_authorization_fee_minor?: number
+          final_authorization_fee_mode?: string
+          final_authorization_fee_rate?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          compliance_fee_minor?: number
+          compliance_fee_mode?: string
+          compliance_fee_rate?: number
+          created_at?: string
+          currency?: string
+          dual_review_fee_minor?: number
+          dual_review_fee_mode?: string
+          dual_review_fee_rate?: number
+          escalation_fee_minor?: number
+          escalation_fee_mode?: string
+          escalation_fee_rate?: number
+          final_authorization_fee_minor?: number
+          final_authorization_fee_mode?: string
+          final_authorization_fee_rate?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transfer_control_fees_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       transfer_events: {
         Row: {
           actor_id: string
@@ -3662,6 +3727,121 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      update_transfer_control_fees:
+        | {
+            Args: {
+              p_compliance_fee_minor: number
+              p_currency: string
+              p_dual_review_fee_minor: number
+              p_escalation_fee_minor: number
+              p_final_authorization_fee_minor: number
+            }
+            Returns: {
+              compliance_fee_minor: number
+              compliance_fee_mode: string
+              compliance_fee_rate: number
+              created_at: string
+              currency: string
+              dual_review_fee_minor: number
+              dual_review_fee_mode: string
+              dual_review_fee_rate: number
+              escalation_fee_minor: number
+              escalation_fee_mode: string
+              escalation_fee_rate: number
+              final_authorization_fee_minor: number
+              final_authorization_fee_mode: string
+              final_authorization_fee_rate: number
+              updated_at: string
+              updated_by: string | null
+            }
+            SetofOptions: {
+              from: "*"
+              to: "transfer_control_fees"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
+        | {
+            Args: {
+              p_compliance_fee_minor: number
+              p_compliance_fee_mode?: string
+              p_compliance_fee_rate?: number
+              p_currency: string
+              p_dual_review_fee_minor: number
+              p_dual_review_fee_mode?: string
+              p_dual_review_fee_rate?: number
+              p_escalation_fee_minor: number
+              p_escalation_fee_mode?: string
+              p_escalation_fee_rate?: number
+              p_final_authorization_fee_minor: number
+              p_final_authorization_fee_mode?: string
+              p_final_authorization_fee_rate?: number
+            }
+            Returns: {
+              compliance_fee_minor: number
+              compliance_fee_mode: string
+              compliance_fee_rate: number
+              created_at: string
+              currency: string
+              dual_review_fee_minor: number
+              dual_review_fee_mode: string
+              dual_review_fee_rate: number
+              escalation_fee_minor: number
+              escalation_fee_mode: string
+              escalation_fee_rate: number
+              final_authorization_fee_minor: number
+              final_authorization_fee_mode: string
+              final_authorization_fee_rate: number
+              updated_at: string
+              updated_by: string | null
+            }
+            SetofOptions: {
+              from: "*"
+              to: "transfer_control_fees"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
+      update_universal_transfer_control_fees: {
+        Args: {
+          p_compliance_fee_minor: number
+          p_compliance_fee_mode?: string
+          p_compliance_fee_rate?: number
+          p_dual_review_fee_minor: number
+          p_dual_review_fee_mode?: string
+          p_dual_review_fee_rate?: number
+          p_escalation_fee_minor: number
+          p_escalation_fee_mode?: string
+          p_escalation_fee_rate?: number
+          p_final_authorization_fee_minor: number
+          p_final_authorization_fee_mode?: string
+          p_final_authorization_fee_rate?: number
+        }
+        Returns: {
+          compliance_fee_minor: number
+          compliance_fee_mode: string
+          compliance_fee_rate: number
+          created_at: string
+          currency: string
+          dual_review_fee_minor: number
+          dual_review_fee_mode: string
+          dual_review_fee_rate: number
+          escalation_fee_minor: number
+          escalation_fee_mode: string
+          escalation_fee_rate: number
+          final_authorization_fee_minor: number
+          final_authorization_fee_mode: string
+          final_authorization_fee_rate: number
+          updated_at: string
+          updated_by: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "transfer_control_fees"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
     }
     Enums: {
       [_ in never]: never
@@ -3680,12 +3860,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3709,11 +3889,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3734,11 +3914,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3759,11 +3939,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3776,11 +3956,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }

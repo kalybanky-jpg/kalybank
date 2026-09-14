@@ -96,6 +96,9 @@ interface BankingMessages {
     progress: string;
     progressHint: string;
     noLoans: string;
+    kycRequiredNotice: string;
+    completeKyc: string;
+    viewKyc: string;
     statuses: Record<
       | 'submitted'
       | 'under_review'
@@ -211,6 +214,9 @@ export const bankingMessages: Record<Language, BankingMessages> = {
       progress: 'Avancement du dossier',
       progressHint: 'L’étude et le décaissement sont réalisés en interne par la banque.',
       noLoans: 'Aucune demande de prêt enregistrée.',
+      kycRequiredNotice: 'Pour effectuer une demande de prêt, votre inscription et la vérification de votre identité doivent être validées.',
+      completeKyc: 'Compléter mon dossier',
+      viewKyc: 'Voir mon dossier',
       statuses: {
         submitted: 'Demande de prêt envoyée',
         under_review: 'Dossier en cours d’étude',
@@ -323,6 +329,9 @@ export const bankingMessages: Record<Language, BankingMessages> = {
       progress: 'Application progress',
       progressHint: 'Review and disbursement are handled internally by the bank.',
       noLoans: 'No loan application recorded.',
+      kycRequiredNotice: 'To submit a loan application, your registration and identity verification must be approved.',
+      completeKyc: 'Complete verification',
+      viewKyc: 'View verification',
       statuses: {
         submitted: 'Loan application sent',
         under_review: 'Application under review',
@@ -435,6 +444,9 @@ export const bankingMessages: Record<Language, BankingMessages> = {
       progress: 'Bearbeitungsstand',
       progressHint: 'Prüfung und Auszahlung erfolgen bankintern.',
       noLoans: 'Kein Kreditantrag vorhanden.',
+      kycRequiredNotice: 'Um einen Kredit zu beantragen, müssen Ihre Registrierung und Identitätsprüfung abgeschlossen sein.',
+      completeKyc: 'Unterlagen vervollständigen',
+      viewKyc: 'Unterlagen ansehen',
       statuses: {
         submitted: 'Kreditantrag gesendet',
         under_review: 'Antrag wird geprüft',
@@ -547,6 +559,9 @@ export const bankingMessages: Record<Language, BankingMessages> = {
       progress: 'Progreso del expediente',
       progressHint: 'El estudio y el desembolso se realizan internamente en el banco.',
       noLoans: 'No hay solicitudes de préstamo.',
+      kycRequiredNotice: 'Para solicitar un préstamo, su registro y la verificación de su identidad deben estar validados.',
+      completeKyc: 'Completar expediente',
+      viewKyc: 'Ver expediente',
       statuses: {
         submitted: 'Solicitud de préstamo enviada',
         under_review: 'Expediente en estudio',
@@ -659,6 +674,9 @@ export const bankingMessages: Record<Language, BankingMessages> = {
       progress: 'Avanzamento della pratica',
       progressHint: 'La valutazione e l’erogazione sono gestite internamente dalla banca.',
       noLoans: 'Nessuna richiesta di prestito registrata.',
+      kycRequiredNotice: 'È richiesta una pratica di identità (KYC) approvata per richiedere un prestito.',
+      completeKyc: 'Completa la registrazione',
+      viewKyc: 'Segui la pratica',
       statuses: {
         submitted: 'Richiesta di prestito inviata',
         under_review: 'Pratica in esame',
@@ -771,6 +789,9 @@ export const bankingMessages: Record<Language, BankingMessages> = {
       progress: 'Voortgang van de aanvraag',
       progressHint: 'Beoordeling en uitbetaling worden intern door de bank verzorgd.',
       noLoans: 'Geen leningaanvraag geregistreerd.',
+      kycRequiredNotice: 'Om een lening aan te vragen, moeten uw registratie en identiteitsverificatie zijn goedgekeurd.',
+      completeKyc: 'Dossier voltooien',
+      viewKyc: 'Dossier bekijken',
       statuses: {
         submitted: 'Leningaanvraag verzonden',
         under_review: 'Aanvraag wordt beoordeeld',

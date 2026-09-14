@@ -376,6 +376,7 @@ export default function AdminSettingsView() {
   useEffect(() => {
     if (isFeeDirty) return;
     if (activeFeeSettings) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setFeeDraft({
         dualReviewFee: activeFeeSettings.dualReviewFee,
         dualReviewFeeMode: activeFeeSettings.dualReviewFeeMode ?? 'fixed',
@@ -1393,7 +1394,7 @@ export default function AdminSettingsView() {
           Paramètres opérationnels
         </h1>
         <p className="text-xs text-slate-400 mt-1">
-          Gérez l’identité, la tarification des transferts, les règles de crédit et la sécurité de l'établissement.
+          Gérez l’identité, la tarification des transferts, les règles de crédit et la sécurité de l’établissement.
         </p>
       </header>
 

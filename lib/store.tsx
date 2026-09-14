@@ -1169,6 +1169,13 @@ export function AppProvider({
       } = await supabase.auth.getUser();
       if (userError || !user) throw userError ?? new Error('Session expirée.');
 
+      const activeKyc = kycApplications[0];
+      if (!activeKyc || activeKyc.workflowStatus !== 'approved') {
+        const message = 'APPROVED_KYC_REQUIRED';
+        setLastError(message);
+        throw new Error(message);
+      }
+
       const { data, error } = await supabase.rpc('submit_loan_application', {
         p_requested_amount_minor: toMinorUnits(loan.requestedAmount, loan.currency),
         p_currency: loan.currency,
@@ -1189,10 +1196,13 @@ export function AppProvider({
       await refreshData();
       void dispatchTransactionalEmails();
       return reference;
-    } catch {
-      const message = 'La demande n’a pas pu être déposée.';
+    } catch (caught: unknown) {
+      const isKycError =
+        (caught instanceof Error && caught.message === 'APPROVED_KYC_REQUIRED') ||
+        (caught && typeof caught === 'object' && ('code' in caught && (caught as any).code === '23514' || 'message' in caught && String((caught as any).message).includes('APPROVED_KYC_REQUIRED')));
+      const message = isKycError ? 'APPROVED_KYC_REQUIRED' : 'La demande n’a pas pu être déposée.';
       setLastError(message);
-      throw new Error(message);
+      throw caught instanceof Error ? caught : new Error(message);
     }
   };
 

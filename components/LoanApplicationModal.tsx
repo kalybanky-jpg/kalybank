@@ -16,6 +16,7 @@ import {
   Calculator,
   ArrowLeft,
   ArrowRight,
+  ShieldAlert,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useBranded } from '@/components/brand/BrandProvider';
@@ -43,6 +44,8 @@ export default function LoanApplicationModal() {
     isLoanModalOpen,
     setIsLoanModalOpen,
     addLoanApplication,
+    kycApplications,
+    setActiveTab,
   } = useAppStore();
 
   const t = useBranded(translations[language] || translations.fr);
@@ -56,6 +59,9 @@ export default function LoanApplicationModal() {
   const [submittedReference, setSubmittedReference] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const activeKyc = kycApplications[0];
+  const isKycApproved = activeKyc?.workflowStatus === 'approved';
 
   const loanSettings = loanProductSettings.find(
     (settings) => settings.currency === baseCurrency,
@@ -93,6 +99,9 @@ export default function LoanApplicationModal() {
     event?.preventDefault();
 
     const newErrors: Record<string, string> = {};
+    if (!isKycApproved) {
+      newErrors.kyc = copy.errors.APPROVED_KYC_REQUIRED;
+    }
     if (!isLoanAvailable) {
       newErrors.configuration = configurationUnavailableMessage;
     }
@@ -201,7 +210,7 @@ export default function LoanApplicationModal() {
             </button>
           </div>
 
-          {!isSuccess && (
+          {!isSuccess && isKycApproved && (
             /* Multi-step indicator bar */
             <div className="grid shrink-0 grid-cols-2 gap-2 border-b border-slate-100 bg-slate-50 px-4 py-3 sm:flex sm:items-center sm:justify-between sm:px-6 sm:py-4">
               {stepNames.map((name, index) => {
@@ -239,7 +248,59 @@ export default function LoanApplicationModal() {
             </div>
           )}
 
-          {isSuccess ? (
+                    {!isKycApproved ? (
+            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain p-6 text-center sm:p-10">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-amber-200 bg-amber-50 text-amber-600">
+                <ShieldAlert className="h-8 w-8" />
+              </div>
+              <div>
+                <h4 className="text-lg font-extrabold text-slate-900 sm:text-xl">
+                  {copy.loanModal.kycRequiredTitle}
+                </h4>
+                <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-slate-600 sm:text-sm">
+                  {!activeKyc
+                    ? copy.loanModal.kycRequiredNoFile
+                    : activeKyc.workflowStatus === 'needs_information' || activeKyc.workflowStatus === 'rejected'
+                    ? copy.loanModal.kycRequiredNeedsAction
+                    : copy.loanModal.kycRequiredUnderReview}
+                </p>
+              </div>
+              <div className="pt-2 flex flex-col gap-3 sm:flex-row sm:justify-center">
+                {!activeKyc || activeKyc.workflowStatus === 'needs_information' || activeKyc.workflowStatus === 'rejected' ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsLoanModalOpen(false);
+                      window.location.assign('/onboarding');
+                    }}
+                    className="flex h-12 items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 text-xs font-bold text-white transition hover:bg-blue-700 sm:text-sm"
+                  >
+                    {!activeKyc ? copy.loanModal.kycStartVerification : copy.loanModal.kycCorrectFile}
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsLoanModalOpen(false);
+                      setActiveTab('kyc');
+                    }}
+                    className="flex h-12 items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 text-xs font-bold text-white transition hover:bg-blue-700 sm:text-sm"
+                  >
+                    {copy.loanModal.kycCheckStatus}
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setIsLoanModalOpen(false)}
+                  className="flex h-12 items-center justify-center rounded-xl border border-slate-200 px-5 text-xs font-bold text-slate-700 transition hover:bg-slate-50 sm:text-sm"
+                >
+                  {copy.common.close}
+                </button>
+              </div>
+            </div>
+          ) : isSuccess ? (
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-center sm:p-12">
               <div className="w-16 h-16 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-full flex items-center justify-center mx-auto">
                 <CheckCircle2 className="w-10 h-10" />

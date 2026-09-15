@@ -54,3 +54,37 @@ test('production stays closed when no trusted origin is configured', () => {
     true,
   );
 });
+
+test('development allows local server ports and localhost/127.0.0.1 interoperability even when another origin is configured', () => {
+  const env = {
+    NODE_ENV: 'development',
+    APP_ORIGIN: 'http://127.0.0.1:3000',
+    NEXT_PUBLIC_APP_ORIGIN: 'http://127.0.0.1:3000',
+  } as NodeJS.ProcessEnv;
+
+  // Running on port 3001
+  assert.equal(
+    isAllowedMutationOrigin('http://localhost:3001', 'http://localhost:3001', env),
+    true,
+  );
+  assert.equal(
+    isAllowedMutationOrigin('http://127.0.0.1:3001', 'http://localhost:3001', env),
+    true,
+  );
+  assert.equal(
+    isAllowedMutationOrigin('http://localhost:3001', 'http://127.0.0.1:3001', env),
+    true,
+  );
+
+  // Accessing configured port 3000 via localhost
+  assert.equal(
+    isAllowedMutationOrigin('http://localhost:3000', 'http://127.0.0.1:3000', env),
+    true,
+  );
+
+  // Attacker domain is still blocked in development
+  assert.equal(
+    isAllowedMutationOrigin('http://attacker.example', 'http://localhost:3001', env),
+    false,
+  );
+});

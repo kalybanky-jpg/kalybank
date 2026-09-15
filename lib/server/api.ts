@@ -30,6 +30,31 @@ export function configuredMutationOrigins(
   );
 }
 
+function isLoopbackHostname(hostname: string) {
+  return (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '[::1]' ||
+    hostname === '::1'
+  );
+}
+
+function areCompatibleDevelopmentOrigins(originA: string, originB: string) {
+  if (originA === originB) return true;
+  try {
+    const urlA = new URL(originA);
+    const urlB = new URL(originB);
+    return (
+      urlA.protocol === urlB.protocol &&
+      urlA.port === urlB.port &&
+      isLoopbackHostname(urlA.hostname) &&
+      isLoopbackHostname(urlB.hostname)
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function isAllowedMutationOrigin(
   origin: string | null,
   requestOrigin: string,
@@ -39,12 +64,25 @@ export function isAllowedMutationOrigin(
   if (!normalizedOrigin) return false;
 
   const allowedOrigins = configuredMutationOrigins(environment);
-  if (allowedOrigins.size === 0 && environment.NODE_ENV !== 'production') {
-    const developmentOrigin = safeHttpOrigin(requestOrigin);
-    return Boolean(developmentOrigin && normalizedOrigin === developmentOrigin);
+  if (allowedOrigins.has(normalizedOrigin)) {
+    return true;
   }
 
-  return allowedOrigins.has(normalizedOrigin);
+  if (environment.NODE_ENV !== 'production') {
+    const developmentOrigin = safeHttpOrigin(requestOrigin);
+    if (developmentOrigin) {
+      if (areCompatibleDevelopmentOrigins(normalizedOrigin, developmentOrigin)) {
+        return true;
+      }
+      for (const configured of allowedOrigins) {
+        if (areCompatibleDevelopmentOrigins(normalizedOrigin, configured)) {
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
 }
 
 export function isSameOriginMutation(request: NextRequest) {

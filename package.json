@@ -31,6 +31,7 @@
     "auth:email:check:brevo": "tsx --env-file=.env.email.brevo.local scripts/configure-supabase-auth-email.ts brevo --dry-run",
     "auth:email:configure:brevo": "tsx --env-file=.env.email.brevo.local scripts/configure-supabase-auth-email.ts brevo",
     "demo:provision": "tsx scripts/provision-demo-accounts.ts",
+    "user:create-test-nokyc": "tsx scripts/create-test-user.ts",
     "documents:reissue:check": "tsx --env-file=.env scripts/reissue-localized-official-documents.ts",
     "documents:reissue:apply": "tsx --env-file=.env scripts/reissue-localized-official-documents.ts --apply",
     "support:keys": "tsx scripts/generate-vapid-keys.ts",

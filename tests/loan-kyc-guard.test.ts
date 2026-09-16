@@ -14,7 +14,6 @@ test('LoanApplicationModal enforces KYC approval gate', async () => {
   // Verify blocked view render when not approved
   assert.match(source, /\{!isKycApproved \?/);
   assert.match(source, /copy\.loanModal\.kycRequiredTitle/);
-  assert.match(source, /ShieldAlert/);
   assert.match(source, /\/onboarding/);
 });
 

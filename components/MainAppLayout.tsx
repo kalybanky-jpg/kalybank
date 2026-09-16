@@ -10,6 +10,7 @@ import WireTransferModal from '@/components/WireTransferModal';
 import LoanApplicationModal from '@/components/LoanApplicationModal';
 import NotificationsDrawer from '@/components/NotificationsDrawer';
 import AccountStatementsModal from '@/components/AccountStatementsModal';
+import KycGlobalBanner from '@/components/KycGlobalBanner';
 import { extraUserMessages } from '@/lib/user-i18n';
 import { useBranded } from '@/components/brand/BrandProvider';
 import { SupportProvider } from '@/components/support/SupportProvider';
@@ -64,6 +65,9 @@ export default function MainAppLayout({ forcedRole }: MainAppLayoutProps) {
         <div className="min-h-app-screen flex-1 flex flex-col min-w-0 max-w-full overflow-x-clip">
           {/* Sticky Header */}
           <Header onToggleMobileMenu={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)} />
+
+          {/* App-wide Identity Verification Banner */}
+          <KycGlobalBanner />
 
           {/* Dynamic View Content */}
           <main className="min-w-0 flex-1">

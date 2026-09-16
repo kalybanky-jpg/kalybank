@@ -16,7 +16,6 @@ import {
   Calculator,
   ArrowLeft,
   ArrowRight,
-  ShieldAlert,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useBranded } from '@/components/brand/BrandProvider';
@@ -184,31 +183,33 @@ export default function LoanApplicationModal() {
             className="relative flex max-h-dvh min-h-0 w-full min-w-0 max-w-xl flex-col overflow-hidden rounded-t-3xl border border-slate-200 bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-3xl"
           >
           {/* Header */}
-          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-800 bg-slate-900 p-4 text-white sm:p-6">
-            <div className="flex min-w-0 items-center space-x-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/30 bg-emerald-500/20 text-emerald-400">
-                <Building2 className="w-5 h-5" />
+          {isKycApproved && (
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-800 bg-slate-900 p-4 text-white sm:p-6">
+              <div className="flex min-w-0 items-center space-x-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/30 bg-emerald-500/20 text-emerald-400">
+                  <Building2 className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <h3
+                    id="loan-application-modal-title"
+                    className="break-words text-base font-extrabold sm:text-lg"
+                  >
+                    {t.loanApplicationTitle}
+                  </h3>
+                  <p className="break-words text-[11px] text-slate-400 sm:text-xs">{copy.loanModal.subtitle}</p>
+                </div>
               </div>
-              <div className="min-w-0">
-                <h3
-                  id="loan-application-modal-title"
-                  className="break-words text-base font-extrabold sm:text-lg"
-                >
-                  {t.loanApplicationTitle}
-                </h3>
-                <p className="break-words text-[11px] text-slate-400 sm:text-xs">{copy.loanModal.subtitle}</p>
-              </div>
+              <button
+                type="button"
+                onClick={() => setIsLoanModalOpen(false)}
+                id="close-loan-modal-btn"
+                className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl p-2 text-slate-400 transition hover:bg-white/10 hover:text-white"
+                aria-label={copy.common.close}
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => setIsLoanModalOpen(false)}
-              id="close-loan-modal-btn"
-              className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl p-2 text-slate-400 transition hover:bg-white/10 hover:text-white"
-              aria-label={copy.common.close}
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+          )}
 
           {!isSuccess && isKycApproved && (
             /* Multi-step indicator bar */
@@ -248,16 +249,25 @@ export default function LoanApplicationModal() {
             </div>
           )}
 
-                    {!isKycApproved ? (
-            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain p-6 text-center sm:p-10">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-amber-200 bg-amber-50 text-amber-600">
-                <ShieldAlert className="h-8 w-8" />
-              </div>
-              <div>
-                <h4 className="text-lg font-extrabold text-slate-900 sm:text-xl">
+          {!isKycApproved ? (
+            <div className="relative min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain p-6 text-center sm:p-10">
+              <button
+                type="button"
+                onClick={() => setIsLoanModalOpen(false)}
+                id="close-loan-modal-btn"
+                className="absolute top-4 right-4 flex h-10 w-10 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                aria-label={copy.common.close}
+              >
+                <X className="h-5 w-5" />
+              </button>
+              <div className="pt-2 space-y-3">
+                <h3
+                  id="loan-application-modal-title"
+                  className="text-xl font-extrabold tracking-tight text-slate-900 sm:text-2xl"
+                >
                   {copy.loanModal.kycRequiredTitle}
-                </h4>
-                <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-slate-600 sm:text-sm">
+                </h3>
+                <p className="mx-auto max-w-md text-xs leading-relaxed text-slate-600 sm:text-sm">
                   {!activeKyc
                     ? copy.loanModal.kycRequiredNoFile
                     : activeKyc.workflowStatus === 'needs_information' || activeKyc.workflowStatus === 'rejected'
@@ -273,7 +283,7 @@ export default function LoanApplicationModal() {
                       setIsLoanModalOpen(false);
                       window.location.assign('/onboarding');
                     }}
-                    className="flex h-12 items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 text-xs font-bold text-white transition hover:bg-blue-700 sm:text-sm"
+                    className="flex h-12 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-6 text-xs font-bold text-white shadow-md shadow-indigo-600/20 transition hover:bg-indigo-700 sm:text-sm"
                   >
                     {!activeKyc ? copy.loanModal.kycStartVerification : copy.loanModal.kycCorrectFile}
                     <ArrowRight className="h-4 w-4" />
@@ -285,7 +295,7 @@ export default function LoanApplicationModal() {
                       setIsLoanModalOpen(false);
                       setActiveTab('kyc');
                     }}
-                    className="flex h-12 items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 text-xs font-bold text-white transition hover:bg-blue-700 sm:text-sm"
+                    className="flex h-12 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-6 text-xs font-bold text-white shadow-md shadow-indigo-600/20 transition hover:bg-indigo-700 sm:text-sm"
                   >
                     {copy.loanModal.kycCheckStatus}
                     <ArrowRight className="h-4 w-4" />
@@ -294,7 +304,7 @@ export default function LoanApplicationModal() {
                 <button
                   type="button"
                   onClick={() => setIsLoanModalOpen(false)}
-                  className="flex h-12 items-center justify-center rounded-xl border border-slate-200 px-5 text-xs font-bold text-slate-700 transition hover:bg-slate-50 sm:text-sm"
+                  className="flex h-12 items-center justify-center rounded-xl border border-slate-200 px-5 text-xs font-bold text-slate-700 transition hover:bg-slate-100 sm:text-sm"
                 >
                   {copy.common.close}
                 </button>

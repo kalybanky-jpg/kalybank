@@ -30,6 +30,9 @@ import {
   EMAIL_OTP_LENGTH,
   isValidEmailOtp,
   normalizeEmailOtp,
+  getPendingRegistration,
+  savePendingRegistration,
+  clearPendingRegistration,
 } from '@/lib/auth-email-otp';
 
 export default function RegisterPage() {
@@ -51,6 +54,25 @@ export default function RegisterPage() {
   const baseCurrencyInvalid = error === copy.baseCurrencyRequiredError;
   const passwordPolicyInvalid = error === copy.passwordPolicyError;
   const confirmationInvalid = error === copy.passwordMismatchError;
+
+  useEffect(() => {
+    const pending = getPendingRegistration();
+    if (!pending) return;
+
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setEmail(pending.email);
+    if (pending.displayName) setDisplayName(pending.displayName);
+    if (pending.baseCurrency && isSupportedCurrency(pending.baseCurrency)) {
+      setBaseCurrency(pending.baseCurrency as Currency);
+    }
+    setSubmitted(true);
+
+    const remaining = Math.max(
+      0,
+      Math.ceil((pending.resendCooldownUntil - Date.now()) / 1000),
+    );
+    setResendCooldown(remaining);
+  }, []);
 
   useEffect(() => {
     if (!submitted || resendCooldown <= 0) return;
@@ -80,8 +102,9 @@ export default function RegisterPage() {
     setIsLoading(true);
     try {
       const supabase = createClient();
+      const normalizedEmail = email.trim().toLowerCase();
       const { data, error: signUpError } = await supabase.auth.signUp({
-        email: email.trim().toLowerCase(),
+        email: normalizedEmail,
         password,
         options: {
           data: {
@@ -94,10 +117,20 @@ export default function RegisterPage() {
       if (signUpError) throw signUpError;
 
       if (data.session) {
+        clearPendingRegistration();
         window.location.assign('/onboarding');
         return;
       }
       if (!data.user) throw new Error('Utilisateur absent après inscription.');
+
+      const cooldownUntil = Date.now() + 60_000;
+      savePendingRegistration({
+        email: normalizedEmail,
+        displayName,
+        baseCurrency: baseCurrency || undefined,
+        resendCooldownUntil: cooldownUntil,
+        submittedAt: Date.now(),
+      });
       setSubmitted(true);
       setResendCooldown(60);
     } catch {
@@ -120,12 +153,14 @@ export default function RegisterPage() {
     setIsVerifying(true);
     try {
       const supabase = createClient();
+      const normalizedEmail = email.trim().toLowerCase();
       const { data, error: verificationError } = await supabase.auth.verifyOtp({
-        email: email.trim().toLowerCase(),
+        email: normalizedEmail,
         token: otpCode,
         type: 'email',
       });
       if (verificationError || !data.session) throw verificationError ?? new Error('Session absente.');
+      clearPendingRegistration();
       window.location.assign('/onboarding');
     } catch {
       setError(copy.otpVerificationError);
@@ -141,11 +176,20 @@ export default function RegisterPage() {
     setIsResending(true);
     try {
       const supabase = createClient();
+      const normalizedEmail = email.trim().toLowerCase();
       const { error: resendError } = await supabase.auth.resend({
         type: 'signup',
-        email: email.trim().toLowerCase(),
+        email: normalizedEmail,
       });
       if (resendError) throw resendError;
+      const cooldownUntil = Date.now() + 60_000;
+      savePendingRegistration({
+        email: normalizedEmail,
+        displayName,
+        baseCurrency: (baseCurrency as Currency) || undefined,
+        resendCooldownUntil: cooldownUntil,
+        submittedAt: Date.now(),
+      });
       setOtpCode('');
       setResendCooldown(60);
       setNotice(copy.resendSuccess);

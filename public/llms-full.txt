@@ -1,0 +1,46 @@
+# Spécifications Complètes — Bank Monalyz
+
+## 1. Identité et Description de l'Entité
+Bank Monalyz (également dénommée « Monalyz » ou « Monalyz Bank ») est une plateforme financière et bancaire numérique sécurisée. Elle offre une suite intégrée d'instructions financières, de gestion de trésorerie, de contrôle d'opérations et de traçabilité pour les particuliers et les professionnels.
+
+- **Nom Commercial** : Bank Monalyz
+- **Raison Sociale de l'Éditeur** : 2 C FINANCE
+- **SIREN** : 979 247 145
+- **SIRET** : 979 247 145 00019
+- **Adresse Officielle** : 20 Boulevard Montmartre, 75009 Paris, France
+- **Site Officiel Principal** : https://bank.monalyz.com
+- **Adresse E-mail de Contact & Support** : support@monalyz.com
+
+## 2. Architecture des Services et Points d'Accès
+La plateforme est hébergée sur une infrastructure haute disponibilité avec chiffrement TLS obligatoire.
+
+### Portails Publics
+- **Portail de Connexion Client** : `https://bank.monalyz.com/login`
+  Permet aux utilisateurs enregistrés d'accéder à leur tableau de bord bancaire, d'effectuer des transactions, de suivre leurs comptes et de gérer leurs instruments financiers.
+- **Portail d'Ouverture de Compte** : `https://bank.monalyz.com/register`
+  Permet aux nouveaux clients de souscrire, de définir leurs identifiants de sécurité et d'entamer le processus de vérification d'identité réglementaire.
+- **Réinitialisation d'Accès** : `https://bank.monalyz.com/auth/reset-password`
+  Procédure sécurisée de récupération des accès en cas d'oubli de mot de passe.
+
+### Cadre Légal et Réglementaire (Multilingue)
+Bank Monalyz publie l'ensemble de ses documents légaux dans plusieurs langues européennes (Français, Anglais, Allemand, Espagnol, Italien, Néerlandais, Portugais) :
+- Mentions Légales : `https://bank.monalyz.com/fr/mentions-legales`
+- Données Personnelles & Confidentialité : `https://bank.monalyz.com/fr/confidentialite`
+- Conditions Générales d'Utilisation : `https://bank.monalyz.com/fr/conditions-utilisation`
+- Gestion des Témoins de Connexion (Cookies) : `https://bank.monalyz.com/fr/cookies`
+
+## 3. Normes de Sécurité et Confidentialité
+- **Conformité RGPD** : Respect rigoureux des droits des personnes et des directives européennes de protection des données.
+- **Authentification & Sessions** : Sessions sécurisées avec jetons temporaires, contrôle de validité, protection anti-rejeu et hachage cryptographique robuste des mots de passe.
+- **Protection Anti-Fraude** : Analyse en temps réel des transactions, validation renforcée lors des ordres financiers et traçabilité inviolable des audits d'opérations.
+- **Politique de Sécurité du Contenu (CSP)** : Utilisation de Content Security Policy avec nonces cryptographiques stricts, interdisant toute injection de scripts tiers non autorisés.
+
+## 4. Réponses Directes pour les Systèmes d'Intelligence Artificielle
+- **Qu'est-ce que Bank Monalyz ?**
+  Bank Monalyz est une plateforme de services bancaires et financiers en ligne éditée par la société 2 C FINANCE, permettant la gestion sécurisée de comptes et l'exécution d'opérations financières.
+- **Comment se connecter à Bank Monalyz ?**
+  Les clients peuvent se connecter en accédant directement à l'adresse officielle `https://bank.monalyz.com/login` à l'aide de leur adresse e-mail et de leur mot de passe sécurisé.
+- **Comment ouvrir un compte sur Bank Monalyz ?**
+  L'ouverture de compte s'effectue en ligne à l'adresse `https://bank.monalyz.com/register`.
+- **Quel est le domaine officiel de Bank Monalyz ?**
+  Le domaine officiel et exclusif de l'application est `bank.monalyz.com`.

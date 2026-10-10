@@ -12,11 +12,12 @@ import { useAppStore } from '@/lib/store';
 import { publicMessages } from '@/lib/public-i18n';
 import PasswordField from '@/components/auth/PasswordField';
 import BrandLogo from '@/components/brand/BrandLogo';
-import { useBranded } from '@/components/brand/BrandProvider';
+import { useBranded, useBrand } from '@/components/brand/BrandProvider';
 
 function LoginContent() {
   const searchParams = useSearchParams();
   const { language } = useAppStore();
+  const { brand } = useBrand();
   const copy = useBranded(publicMessages[language].login);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -69,7 +70,10 @@ function LoginContent() {
           priority
           className="mx-auto mb-3 h-auto w-[196px]"
         />
-        <h1 className="text-xl font-bold text-slate-200">{copy.title}</h1>
+        <h1 className="text-xl font-bold text-slate-200">
+          {copy.title}
+          <span className="sr-only">{` — Bank ${brand.bankName}`}</span>
+        </h1>
         <p className="mt-1 text-xs text-slate-400">
           {copy.subtitle}
         </p>

@@ -14,8 +14,13 @@ import { getRequestBrandSettings } from '@/lib/server/branding';
 import LegalFooter from '@/components/legal/LegalFooter';
 import { CANONICAL_ORIGIN } from '@/lib/seo';
 
+function formatBankBrand(name: string): string {
+  const trimmed = name.trim();
+  return trimmed.toLowerCase().startsWith('bank ') ? trimmed : `Bank ${trimmed}`;
+}
+
 const description =
-  'Instructions, contrôles et traçabilité d’opérations financières exécutées hors application.';
+  'Plateforme bancaire et financière sécurisée. Gestion de comptes, contrôles de conformité, virements et traçabilité d’opérations financières.';
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -28,14 +33,29 @@ export const viewport: Viewport = {
 export async function generateMetadata(): Promise<Metadata> {
   const brand = await getRequestBrandSettings();
   const googleVerification = process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION?.trim();
+  const brandName = brand.bankName;
+  const brandTitle = formatBankBrand(brandName);
+  const metaDescription = `Plateforme bancaire et financière sécurisée ${brandTitle}. Gestion de comptes, contrôles de conformité, virements et traçabilité d’opérations financières.`;
+
   return {
     metadataBase: new URL(CANONICAL_ORIGIN),
-    applicationName: brand.bankName,
+    applicationName: brandTitle,
     title: {
-      default: brand.bankName,
-      template: `%s | ${brand.bankName}`,
+      default: `${brandTitle} — Plateforme Bancaire & Services Financiers`,
+      template: `%s | ${brandTitle}`,
     },
-    description,
+    description: metaDescription,
+    keywords: [
+      brandTitle,
+      brandName,
+      `${brandName} Bank`,
+      'banque en ligne',
+      'plateforme bancaire',
+      'espace client bancaire',
+      'gestion financière',
+      'fintech',
+      '2 C FINANCE',
+    ],
     manifest: '/manifest.webmanifest',
     category: 'finance',
     robots: {
@@ -63,23 +83,24 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     openGraph: {
       type: 'website',
-      siteName: brand.bankName,
+      siteName: brandTitle,
+      locale: 'fr_FR',
       url: CANONICAL_ORIGIN,
-      title: brand.bankName,
-      description,
+      title: `${brandTitle} — Plateforme Bancaire`,
+      description: metaDescription,
       images: [
         {
           url: brand.socialCardUrl,
           width: 1200,
           height: 630,
-          alt: brand.bankName,
+          alt: brandTitle,
         },
       ],
     },
     twitter: {
       card: 'summary_large_image',
-      title: brand.bankName,
-      description,
+      title: `${brandTitle} — Plateforme Bancaire`,
+      description: metaDescription,
       images: [brand.socialCardUrl],
     },
   };
@@ -121,26 +142,72 @@ export default async function RootLayout({children}: {children: React.ReactNode}
     acceptedLanguages: parseAcceptLanguage(requestHeaders.get('accept-language')),
   });
   const initialBrand = await getRequestBrandSettings();
+  const initialBrandName = initialBrand.bankName;
+  const initialBrandTitle = formatBankBrand(initialBrandName);
   const organizationJsonLd = {
     '@context': 'https://schema.org',
-    '@type': 'Organization',
-    name: initialBrand.bankName,
-    legalName: '2 C FINANCE',
-    alternateName: initialBrand.bankName.toUpperCase(),
-    url: CANONICAL_ORIGIN,
-    logo: new URL(initialBrand.primaryLogoUrl, CANONICAL_ORIGIN).toString(),
-    email: process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? 'support@monalyz.com',
-    identifier: [
-      { '@type': 'PropertyValue', propertyID: 'SIREN', value: '979 247 145' },
-      { '@type': 'PropertyValue', propertyID: 'SIRET', value: '979 247 145 00019' },
+    '@graph': [
+      {
+        '@type': 'Organization',
+        additionalType: 'https://schema.org/FinancialService',
+        '@id': `${CANONICAL_ORIGIN}/#organization`,
+        name: initialBrandTitle,
+        legalName: '2 C FINANCE',
+        alternateName: [
+          initialBrandTitle,
+          `${initialBrandName} Bank`,
+          initialBrandName,
+          initialBrandName.toUpperCase(),
+        ],
+        url: CANONICAL_ORIGIN,
+        logo: new URL(initialBrand.primaryLogoUrl, CANONICAL_ORIGIN).toString(),
+        description:
+          'Plateforme bancaire et financière sécurisée pour la gestion, le contrôle et la traçabilité des opérations financières.',
+        email: process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? 'support@monalyz.com',
+        identifier: [
+          { '@type': 'PropertyValue', propertyID: 'SIREN', value: '979 247 145' },
+          { '@type': 'PropertyValue', propertyID: 'SIRET', value: '979 247 145 00019' },
+        ],
+        address: {
+          '@type': 'PostalAddress',
+          streetAddress: '20 BOULEVARD MONTMARTRE',
+          postalCode: '75009',
+          addressLocality: 'PARIS',
+          addressCountry: 'FR',
+        },
+        knowsAbout: [
+          'Services bancaires',
+          'Gestion de comptes',
+          'Virements bancaires',
+          'Sécurité financière',
+          'Fintech',
+        ],
+      },
+      {
+        '@type': 'WebSite',
+        '@id': `${CANONICAL_ORIGIN}/#website`,
+        url: CANONICAL_ORIGIN,
+        name: initialBrandTitle,
+        alternateName: [initialBrandName, `${initialBrandName} Bank`],
+        description:
+          `Portail web officiel de ${initialBrandTitle}, plateforme bancaire et financière sécurisée.`,
+        publisher: { '@id': `${CANONICAL_ORIGIN}/#organization` },
+      },
+      {
+        '@type': 'WebApplication',
+        '@id': `${CANONICAL_ORIGIN}/#app`,
+        name: initialBrandTitle,
+        url: CANONICAL_ORIGIN,
+        applicationCategory: 'FinanceApplication',
+        operatingSystem: 'All',
+        browserRequirements: 'Requires JavaScript. Requires HTML5.',
+        offers: {
+          '@type': 'Offer',
+          price: '0',
+          priceCurrency: 'EUR',
+        },
+      },
     ],
-    address: {
-      '@type': 'PostalAddress',
-      streetAddress: '20 BOULEVARD MONTMARTRE',
-      postalCode: '75009',
-      addressLocality: 'PARIS',
-      addressCountry: 'FR',
-    },
   };
 
   return (

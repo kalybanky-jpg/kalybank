@@ -10,6 +10,10 @@
   BUN_FLAGS = "--frozen-lockfile"
   NODE_VERSION = "22"
   NEXT_TELEMETRY_DISABLED = "1"
+  NEXT_PUBLIC_CANONICAL_ORIGIN = "https://bank.monalyz.com"
+  NEXT_PUBLIC_APP_ORIGIN = "https://bank.monalyz.com"
+  APP_ORIGIN = "https://bank.monalyz.com"
+  NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION = "googlecdd3581b40b5ac13.html"
 
 [functions]
   directory = "netlify/functions"

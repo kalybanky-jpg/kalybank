@@ -61,3 +61,35 @@ test('Google Search Console verification file is published verbatim', async () =
     'google-site-verification: googlecdd3581b40b5ac13.html',
   );
 });
+
+test('GEO & AI search standards (llms.txt, robots AI agents, schema graph) are valid', async () => {
+  const [llmsTxt, llmsFullTxt, layout] = await Promise.all([
+    readFile(new URL('../public/llms.txt', import.meta.url), 'utf8'),
+    readFile(new URL('../public/llms-full.txt', import.meta.url), 'utf8'),
+    readFile(new URL('../app/layout.tsx', import.meta.url), 'utf8'),
+  ]);
+
+  // llms.txt and llms-full.txt verification
+  assert.match(llmsTxt, /# Bank Monalyz/);
+  assert.match(llmsTxt, /https:\/\/bank\.monalyz\.com\/login/);
+  assert.match(llmsTxt, /2 C FINANCE/);
+  assert.match(llmsFullTxt, /Bank Monalyz/);
+  assert.match(llmsFullTxt, /979 247 145/);
+
+  // Schema graph and dynamic brand title verification in layout
+  assert.match(layout, /formatBankBrand/);
+  assert.match(layout, /FinancialService/);
+  assert.match(layout, /WebApplication/);
+
+  // Robots verification for AI crawlers
+  const robotConfig = robots();
+  const rules = Array.isArray(robotConfig.rules) ? robotConfig.rules : [robotConfig.rules];
+  const aiRule = rules.find((rule) =>
+    Array.isArray(rule.userAgent) && rule.userAgent.includes('GPTBot'),
+  );
+  assert.ok(aiRule, 'GPTBot should be explicitly declared in robots.ts rules');
+  const allowed = Array.isArray(aiRule.allow) ? aiRule.allow : [aiRule.allow];
+  assert.ok(allowed.includes('/llms.txt'));
+  assert.ok(allowed.includes('/login'));
+});
+

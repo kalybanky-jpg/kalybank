@@ -1,0 +1,29 @@
+# Bank Monalyz
+
+> Bank Monalyz est une plateforme bancaire et financière numérique sécurisée conçue pour la gestion des comptes, les contrôles de conformité, les virements et la traçabilité des opérations financières.
+
+## Informations Générales
+- **Nom officiel** : Bank Monalyz
+- **Variantes de marque** : Monalyz, Monalyz Bank
+- **Catégorie** : Banque en ligne, FinTech, Application Financière
+- **URL officielle** : https://bank.monalyz.com
+- **Société éditrice** : 2 C FINANCE (SIREN : 979 247 145 | SIRET : 979 247 145 00019)
+- **Siège social** : 20 Boulevard Montmartre, 75009 Paris, France
+- **Contact Support** : support@monalyz.com
+
+## Points d'Entrée Principaux
+- [Espace Client & Connexion](https://bank.monalyz.com/login) : Portail sécurisé de connexion pour les titulaires de compte Bank Monalyz.
+- [Ouverture de Compte](https://bank.monalyz.com/register) : Création et inscription d'un compte client sécurisé.
+- [Mentions Légales](https://bank.monalyz.com/fr/mentions-legales) : Informations juridiques, éditeur et hébergement.
+- [Politique de Confidentialité](https://bank.monalyz.com/fr/confidentialite) : Traitement et protection des données personnelles (RGPD).
+- [Conditions Générales d'Utilisation](https://bank.monalyz.com/fr/conditions-utilisation) : Modalités d'accès et d'utilisation du service.
+- [Politique des Cookies](https://bank.monalyz.com/fr/cookies) : Gestion des témoins de connexion et traçabilité technique.
+
+## Fonctionnalités & Services
+- **Gestion de comptes bancaires** : Consultation des soldes, relevés et historique des transactions en temps réel.
+- **Opérations financières & Virements** : Exécution, validation et suivi de virements multi-devises (EUR, USD, GBP, etc.).
+- **Vérification d'identité (KYC)** : Parcours de conformité réglementaire pour l'activation des services financiers.
+- **Sécurité et protection des données** : Authentification forte, chiffrement de bout en bout, contrôles stricts anti-fraude.
+
+## Référence Étendue pour Modèles de Langage
+- Pour une documentation exhaustive structurée pour l'ingestion par les IA : [Documentation Complète](https://bank.monalyz.com/llms-full.txt)

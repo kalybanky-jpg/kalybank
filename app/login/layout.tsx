@@ -15,12 +15,12 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: `Connexion Espace Client | ${brandTitle}`,
     description,
-    alternates: { canonical: absoluteUrl('/login') },
+    alternates: { canonical: absoluteUrl('/') },
     robots: { index: true, follow: true },
     openGraph: {
       title: `Connexion Espace Client | ${brandTitle}`,
       description,
-      url: absoluteUrl('/login'),
+      url: absoluteUrl('/'),
     },
   };
 }

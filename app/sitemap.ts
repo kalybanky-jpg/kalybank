@@ -8,15 +8,21 @@ import {
 } from '@/lib/seo';
 import type { LegalPageKey } from '@/lib/legal-i18n';
 
-const LAST_PUBLIC_UPDATE = new Date('2026-08-20T00:00:00.000Z');
+const LAST_PUBLIC_UPDATE = new Date('2026-10-10T00:00:00.000Z');
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const publicEntryPoints: MetadataRoute.Sitemap = [
     {
+      url: absoluteUrl('/'),
+      lastModified: LAST_PUBLIC_UPDATE,
+      changeFrequency: 'weekly',
+      priority: 1,
+    },
+    {
       url: absoluteUrl('/login'),
       lastModified: LAST_PUBLIC_UPDATE,
-      changeFrequency: 'monthly',
-      priority: 1,
+      changeFrequency: 'weekly',
+      priority: 0.9,
     },
     {
       url: absoluteUrl('/register'),

@@ -17,8 +17,9 @@ test('robots advertises the sitemap and excludes private application surfaces', 
 
 test('sitemap exposes public entry points and all 24 localized legal URLs', () => {
   const entries = sitemap();
-  assert.equal(entries.length, 26);
+  assert.equal(entries.length, 27);
   const pathnames = entries.map((entry) => new URL(entry.url).pathname);
+  assert.ok(pathnames.includes('/'));
   assert.ok(pathnames.includes('/login'));
   assert.ok(pathnames.includes('/register'));
   assert.ok(!pathnames.some((pathname) => pathname.startsWith('/admin')));
@@ -47,7 +48,7 @@ test('canonical metadata, organization data and private noindex headers are vers
   assert.match(layout, /'@type': 'Organization'/);
   assert.match(layout, /legalName: '2 C FINANCE'/);
   assert.match(proxy, /X-Robots-Tag', 'noindex, nofollow, noarchive'/);
-  assert.match(login, /canonical: absoluteUrl\('\/login'\)/);
+  assert.match(login, /canonical: absoluteUrl\('\/'\)/);
   assert.match(register, /canonical: absoluteUrl\('\/register'\)/);
 });
 

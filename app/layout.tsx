@@ -81,6 +81,9 @@ export async function generateMetadata(): Promise<Metadata> {
         { url: brand.appleTouchIconUrl, type: 'image/png', sizes: '180x180' },
       ],
     },
+    alternates: {
+      canonical: CANONICAL_ORIGIN,
+    },
     openGraph: {
       type: 'website',
       siteName: brandTitle,

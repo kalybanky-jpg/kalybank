@@ -65,11 +65,17 @@ function LoginContent() {
       />
 
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center z-10">
-        <BrandLogo
-          tone="reversed-white"
-          priority
-          className="mx-auto mb-3 h-auto w-[196px]"
-        />
+        <Link
+          href="https://www.monalyz.com/"
+          className="inline-block transition-opacity hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded-xl"
+          aria-label={brand.bankName}
+        >
+          <BrandLogo
+            tone="reversed-white"
+            priority
+            className="mx-auto mb-3 h-auto w-[196px]"
+          />
+        </Link>
         <h1 className="text-xl font-bold text-slate-200">
           {copy.title}
           <span className="sr-only">{` — Bank ${brand.bankName}`}</span>
@@ -155,6 +161,16 @@ function LoginContent() {
             {copy.register}
           </Link>
         </p>
+
+        <div className="text-center mt-6 pt-4 border-t border-slate-800">
+          <a
+            href="https://www.monalyz.com/"
+            className="text-xs text-slate-400 hover:text-slate-200 transition-colors inline-flex items-center gap-1.5"
+            title={`Site officiel & Présentation ${brand.bankName}`}
+          >
+            <span>← Revenir au site officiel</span>
+          </a>
+        </div>
       </motion.div>
     </div>
   );

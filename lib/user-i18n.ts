@@ -92,7 +92,7 @@ const fr = {
     kycCorrectFile: 'Corriger mon dossier d’identité',
   },
   transferModal: {
-    subtitle: 'Instruction préparée dans {bankName} — exécution hors application',
+    subtitle: 'Effectuez vos virements en toute sécurité avec {bankName}',
     stepRecipient: 'Bénéficiaire', stepDetails: 'Coordonnées externes', stepAmount: 'Montant',
     errorIntro: 'Veuillez vérifier les informations signalées :', required: '{field} est obligatoire.',
     invalidEmail: 'Saisissez une adresse e-mail valide.',
@@ -291,7 +291,7 @@ const en: ExtraMessages = {
     kycCorrectFile: 'Correct my identity file',
   },
   transferModal: {
-    subtitle: 'Instruction prepared in {bankName} — execution outside the application', stepRecipient: 'Recipient', stepDetails: 'External details', stepAmount: 'Amount',
+    subtitle: 'Execute your transfers securely with {bankName}', stepRecipient: 'Recipient', stepDetails: 'External details', stepAmount: 'Amount',
     errorIntro: 'Please review the highlighted information:', required: '{field} is required.', invalidEmail: 'Enter a valid email address.',
     canadaSelection: 'Enter either the Interac email address or the direct-deposit details (transit, institution and account).',
     positiveAmount: 'The amount must be greater than zero.', recipientPlaceholder: 'E.g. Claire Dupont',
@@ -414,7 +414,7 @@ const de: ExtraMessages = {
     kycCorrectFile: 'Unterlagen korrigieren',
   },
   transferModal: {
-    subtitle: 'In {bankName} vorbereiteter Auftrag — Ausführung außerhalb der Anwendung', stepRecipient: 'Empfänger', stepDetails: 'Externe Bankdaten', stepAmount: 'Betrag',
+    subtitle: 'Führen Sie Ihre Überweisungen sicher mit {bankName} durch', stepRecipient: 'Empfänger', stepDetails: 'Externe Bankdaten', stepAmount: 'Betrag',
     errorIntro: 'Bitte prüfen Sie die markierten Angaben:', required: '{field} ist erforderlich.', invalidEmail: 'Geben Sie eine gültige E-Mail-Adresse ein.',
     canadaSelection: 'Geben Sie entweder die Interac-E-Mail-Adresse oder die Daten für die Direktgutschrift (Transit, Institut und Konto) ein.',
     positiveAmount: 'Der Betrag muss größer als null sein.', recipientPlaceholder: 'Z. B. Claire Dupont',
@@ -537,7 +537,7 @@ const es: ExtraMessages = {
     kycCorrectFile: 'Corregir mi expediente',
   },
   transferModal: {
-    subtitle: 'Orden preparada en {bankName} — ejecución fuera de la aplicación', stepRecipient: 'Beneficiario', stepDetails: 'Datos bancarios externos', stepAmount: 'Importe',
+    subtitle: 'Realice sus transferencias de forma segura con {bankName}', stepRecipient: 'Beneficiario', stepDetails: 'Datos bancarios externos', stepAmount: 'Importe',
     errorIntro: 'Revise los datos señalados:', required: '{field} es obligatorio.', invalidEmail: 'Introduzca una dirección de correo válida.',
     canadaSelection: 'Indique el correo de Interac o los datos de depósito directo (tránsito, institución y cuenta).',
     positiveAmount: 'El importe debe ser superior a cero.', recipientPlaceholder: 'Ej.: Claire Dupont',
@@ -660,7 +660,7 @@ const it: ExtraMessages = {
     kycCorrectFile: 'Correggi la mia pratica',
   },
   transferModal: {
-    subtitle: 'Istruzione preparata in {bankName} — esecuzione fuori dall’applicazione', stepRecipient: 'Beneficiario', stepDetails: 'Coordinate esterne', stepAmount: 'Importo',
+    subtitle: 'Effettui i suoi bonifici in tutta sicurezza con {bankName}', stepRecipient: 'Beneficiario', stepDetails: 'Coordinate esterne', stepAmount: 'Importo',
     errorIntro: 'Verifichi le informazioni evidenziate:', required: '{field} è obbligatorio.', invalidEmail: 'Inserisca un indirizzo e-mail valido.',
     canadaSelection: 'Inserisca l’indirizzo e-mail Interac oppure le coordinate per l’accredito diretto (transit, istituto e conto).',
     positiveAmount: 'L’importo deve essere superiore a zero.', recipientPlaceholder: 'Es. Claire Dupont',
@@ -783,7 +783,7 @@ const nl: ExtraMessages = {
     kycCorrectFile: 'Mijn dossier aanpassen',
   },
   transferModal: {
-    subtitle: 'Opdracht voorbereid in {bankName} — uitvoering buiten de toepassing', stepRecipient: 'Begunstigde', stepDetails: 'Externe bankgegevens', stepAmount: 'Bedrag',
+    subtitle: 'Voer uw overboekingen veilig uit met {bankName}', stepRecipient: 'Begunstigde', stepDetails: 'Externe bankgegevens', stepAmount: 'Bedrag',
     errorIntro: 'Controleer de gemarkeerde gegevens:', required: '{field} is verplicht.', invalidEmail: 'Vul een geldig e-mailadres in.',
     canadaSelection: 'Vul het Interac-e-mailadres of de gegevens voor directe storting in (transit, instelling en rekening).',
     positiveAmount: 'Het bedrag moet groter zijn dan nul.', recipientPlaceholder: 'Bijv. Claire Dupont',

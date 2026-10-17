@@ -1,11 +1,11 @@
 # Bank Monalyz
 
-> Bank Monalyz est une plateforme bancaire et financière numérique sécurisée conçue pour la gestion des comptes, les contrôles de conformité, les virements et la traçabilité des opérations financières.
+> Bank Monalyz est une banque en ligne et une plateforme financière sécurisée proposant des services de prêts, de financement, d’investissement, de gestion de comptes et de services financiers.
 
 ## Informations Générales
 - **Nom officiel** : Bank Monalyz
 - **Variantes de marque** : Monalyz, Monalyz Bank
-- **Catégorie** : Banque en ligne, FinTech, Application Financière
+- **Catégorie** : Banque en ligne, FinTech, Prêts et Financements, Investissements
 - **URL officielle** : https://bank.monalyz.com
 - **Société éditrice** : 2 C FINANCE (SIREN : 979 247 145 | SIRET : 979 247 145 00019)
 - **Siège social** : 20 Boulevard Montmartre, 75009 Paris, France
@@ -20,7 +20,9 @@
 - [Politique des Cookies](https://bank.monalyz.com/fr/cookies) : Gestion des témoins de connexion et traçabilité technique.
 
 ## Fonctionnalités & Services
-- **Gestion de comptes bancaires** : Consultation des soldes, relevés et historique des transactions en temps réel.
+- **Services bancaires en ligne** : Gestion complète des comptes courants, consultation des soldes et relevés en temps réel.
+- **Prêts et Financements** : Solutions de crédit et de financement adaptées aux besoins des particuliers et professionnels.
+- **Investissements & Placements** : Solutions d'investissement financier pour valoriser le patrimoine et la trésorerie.
 - **Opérations financières & Virements** : Exécution, validation et suivi de virements multi-devises (EUR, USD, GBP, etc.).
 - **Vérification d'identité (KYC)** : Parcours de conformité réglementaire pour l'activation des services financiers.
 - **Sécurité et protection des données** : Authentification forte, chiffrement de bout en bout, contrôles stricts anti-fraude.

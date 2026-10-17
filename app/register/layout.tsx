@@ -10,7 +10,7 @@ function formatBankBrand(name: string): string {
 export async function generateMetadata(): Promise<Metadata> {
   const { bankName } = await getRequestBrandSettings();
   const brandTitle = formatBankBrand(bankName);
-  const description = `Créez votre accès personnel sécurisé sur ${brandTitle} : ouverture de compte bancaire en ligne et gestion financière.`;
+  const description = `Créez votre accès sécurisé sur ${brandTitle} : ouverture de compte bancaire en ligne, accès aux services de prêts, financement et investissement.`;
 
   return {
     title: `Ouvrir un compte | ${brandTitle}`,

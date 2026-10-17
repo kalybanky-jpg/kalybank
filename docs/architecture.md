@@ -1,8 +1,6 @@
 # Architecture
 
-> Monalyz est le registre numérique des comptes, IBAN, soldes, opérations et
-> documents officiels déclarés par l’établissement. Il ne se connecte à aucune
-> banque et n’exécute aucun mouvement automatiquement.
+> Monalyz est la plateforme de banque en ligne des comptes, IBAN, soldes, opérations, prêts, investissements et documents officiels de l’établissement.
 
 ## Vue d’ensemble
 

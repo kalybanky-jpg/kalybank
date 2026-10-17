@@ -10,7 +10,7 @@ function formatBankBrand(name: string): string {
 export async function generateMetadata(): Promise<Metadata> {
   const { bankName } = await getRequestBrandSettings();
   const brandTitle = formatBankBrand(bankName);
-  const description = `Accédez à votre espace bancaire sécurisé ${brandTitle} : consultation des comptes, virements et opérations financières en ligne.`;
+  const description = `Accédez à votre espace bancaire en ligne ${brandTitle} : gestion des comptes, virements, services de prêts, financement et investissement en toute sécurité.`;
 
   return {
     title: `Connexion Espace Client | ${brandTitle}`,

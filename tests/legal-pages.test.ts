@@ -49,7 +49,7 @@ test('legal copy describes the operational and data-processing boundaries', asyn
     readFile(new URL('../components/legal/LegalLanguageSelector.tsx', import.meta.url), 'utf8'),
   ]);
 
-  assert.match(translations, /ne déclenche aucun mouvement financier automatique/);
+  assert.match(translations, /banque en ligne qui propose des services de prêts/);
   assert.match(translations, /2 C FINANCE/);
   assert.match(translations, /\{tradeName\}/);
   assert.match(translations, /979 247 145 00019/);
@@ -60,7 +60,7 @@ test('legal copy describes the operational and data-processing boundaries', asyn
   assert.match(translations, /Supabase/);
   assert.match(translations, /Netlify/);
   assert.match(translations, /Tawk\.to/);
-  assert.match(translations, /ne se connecte pas à une infrastructure bancaire tierce/);
+  assert.match(translations, /banque en ligne proposant des services bancaires et financiers/);
   assert.match(translations, /Stockages strictement nécessaires/);
   assert.match(selector, /LANGUAGE_OPTIONS/);
   assert.match(selector, /router\.push/);

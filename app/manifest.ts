@@ -9,7 +9,7 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     name: brand.bankName,
     short_name: brand.bankName.slice(0, 30),
     description:
-      'Instructions, contrôles et traçabilité d’opérations financières exécutées hors application.',
+      'Banque en ligne : services de prêts, financement, investissement et gestion de comptes sécurisée.',
     start_url: '/',
     display: 'standalone',
     background_color: '#FBFAF7',

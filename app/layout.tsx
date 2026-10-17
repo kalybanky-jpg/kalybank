@@ -20,7 +20,7 @@ function formatBankBrand(name: string): string {
 }
 
 const description =
-  'Plateforme bancaire et financière sécurisée. Gestion de comptes, contrôles de conformité, virements et traçabilité d’opérations financières.';
+  'Banque en ligne et services financiers sécurisés. Solutions de prêts, financement, investissement, gestion de comptes et virements.';
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -35,13 +35,13 @@ export async function generateMetadata(): Promise<Metadata> {
   const googleVerification = process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION?.trim();
   const brandName = brand.bankName;
   const brandTitle = formatBankBrand(brandName);
-  const metaDescription = `Plateforme bancaire et financière sécurisée ${brandTitle}. Gestion de comptes, contrôles de conformité, virements et traçabilité d’opérations financières.`;
+  const metaDescription = `Banque en ligne et services financiers sécurisés ${brandTitle}. Solutions de prêts, financement, investissement, gestion de comptes et virements.`;
 
   return {
     metadataBase: new URL(CANONICAL_ORIGIN),
     applicationName: brandTitle,
     title: {
-      default: `${brandTitle} — Plateforme Bancaire & Services Financiers`,
+      default: `${brandTitle} — Banque en Ligne & Services Financiers`,
       template: `%s | ${brandTitle}`,
     },
     description: metaDescription,
@@ -50,6 +50,10 @@ export async function generateMetadata(): Promise<Metadata> {
       brandName,
       `${brandName} Bank`,
       'banque en ligne',
+      'services financiers',
+      'prêts en ligne',
+      'financement',
+      'investissement',
       'plateforme bancaire',
       'espace client bancaire',
       'gestion financière',
@@ -165,7 +169,7 @@ export default async function RootLayout({children}: {children: React.ReactNode}
         url: CANONICAL_ORIGIN,
         logo: new URL(initialBrand.primaryLogoUrl, CANONICAL_ORIGIN).toString(),
         description:
-          'Plateforme bancaire et financière sécurisée pour la gestion, le contrôle et la traçabilité des opérations financières.',
+          'Banque en ligne et plateforme financière sécurisée proposant des services de prêts, de financement, d’investissement et de gestion bancaire.',
         email: process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? 'support@monalyz.com',
         identifier: [
           { '@type': 'PropertyValue', propertyID: 'SIREN', value: '979 247 145' },
@@ -179,7 +183,10 @@ export default async function RootLayout({children}: {children: React.ReactNode}
           addressCountry: 'FR',
         },
         knowsAbout: [
-          'Services bancaires',
+          'Banque en ligne',
+          'Services financiers',
+          'Prêts et financements',
+          'Investissement financier',
           'Gestion de comptes',
           'Virements bancaires',
           'Sécurité financière',
@@ -193,7 +200,7 @@ export default async function RootLayout({children}: {children: React.ReactNode}
         name: initialBrandTitle,
         alternateName: [initialBrandName, `${initialBrandName} Bank`],
         description:
-          `Portail web officiel de ${initialBrandTitle}, plateforme bancaire et financière sécurisée.`,
+          `Portail web officiel de ${initialBrandTitle}, banque en ligne et services financiers sécurisés.`,
         publisher: { '@id': `${CANONICAL_ORIGIN}/#organization` },
       },
       {

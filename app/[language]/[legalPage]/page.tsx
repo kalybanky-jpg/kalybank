@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import LegalDocument from '@/components/legal/LegalDocument';
-import { getLegalPage } from '@/lib/legal-i18n';
+import { getLegalPage, interpolateLegalText } from '@/lib/legal-i18n';
 import { isSupportedLanguage, SUPPORTED_LANGUAGES } from '@/lib/language';
 import { getRequestBrandSettings } from '@/lib/server/branding';
 import {
@@ -16,6 +16,11 @@ import type { Language } from '@/lib/types';
 
 interface LocalizedLegalPageProps {
   params: Promise<{ language: string; legalPage: string }>;
+}
+
+function formatBankBrand(name: string): string {
+  const trimmed = name.trim();
+  return trimmed.toLowerCase().startsWith('bank ') ? trimmed : `Bank ${trimmed}`;
 }
 
 function resolveParams(language: string, legalPage: string): {
@@ -37,14 +42,33 @@ export async function generateMetadata({ params }: LocalizedLegalPageProps): Pro
   const requested = await params;
   const { language, page } = resolveParams(requested.language, requested.legalPage);
   const copy = getLegalPage(language, page);
+  const { bankName } = await getRequestBrandSettings();
+  const brandTitle = formatBankBrand(bankName);
+  const supportEmail = process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? 'support@monalyz.com';
+  const description = interpolateLegalText(copy.description, brandTitle, supportEmail);
+  const canonicalUrl = absoluteUrl(localizedLegalPath(language, page));
+  const pageTitle = `${copy.title} | ${brandTitle}`;
+
   return {
     title: copy.title,
-    description: copy.description,
+    description,
     alternates: {
-      canonical: absoluteUrl(localizedLegalPath(language, page)),
+      canonical: canonicalUrl,
       languages: localizedLegalAlternates(page),
     },
     robots: { index: true, follow: true },
+    openGraph: {
+      title: pageTitle,
+      description,
+      url: canonicalUrl,
+      type: 'website',
+      siteName: brandTitle,
+    },
+    twitter: {
+      card: 'summary',
+      title: pageTitle,
+      description,
+    },
   };
 }
 

@@ -21,6 +21,13 @@ export async function generateMetadata(): Promise<Metadata> {
       title: `Ouvrir un compte | ${brandTitle}`,
       description,
       url: absoluteUrl('/register'),
+      siteName: brandTitle,
+      type: 'website',
+    },
+    twitter: {
+      card: 'summary',
+      title: `Ouvrir un compte | ${brandTitle}`,
+      description,
     },
   };
 }

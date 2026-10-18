@@ -21,6 +21,13 @@ export async function generateMetadata(): Promise<Metadata> {
       title: `Connexion Espace Client | ${brandTitle}`,
       description,
       url: absoluteUrl('/'),
+      siteName: brandTitle,
+      type: 'website',
+    },
+    twitter: {
+      card: 'summary',
+      title: `Connexion Espace Client | ${brandTitle}`,
+      description,
     },
   };
 }

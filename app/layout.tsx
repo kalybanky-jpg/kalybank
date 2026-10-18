@@ -93,7 +93,7 @@ export async function generateMetadata(): Promise<Metadata> {
       siteName: brandTitle,
       locale: 'fr_FR',
       url: CANONICAL_ORIGIN,
-      title: `${brandTitle} — Plateforme Bancaire`,
+      title: `${brandTitle} — Banque en Ligne & Services Financiers`,
       description: metaDescription,
       images: [
         {
@@ -106,7 +106,7 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     twitter: {
       card: 'summary_large_image',
-      title: `${brandTitle} — Plateforme Bancaire`,
+      title: `${brandTitle} — Banque en Ligne & Services Financiers`,
       description: metaDescription,
       images: [brand.socialCardUrl],
     },
@@ -156,7 +156,10 @@ export default async function RootLayout({children}: {children: React.ReactNode}
     '@graph': [
       {
         '@type': 'Organization',
-        additionalType: 'https://schema.org/FinancialService',
+        additionalType: [
+          'https://schema.org/FinancialService',
+          'https://schema.org/BankOrCreditUnion',
+        ],
         '@id': `${CANONICAL_ORIGIN}/#organization`,
         name: initialBrandTitle,
         legalName: '2 C FINANCE',
